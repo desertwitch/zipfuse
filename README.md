@@ -92,5 +92,4 @@ Stability and long-term, hands-off operation are however paramount to it, due to
 its very multi-layered nature. Feel free to fork this project as needed, or open
 pull requests if you notice any glaring issues - but please do approach any such
 with the perspective of it being just one tool for a tailored, specific purpose.
-
 All code is licensed under the MIT license.
