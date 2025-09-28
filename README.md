@@ -23,7 +23,7 @@ for basic filesystem metrics and controlling operations and behavior at runtime.
 
 The filesystem is realized in Go and kept as simple and stateless as possible,
 while also fully leveraging kernel caching with deterministic design choices.
-Contrary to other ZIP filesystems, it does not mount single `.zip` files, but
+In contrast to similar filesystems, it does not mount single `.zip` files, but
 instead gracefully handles any `.zip` archives contained in another filesystem.
 
 Paths within the `.zip` archives are converted into flat structures for
