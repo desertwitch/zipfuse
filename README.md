@@ -84,7 +84,7 @@ sudo systemctl enable --now zipgallery.target
 
 In the example above the target is started immediately and at system boot.
 
-#### Security, Contributions and Considerations
+#### Security, Contributions, and License
 
 As mentioned above, security is not a priority for the project. It is running in
 self-hosted, appropriately secured environments so that it does not have to be.
