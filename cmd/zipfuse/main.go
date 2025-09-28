@@ -77,7 +77,7 @@ func main() {
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		for range sig {
-			logPrintln("Signal received, unmounting...")
+			logPrintln("Signal received, unmounting the filesystem...")
 
 			if err := fuse.Unmount(mount); err != nil {
 				logPrintf("Unmount error: %v (try again later)\n", err)
@@ -93,12 +93,10 @@ func main() {
 	signal.Notify(sig2, syscall.SIGUSR1)
 	go func() {
 		for range sig2 {
-			logPrintln("Signal received, printing stacktrace...")
-
+			logPrintln("Signal received, printing stacktrace to standard error (stderr)...")
 			buf := make([]byte, stackTraceBuffer)
 			stacklen := runtime.Stack(buf, true)
-
-			logPrintf("==== BEGIN STACKTRACE ====\n%s\n==== END STACKTRACE ====", buf[:stacklen])
+			os.Stderr.Write(buf[:stacklen])
 		}
 	}()
 
