@@ -30,7 +30,7 @@ Paths within the `.zip` archives are converted into flat structures for
 convenience and reducing complexity for the processing consumer software, with
 collisions avoided by appending 8-digit `SHA-1` hash portions to all filenames.
 
-A static binary, it can experimentally run on most Linux distributions without
+As static binary, it can experimentally run on most Linux distributions without
 any major dependencies, however it is only meant to be used in environments that
 are sufficiently secured (itself being not security-centric but purpose-built).
 
@@ -57,7 +57,7 @@ The metrics dashboard is exposed on `:8000` with the following routes:
 
 ## ZipGallery Project
 
-ZipGallery is a personal effort to realize a data storage setup where any
+`zipgallery` is a `systemd` stack to realize a data storage setup where any
 self-hosted gallery software may be used in combination with a photo collection
 where every individual album is contained within `.zip` archives. The gallery
 software itself should not need to be able to handle archives, so that this is
@@ -90,10 +90,10 @@ In the example above the target is started immediately and at system boot.
 
 ## Security, Contributions, and License
 
-As mentioned above, security is not a priority for the project. It is running in
-self-hosted, appropriately secured environments so that it does not have to be.
-Stability and long-term, hands-off operation are however paramount to it, due to
-its very multi-layered nature. Feel free to fork this project as needed, or open
-pull requests if you notice any glaring issues - but please do approach any such
-with the perspective of it being just one tool for a tailored, specific purpose.
-All code is licensed under the MIT license.
+Security is not a priority for this personal purpose-driven project. It is
+running in self-hosted, appropriately secured environments so that it does not
+have to be. Stability and long-term, hands-off operation are however paramount
+to it, due to its very multi-layered nature. Feel free to fork this project as
+needed, or open issues and pull requests if you notice any glaring issues - but
+please do approach any such with the perspective of it being just a tool for a
+tailored, specific purpose. All code is licensed under the MIT license.
