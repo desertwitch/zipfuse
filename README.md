@@ -1,16 +1,6 @@
 <div align="left">
     <img alt="Logo" src="assets/zipfuse.png" width="150">
     <br>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml">
-        <img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg">
-    </a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml">
-        <img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg">
-    </a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build-debug.yml">
-        <img alt="Build Debug" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build-debug.yml/badge.svg">
-    </a>
-    <br>
     <a href="https://github.com/desertwitch/zipfuse/tags">
         <img alt="Release" src="https://img.shields.io/github/tag/desertwitch/zipfuse.svg">
     </a>
@@ -22,6 +12,16 @@
     </a>
     <a href="./LICENSE">
         <img alt="License" src="https://img.shields.io/github/license/desertwitch/zipfuse">
+    </a>
+    <br>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml">
+        <img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg">
+    </a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml">
+        <img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg">
+    </a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build-debug.yml">
+        <img alt="Build Debug" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build-debug.yml/badge.svg">
     </a>
 </div><br>
 
