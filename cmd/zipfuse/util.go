@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"strings"
