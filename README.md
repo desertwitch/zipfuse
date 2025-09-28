@@ -45,14 +45,15 @@ target mount is at `/mnt/zipfuse`. `200M` describes the streaming threshold, at
 which individual `.zip`-contained files are no longer entirely loaded in memory
 but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 
-The dashboard is exposed on `:8000` with the following routes:
+The following signals are observed and handled by the filesystem:
+- `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem.
+- `SIGUSR1` dumps a stacktrace to `stderr` and dashboard-served ring-buffer.
+
+The metrics dashboard is exposed on `:8000` with the following routes:
 - `/` for filesystem metrics and event ring-buffer
 - `/gc` for forcing of a garbage collection (within Go)
 - `/debug/pprof/` for a full-fledged Go profiling endpoint
 - `/threshold/500MB` for runtime adapting the streaming threshold
-
-`SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem.  
-`SIGUSR1` dumps a stacktrace to `stderr` and dashboard-served ring-buffer.
 
 ## ZipGallery Project
 
