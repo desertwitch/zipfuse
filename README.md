@@ -51,7 +51,7 @@ The dashboard is exposed on `:8000` with the following routes:
 `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem.  
 `SIGUSR1` dumps a stacktrace to `stderr` and dashboard-served ring-buffer.
 
-#### The ZipGallery Project
+## The ZipGallery Project
 
 ZipGallery is a personal effort to realize a data storage setup where any
 self-hosted gallery software may be used in combination with a photo collection
@@ -84,7 +84,7 @@ sudo systemctl enable --now zipgallery.target
 
 In the example above the target is started immediately and at system boot.
 
-#### Security, Contributions, and License
+## Security, Contributions, and License
 
 As mentioned above, security is not a priority for the project. It is running in
 self-hosted, appropriately secured environments so that it does not have to be.
