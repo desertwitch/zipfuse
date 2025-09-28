@@ -1,73 +1,62 @@
+version: "2"
 linters:
-    enable-all: true
-    disable:
-            - depguard
-            - exhaustruct
-            - gochecknoglobals
-            - gosec
-            - ireturn
-            - tenv
-            - varnamelen
-            - wsl
-
-linters-settings:
+  default: all
+  disable:
+    - depguard
+    - exhaustruct
+    - gochecknoglobals
+    - gosec
+    - ireturn
+    - noinlineerr
+    - varnamelen
+    - wsl
+    - wsl_v5
+  settings:
     cyclop:
-        # The maximal code complexity to report.
-        # Default: 10
-        max-complexity: 20
-        # The maximal average package complexity.
-        # If it's higher than 0.0 (float) the check is enabled
-        # Default: 0.0
-        package-average: 20.0
-
-    gocognit:
-        # Minimal code complexity to report.
-        # Default: 30
-        min-complexity: 40
-
+      max-complexity: 20
+      package-average: 20
     funlen:
-        # Checks the number of lines in a function.
-        # If lower than 0, disable the check.
-        # Default: 60
-        lines: 80
-        # Checks the number of statements in a function.
-        # If lower than 0, disable the check.
-        # Default: 40
-        statements: 50
-        # Ignore comments when counting lines.
-        # Default false
-        ignore-comments: true
-
+      lines: 80
+      statements: 50
+      ignore-comments: true
+    gocognit:
+      min-complexity: 40
     lll:
-        line-length: 180
-
-    gosimple:
-        checks: ["all", "-S1008"]
-
+      line-length: 180
     nestif:
-        # Minimal complexity of if statements to report.
-        # Default: 5
-        min-complexity: 6
-
+      min-complexity: 6
     paralleltest:
-        ignore-missing-subtests: true
-
-issues:
-    include:
-        - EXC0002
-        - EXC0005
-        - EXC0011
-        - EXC0012
-        - EXC0013
-        - EXC0014
-        - EXC0015
-
-    exclude-rules:
-        # Exclude some linters from running on tests files.
-        - path: _test\.go
-          linters:
-            - err113
-            - funlen
-            - ireturn
-            - revive
-            - tparallel
+      ignore-missing-subtests: true
+    staticcheck:
+      checks:
+        - all
+        - -S1008
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+      - std-error-handling
+    rules:
+      - linters:
+          - err113
+          - funlen
+          - ireturn
+          - revive
+          - tparallel
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

@@ -17,12 +17,6 @@ jobs:
           go-version: 1.25.1
           cache: false
       - uses: actions/checkout@v4
-      - name: golangci-lint migrate
-        uses: golangci/golangci-lint-action@v8
-        with:
-          skip-cache: true
-          version: latest
-          args: migrate --timeout=5m
       - name: golangci-lint run
         uses: golangci/golangci-lint-action@v8
         with:
