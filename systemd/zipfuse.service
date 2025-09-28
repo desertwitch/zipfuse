@@ -1,0 +1,20 @@
+[Unit]
+Description=ZipGallery FUSE
+Requires=mnt-media\x2dadx2.mount
+After=mnt-media\x2dadx2.mount
+BindsTo=mnt-media\x2dadx2.mount
+PartOf=zipgallery.target
+Before=shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/zipfuse /mnt/media-adx2 /mnt/zipgallery 200MB
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=zipgallery.target

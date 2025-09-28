@@ -1,0 +1,17 @@
+[Unit]
+Description=ZipGallery Remote
+After=network-online.target
+Requires=network-online.target
+PartOf=zipgallery.target
+Before=shutdown.target
+Conflicts=shutdown.target
+
+[Mount]
+What=\\192.168.5.15/media-adx2
+Where=/mnt/media-adx2
+Type=cifs
+Options=ro,credentials=/etc/cifs-credentials,noexec,nosuid,nodev,noserverino,cache=strict,iocharset=utf8
+TimeoutSec=30
+
+[Install]
+WantedBy=zipgallery.target

@@ -1,0 +1,21 @@
+[Unit]
+Description=ZipGallery Web
+Requires=docker.service zipfuse.service
+After=docker.service network-online.target zipfuse.service
+Wants=network-online.target
+BindsTo=zipfuse.service
+PartOf=zipgallery.target
+Before=shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/user/pigallery2/
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down --volumes
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=zipgallery.target

@@ -1,0 +1,8 @@
+[Unit]
+Description=ZipGallery Stack
+Documentation=man:systemd.special(7)
+Wants=mnt-media\x2dadx2.mount zipfuse.service zipweb.service
+After=mnt-media\x2dadx2.mount zipfuse.service zipweb.service
+
+[Install]
+WantedBy=multi-user.target

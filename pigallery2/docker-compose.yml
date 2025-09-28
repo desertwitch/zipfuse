@@ -1,0 +1,37 @@
+services:
+  mariadb:
+    image: lscr.io/linuxserver/mariadb
+    container_name: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: pigallery2
+      MYSQL_DATABASE: pigallery2
+      MYSQL_USER: pigallery2
+      MYSQL_PASSWORD: pigallery2
+    volumes:
+      - ./mariadb:/config
+    ports:
+      - "3306:3306"
+    restart: always
+
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  pigallery2:
+    image: bpatrik/pigallery2:2.0.0
+    container_name: pigallery2
+    ports:
+      - "42800:80"
+    volumes:
+      - ./config:/app/data/config
+      - ./db:/app/data/db
+      - ./tmp:/app/data/tmp
+      - /mnt/zipgallery/Zipsets:/app/data/images:ro
+    restart: always
+
+    depends_on:
+      mariadb:
+        condition: service_healthy
