@@ -27,7 +27,7 @@ Contrary to other ZIP filesystems, it does not mount single `.zip` files, but
 instead gracefully handles any `.zip` archives contained in another filesystem.
 
 Paths within the `.zip` archives are converted into flat structures for
-convenience and reducing complexity for the processing gallery software, with
+convenience and reducing complexity for the processing consumer software, with
 collisions avoided by appending 8-digit SHA-1 hash portions to all filenames.
 
 A static binary, it can experimentally run on most Linux distributions without
@@ -40,9 +40,9 @@ mkdir /mnt/zipfuse
 ./zipfuse /mnt/albums /mnt/zipfuse 200M
 ```
 
-In the example above, the photo archives are contained in `/mnt/albums` and the
+In the example above, the `.zip` archives are contained in `/mnt/albums` and the
 target mount is at `/mnt/zipfuse`. `200M` describes the streaming threshold, at
-which individual ZIP-contained files are no longer entirely loaded into memory
+which individual `.zip`-contained files are no longer entirely loaded in memory
 but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 
 The dashboard is exposed on `:8000` with the following routes:
