@@ -28,7 +28,7 @@ instead gracefully handles any `.zip` archives contained in another filesystem.
 
 Paths within the `.zip` archives are converted into flat structures for
 convenience and reducing complexity for the processing consumer software, with
-collisions avoided by appending 8-digit SHA-1 hash portions to all filenames.
+collisions avoided by appending 8-digit `SHA-1` hash portions to all filenames.
 
 A static binary, it can experimentally run on most Linux distributions without
 any major dependencies, however it is only meant to be used in environments that
