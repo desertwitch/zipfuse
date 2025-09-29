@@ -49,6 +49,15 @@ func (l *logBuffer) Lines() []string {
 	return out
 }
 
+func (l *logBuffer) Reset() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.buf = make([]string, l.size)
+	l.index = 0
+	l.full = false
+}
+
 func (l *logBuffer) add(msg string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
