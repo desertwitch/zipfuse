@@ -62,7 +62,6 @@ func dashboardMux() *mux.Router {
 
 func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 	var m runtime.MemStats
-
 	runtime.ReadMemStats(&m)
 
 	data := struct {
@@ -117,7 +116,6 @@ func gcHandler(w http.ResponseWriter, _ *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-
 	fmt.Fprintf(w, "GC forced, current heap: %s.\n", humanize.Bytes(m.Alloc))
 }
 
@@ -134,7 +132,6 @@ func resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-
 	fmt.Fprintln(w, "Metrics reset.")
 }
 
@@ -143,7 +140,7 @@ func thresholdHandler(w http.ResponseWriter, r *http.Request) {
 
 	valStr, ok := vars["value"]
 	if !ok {
-		http.Error(w, "Missing value", http.StatusBadRequest)
+		http.Error(w, "Missing threshold value.", http.StatusBadRequest)
 
 		return
 	}
@@ -160,6 +157,5 @@ func thresholdHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-
 	fmt.Fprintf(w, "Streaming threshold set: %s.\n", humanize.Bytes(val))
 }
