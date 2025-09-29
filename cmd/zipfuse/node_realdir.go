@@ -47,7 +47,7 @@ func (d *realDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 	if err != nil {
 		logPrintf("Error: %q->ReadDirAll: %v\n", d.Path, err)
 
-		return nil, fuse.ToErrno(err)
+		return nil, toFuseErr(err)
 	}
 
 	dirs := make([]os.DirEntry, 0)

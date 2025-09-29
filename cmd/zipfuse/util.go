@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
+	"bazil.org/fuse"
 	"github.com/dustin/go-humanize"
 	"github.com/klauspost/compress/zip"
 )
@@ -52,17 +54,17 @@ func newZipReader(path string, isExtract bool) (*zipReader, error) {
 	}, nil
 }
 
-func parseArgsOrExit() (root string, mount string) { //nolint:nonamedreturns
-	if len(os.Args) < 4 { //nolint:mnd
-		logPrintf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", os.Args[0])
+func parseArgsOrExit(args []string) (root string, mount string) { //nolint:nonamedreturns
+	if len(args) < 4 { //nolint:mnd
+		logPrintf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", args[0])
 		os.Exit(1)
 	}
 
-	root, mount = os.Args[1], os.Args[2]
-	threshold, err := humanize.ParseBytes(os.Args[3])
+	root, mount = args[1], args[2]
+	threshold, err := humanize.ParseBytes(args[3])
 
 	if root == "" || mount == "" || threshold <= 0 || err != nil {
-		logPrintf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", os.Args[0])
+		logPrintf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", args[0])
 		if err != nil {
 			logPrintf("Error: %v", err)
 		}
@@ -79,8 +81,12 @@ func parseArgsOrExit() (root string, mount string) { //nolint:nonamedreturns
 func flatEntryName(zipEntryName string) (string, bool) {
 	cleanedEntryName := filepath.Clean(filepath.ToSlash(zipEntryName))
 
+	if strings.HasPrefix(cleanedEntryName, "..") {
+		return cleanedEntryName, false
+	}
+
 	baseName := filepath.Base(cleanedEntryName)
-	if baseName == "." || strings.HasPrefix(baseName, "..") || baseName == "/" {
+	if baseName == "." || baseName == ".." || baseName == "/" {
 		return baseName, false
 	}
 
@@ -92,4 +98,17 @@ func flatEntryName(zipEntryName string) (string, bool) {
 	nameWithoutExt := strings.TrimSuffix(baseName, ext)
 
 	return nameWithoutExt + "_" + hash[:8] + ext, true
+}
+
+func toFuseErr(err error) error {
+	switch {
+	case os.IsNotExist(err):
+		return fuse.ToErrno(syscall.ENOENT)
+
+	case os.IsPermission(err):
+		return fuse.ToErrno(syscall.EACCES)
+
+	default:
+		return fuse.ToErrno(syscall.EIO)
+	}
 }

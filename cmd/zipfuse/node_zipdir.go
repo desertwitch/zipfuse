@@ -47,7 +47,7 @@ func (z *zipDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 	if err != nil {
 		logPrintf("%q->ReadDirAll: ZIP Error: %v\n", z.Path, err)
 
-		return nil, fuse.ToErrno(err)
+		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Close(0)
 
@@ -83,7 +83,7 @@ func (z *zipDirNode) Lookup(_ context.Context, name string) (fs.Node, error) {
 	if err != nil {
 		logPrintf("%q->Lookup->%q: ZIP Error: %v\n", z.Path, name, err)
 
-		return nil, fuse.ToErrno(err)
+		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Close(0)
 

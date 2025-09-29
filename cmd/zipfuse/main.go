@@ -51,7 +51,7 @@ func main() {
 
 	logs = newLogBuffer(logBufferLinesMax)
 	logPrintf("zipfuse %s\n", Version)
-	root, mount := parseArgsOrExit()
+	root, mount := parseArgsOrExit(os.Args)
 
 	c, err := fuse.Mount(mount, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))
 	if err != nil {

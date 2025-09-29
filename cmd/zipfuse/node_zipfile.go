@@ -57,7 +57,7 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 	if err != nil {
 		logPrintf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.Archive, z.Path, err)
 
-		return nil, fuse.ToErrno(err)
+		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer func() {
 		zr.Close(bytesRead)
@@ -69,7 +69,7 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 			if err != nil {
 				logPrintf("Error: %q->ReadAll->%q: Open Error: %v\n", z.Archive, z.Path, err)
 
-				return nil, fuse.ToErrno(err)
+				return nil, fuse.ToErrno(syscall.EIO)
 			}
 			defer rc.Close()
 
@@ -77,7 +77,7 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 			if err != nil {
 				logPrintf("Error: %q->Readall->%q: IO Error: %v\n", z.Archive, z.Path, err)
 
-				return nil, fuse.ToErrno(err)
+				return nil, fuse.ToErrno(syscall.EIO)
 			}
 			bytesRead = len(data)
 
@@ -106,7 +106,7 @@ func (z *zipDiskStreamFileNode) Read(_ context.Context, req *fuse.ReadRequest, r
 	if err != nil {
 		logPrintf("Error: %q->Read->%q: ZIP Error: %v\n", z.Archive, z.Path, err)
 
-		return fuse.ToErrno(err)
+		return fuse.ToErrno(syscall.EINVAL)
 	}
 	defer func() {
 		zr.Close(bytesRead)
@@ -118,7 +118,7 @@ func (z *zipDiskStreamFileNode) Read(_ context.Context, req *fuse.ReadRequest, r
 			if err != nil {
 				logPrintf("Error: %q->Read->%q: Open Error: %v\n", z.Archive, z.Path, err)
 
-				return fuse.ToErrno(err)
+				return fuse.ToErrno(syscall.EIO)
 			}
 			defer rc.Close()
 
@@ -126,14 +126,14 @@ func (z *zipDiskStreamFileNode) Read(_ context.Context, req *fuse.ReadRequest, r
 				if _, err := seeker.Seek(req.Offset, io.SeekStart); err != nil {
 					logPrintf("Error: %q->Read->%q: Seek Error: %v\n", z.Archive, z.Path, err)
 
-					return fuse.ToErrno(err)
+					return fuse.ToErrno(syscall.EIO)
 				}
 			} else {
 				_, err = io.CopyN(io.Discard, rc, req.Offset)
 				if err != nil {
 					logPrintf("Error: %q->Read->%q: CopyN Error: %v\n", z.Archive, z.Path, err)
 
-					return fuse.ToErrno(err)
+					return fuse.ToErrno(syscall.EIO)
 				}
 			}
 
@@ -143,7 +143,7 @@ func (z *zipDiskStreamFileNode) Read(_ context.Context, req *fuse.ReadRequest, r
 			if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 				logPrintf("Error: %q->Read->%q: IO Error: %v\n", z.Archive, z.Path, err)
 
-				return fuse.ToErrno(err)
+				return fuse.ToErrno(syscall.EIO)
 			}
 
 			resp.Data = buf[:n]
