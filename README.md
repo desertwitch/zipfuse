@@ -52,8 +52,7 @@ The following signals are observed and handled by the filesystem:
 The diagnostics endpoint is exposed on `:8000` with the following routes:
 - `/` for filesystem dashboard and event ring-buffer
 - `/gc` for forcing of a garbage collection (within Go)
-- `/debug/pprof/` for a full-fledged Go profiling endpoint
-- `/threshold/500MB` for runtime adapting the streaming threshold
+- `/threshold/500MB` for adapting of the streaming threshold
 
 ## ZipGallery Project
 

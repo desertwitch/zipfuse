@@ -1,7 +1,6 @@
-package main
+package filesystem
 
 import (
-	"archive/zip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/klauspost/compress/zip"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,7 +65,6 @@ func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct
 
 // Expectation: Attr should fill in the [fuse.Attr] with the correct values.
 func Test_zipDirNode_Attr_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tnow := time.Now()
 
 	node := &zipDirNode{
@@ -87,7 +86,6 @@ func Test_zipDirNode_Attr_Success(t *testing.T) {
 
 // Expectation: The returned [fuse.Dirent] slice should meet the expectations.
 func Test_zipDirNode_ReadDirAll_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -127,7 +125,6 @@ func Test_zipDirNode_ReadDirAll_Success(t *testing.T) {
 
 // Expectation: EINVAL should be returned upon accessing an invalid ZIP file.
 func Test_zipDirNode_ReadDirAll_InvalidArchive_Error(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -144,8 +141,7 @@ func Test_zipDirNode_ReadDirAll_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: The returned lookup nodes should meet the expectations.
 func Test_zipDirNode_Lookup_Success(t *testing.T) {
-	logs = newLogBuffer(5)
-	streamingThreshold.Store(1)
+	StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -188,8 +184,7 @@ func Test_zipDirNode_Lookup_Success(t *testing.T) {
 
 // Expectation: A lookup on an invalid backing archive should return EINVAL.
 func Test_zipDirNode_Lookup_InvalidArchive_Error(t *testing.T) {
-	logs = newLogBuffer(5)
-	streamingThreshold.Store(1)
+	StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -208,8 +203,7 @@ func Test_zipDirNode_Lookup_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: A lookup on a non-existing entry should return ENOENT.
 func Test_zipDirNode_Lookup_EntryNotExist_Error(t *testing.T) {
-	logs = newLogBuffer(5)
-	streamingThreshold.Store(1)
+	StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -238,8 +232,7 @@ func Test_zipDirNode_Lookup_EntryNotExist_Error(t *testing.T) {
 
 // Expectation: Inodes should remain deterministic and equal across calls.
 func Test_zipDirNode_DeterministicInodes_Success(t *testing.T) {
-	logs = newLogBuffer(5)
-	streamingThreshold.Store(1)
+	StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 

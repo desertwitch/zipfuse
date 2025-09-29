@@ -9,39 +9,22 @@ import (
 	"os/signal"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/desertwitch/zipfuse/internal/filesystem"
+	"github.com/desertwitch/zipfuse/internal/logging"
+	"github.com/desertwitch/zipfuse/internal/webgui"
+	"github.com/dustin/go-humanize"
 )
 
 const (
-	logBufferLinesMax = 500
-	stackTraceBuffer  = 1 << 24
-
-	fileBasePerm = 0o444 // RO
-	dirBasePerm  = 0o555 // RO
+	stackTraceBuffer = 1 << 24
 )
 
-var (
-	// Version is the program version (filled in from the Makefile).
-	Version string
-
-	logs               *logBuffer
-	streamingThreshold atomic.Uint64
-
-	openZips   atomic.Int64
-	openedZips atomic.Int64
-	closedZips atomic.Int64
-
-	totalMetadataReadTime  atomic.Int64
-	totalMetadataReadCount atomic.Int64
-
-	totalExtractTime  atomic.Int64
-	totalExtractCount atomic.Int64
-	totalExtractBytes atomic.Int64
-)
+// Version is the program version (filled in from the Makefile).
+var Version string
 
 func main() {
 	var exitCode int
@@ -49,13 +32,12 @@ func main() {
 
 	defer func() { os.Exit(exitCode) }()
 
-	logs = newLogBuffer(logBufferLinesMax)
-	logPrintf("zipfuse %s\n", Version)
+	logging.Printf("zipfuse %s\n", Version)
 	root, mount := parseArgsOrExit(os.Args)
 
 	c, err := fuse.Mount(mount, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))
 	if err != nil {
-		logPrintf("Mount error: %v\n", err)
+		logging.Printf("Mount error: %v\n", err)
 		exitCode = 1
 
 		return
@@ -64,23 +46,24 @@ func main() {
 	defer fuse.Unmount(mount) //nolint:errcheck
 
 	wg.Go(func() {
-		if err := fs.Serve(c, &zipFS{root}); err != nil {
-			logPrintf("FS serve error: %v\n", err)
+		if err := fs.Serve(c, &filesystem.FS{RootDir: root}); err != nil {
+			logging.Printf("FS serve error: %v\n", err)
 			exitCode = 1
 		}
 	})
 
-	srv := serveMetrics(":8000")
+	webgui.AppVersion = Version
+	srv := webgui.Serve(":8000")
 	defer srv.Close()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		for range sig {
-			logPrintln("Signal received, unmounting the filesystem...")
+			logging.Println("Signal received, unmounting the filesystem...")
 
 			if err := fuse.Unmount(mount); err != nil {
-				logPrintf("Unmount error: %v (try again later)\n", err)
+				logging.Printf("Unmount error: %v (try again later)\n", err)
 
 				continue
 			}
@@ -93,7 +76,7 @@ func main() {
 	signal.Notify(sig2, syscall.SIGUSR1)
 	go func() {
 		for range sig2 {
-			logPrintln("Signal received, printing stacktrace to standard error (stderr)...")
+			logging.Println("Signal received, printing stacktrace to standard error (stderr)...")
 			buf := make([]byte, stackTraceBuffer)
 			stacklen := runtime.Stack(buf, true)
 			os.Stderr.Write(buf[:stacklen])
@@ -101,4 +84,26 @@ func main() {
 	}()
 
 	wg.Wait()
+}
+
+func parseArgsOrExit(args []string) (root string, mount string) { //nolint:nonamedreturns
+	if len(args) < 4 { //nolint:mnd
+		logging.Printf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", args[0])
+		os.Exit(1)
+	}
+
+	root, mount = args[1], args[2]
+	threshold, err := humanize.ParseBytes(args[3])
+
+	if root == "" || mount == "" || threshold <= 0 || err != nil {
+		logging.Printf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", args[0])
+		if err != nil {
+			logging.Printf("Error: %v", err)
+		}
+		os.Exit(1)
+	}
+
+	filesystem.StreamingThreshold.Store(threshold)
+
+	return root, mount
 }

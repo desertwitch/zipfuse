@@ -1,4 +1,4 @@
-package main
+package filesystem
 
 import (
 	"os"
@@ -14,7 +14,6 @@ import (
 
 // Expectation: Attr should fill in the [fuse.Attr] with the correct values.
 func Test_realDirNode_Attr_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tnow := time.Now()
 
 	node := &realDirNode{
@@ -36,7 +35,6 @@ func Test_realDirNode_Attr_Success(t *testing.T) {
 
 // Expectation: The returned [fuse.Dirent] slice should meet the expectations.
 func Test_realDirNode_ReadDirAll_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 
 	_, err := os.Create(filepath.Join(tmpDir, "file1"))
@@ -83,7 +81,6 @@ func Test_realDirNode_ReadDirAll_Success(t *testing.T) {
 
 // Expectation: ENOENT should be returned upon accessing an invalid directory.
 func Test_realDirNode_ReadDirAll_Error(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir() + "_notexist"
 
 	node := &realDirNode{
@@ -99,7 +96,6 @@ func Test_realDirNode_ReadDirAll_Error(t *testing.T) {
 
 // Expectation: The returned lookup nodes should meet the expectations.
 func Test_realDirNode_Lookup_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 
 	_, err := os.Create(filepath.Join(tmpDir, "file1"))
@@ -154,7 +150,6 @@ func Test_realDirNode_Lookup_Success(t *testing.T) {
 // Expectation: When a real directory and ZIP would result in the same name
 // for the directory entry slice, the real directory should always be preferred.
 func Test_realDirNode_Lookup_CollidingEntry_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 
 	_, err := os.Create(filepath.Join(tmpDir, "file.zip")) // should be ignored
@@ -177,7 +172,6 @@ func Test_realDirNode_Lookup_CollidingEntry_Success(t *testing.T) {
 
 // Expectation: A lookup on a non-existing entry should return ENOENT.
 func Test_realDirNode_Lookup_EntryNotExist_Error(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 
 	node := &realDirNode{
@@ -193,7 +187,6 @@ func Test_realDirNode_Lookup_EntryNotExist_Error(t *testing.T) {
 
 // Expectation: Inodes should remain deterministic and equal across calls.
 func Test_realDirNode_DeterministicInodes_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 
 	_, err := os.Create(filepath.Join(tmpDir, "file1"))

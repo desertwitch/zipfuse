@@ -1,4 +1,4 @@
-package main
+package filesystem
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/desertwitch/zipfuse/internal/logging"
 )
 
 var (
@@ -45,7 +46,7 @@ func (z *zipDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 
 	zr, err := newZipReader(z.Path, false)
 	if err != nil {
-		logPrintf("%q->ReadDirAll: ZIP Error: %v\n", z.Path, err)
+		logging.Printf("%q->ReadDirAll: ZIP Error: %v\n", z.Path, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
@@ -58,7 +59,7 @@ func (z *zipDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 
 		name, ok := flatEntryName(f.Name)
 		if !ok || seen[name] {
-			logPrintf("Skipped: %q->ReadDirAll: %q -> %q (duplicate or invalid sanitized name)\n", z.Path, f.Name, name)
+			logging.Printf("Skipped: %q->ReadDirAll: %q -> %q (duplicate or invalid sanitized name)\n", z.Path, f.Name, name)
 
 			continue
 		}
@@ -81,7 +82,7 @@ func (z *zipDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 func (z *zipDirNode) Lookup(_ context.Context, name string) (fs.Node, error) {
 	zr, err := newZipReader(z.Path, false)
 	if err != nil {
-		logPrintf("%q->Lookup->%q: ZIP Error: %v\n", z.Path, name, err)
+		logging.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.Path, name, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
@@ -102,7 +103,7 @@ func (z *zipDirNode) Lookup(_ context.Context, name string) (fs.Node, error) {
 			Modified: f.Modified,
 		}
 
-		if f.UncompressedSize64 <= streamingThreshold.Load() {
+		if f.UncompressedSize64 <= StreamingThreshold.Load() {
 			return &zipInMemoryFileNode{base}, nil
 		}
 

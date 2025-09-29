@@ -1,4 +1,4 @@
-package main
+package filesystem
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/desertwitch/zipfuse/internal/logging"
 )
 
 var (
@@ -45,7 +46,7 @@ func (d *realDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 
 	entries, err := os.ReadDir(d.Path)
 	if err != nil {
-		logPrintf("Error: %q->ReadDirAll: %v\n", d.Path, err)
+		logging.Printf("Error: %q->ReadDirAll: %v\n", d.Path, err)
 
 		return nil, toFuseErr(err)
 	}

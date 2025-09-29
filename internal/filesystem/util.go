@@ -1,4 +1,4 @@
-package main
+package filesystem
 
 import (
 	"crypto/sha1"
@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"bazil.org/fuse"
-	"github.com/dustin/go-humanize"
 	"github.com/klauspost/compress/zip"
 )
 
@@ -23,16 +22,16 @@ type zipReader struct {
 }
 
 func (z *zipReader) Close(readBytes int) error {
-	openZips.Add(-1)
-	closedZips.Add(1)
+	OpenZips.Add(-1)
+	TotalClosedZips.Add(1)
 
 	if z.isExtract {
-		totalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
-		totalExtractCount.Add(1)
-		totalExtractBytes.Add(int64(readBytes))
+		TotalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
+		TotalExtractCount.Add(1)
+		TotalExtractBytes.Add(int64(readBytes))
 	} else {
-		totalMetadataReadTime.Add(time.Since(z.startTime).Nanoseconds())
-		totalMetadataReadCount.Add(1)
+		TotalMetadataReadTime.Add(time.Since(z.startTime).Nanoseconds())
+		TotalMetadataReadCount.Add(1)
 	}
 
 	return z.ReadCloser.Close() //nolint:wrapcheck
@@ -44,36 +43,14 @@ func newZipReader(path string, isExtract bool) (*zipReader, error) {
 		return nil, err //nolint:wrapcheck
 	}
 
-	openZips.Add(1)
-	openedZips.Add(1)
+	OpenZips.Add(1)
+	TotalOpenedZips.Add(1)
 
 	return &zipReader{
 		ReadCloser: zr,
 		startTime:  time.Now(),
 		isExtract:  isExtract,
 	}, nil
-}
-
-func parseArgsOrExit(args []string) (root string, mount string) { //nolint:nonamedreturns
-	if len(args) < 4 { //nolint:mnd
-		logPrintf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", args[0])
-		os.Exit(1)
-	}
-
-	root, mount = args[1], args[2]
-	threshold, err := humanize.ParseBytes(args[3])
-
-	if root == "" || mount == "" || threshold <= 0 || err != nil {
-		logPrintf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", args[0])
-		if err != nil {
-			logPrintf("Error: %v", err)
-		}
-		os.Exit(1)
-	}
-
-	streamingThreshold.Store(threshold)
-
-	return root, mount
 }
 
 // flatEntryName flattens a path into just the filename.

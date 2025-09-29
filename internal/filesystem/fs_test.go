@@ -1,4 +1,4 @@
-package main
+package filesystem
 
 import (
 	"testing"
@@ -7,10 +7,10 @@ import (
 )
 
 // Expectation: RootDir should be returned as a [realDirNode].
-func Test_zipFS_Root_Success(t *testing.T) {
+func Test_FS_Root_Success(t *testing.T) {
 	t.Parallel()
 
-	zfs := &zipFS{
+	zfs := &FS{
 		RootDir: t.TempDir(),
 	}
 
@@ -26,7 +26,7 @@ func Test_zipFS_Root_Success(t *testing.T) {
 }
 
 // Expectation: A panic should occur when GenerateInode is called.
-func Test_zipFS_GenerateInode_Panic(t *testing.T) {
+func Test_FS_GenerateInode_Panic(t *testing.T) {
 	t.Parallel()
 
 	defer func() {
@@ -34,9 +34,9 @@ func Test_zipFS_GenerateInode_Panic(t *testing.T) {
 		require.NotNil(t, r, "GenerateInode must panic")
 	}()
 
-	zfs := &zipFS{
+	zpfs := &FS{
 		RootDir: t.TempDir(),
 	}
 
-	zfs.GenerateInode(0, "")
+	zpfs.GenerateInode(0, "")
 }

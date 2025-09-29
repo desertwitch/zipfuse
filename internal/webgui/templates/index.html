@@ -1,0 +1,36 @@
+<html>
+    <head>
+        <title>ZipFUSE ({{.AppVersion}})</title>
+    </head>
+    <body>
+        <img width=150 src="/zipfuse.png"> <b>{{.AppVersion}} / Diagnostics Server</b>
+        <br>
+        <br>
+        <b>
+            <a href="/debug/pprof/" target="_blank">Show Profiling</a> / 
+            <a href="/reset-metrics" target="_blank">Reset Metrics</a> / 
+            <a href="/gc" target="_blank">Force GC</a>
+        </b>
+        <ul>
+            <li>ZIP handles:                     {{.OpenZips}}</li>
+            <li>Total ZIP opens:                 {{.OpenedZips}}</li>
+            <li>Total ZIP closes:                {{.ClosedZips}}</li>
+            <li>Streaming threshold:             {{.StreamingThreshold}}</li>
+            <br>
+            <li>Current heap alloc:              {{.AllocBytes}}</li>
+            <li>Total heap alloc:                {{.TotalAlloc}}</li>
+            <li>OS memory obtained:              {{.SysBytes}}</li>
+            <li>GC cycles run:                   {{.NumGC}}</li>
+            <br>
+            <li>Total metadata reads:            {{.TotalMetadatas}}</li>
+            <li>Avg metadata read time:          {{.AvgMetadataReadTime}}</li>
+            <br>
+            <li>Total file extracts:             {{.TotalExtracts}}</li>
+            <li>Total byte extracts:             {{.TotalExtractBytes}}</li>
+            <li>Avg file extract time:           {{.AvgExtractTime}}</li>
+            <li>Avg file extract speed:          {{.AvgExtractSpeed}}</li>
+        </ul>
+        <h3>In-Memory Ring Buffer ({{.LogBufferSize}} lines):</h3>
+        <pre>{{.Logs}}</pre>
+    </body>
+</html>

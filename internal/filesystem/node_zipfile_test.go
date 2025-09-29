@@ -1,4 +1,4 @@
-package main
+package filesystem
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 
 // Expectation: Attr should fill in the [fuse.Attr] with the correct values.
 func Test_zipBaseFileNode_Attr_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tnow := time.Now()
 
 	node := &zipBaseFileNode{
@@ -39,7 +38,6 @@ func Test_zipBaseFileNode_Attr_Success(t *testing.T) {
 
 // Expectation: ReadAll should return the complete content of the underlying file.
 func Test_zipInMemoryFileNode_ReadAll_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -70,7 +68,6 @@ func Test_zipInMemoryFileNode_ReadAll_Success(t *testing.T) {
 
 // Expectation: ReadAll should handle empty files correctly.
 func Test_zipInMemoryFileNode_ReadAll_EmptyFile_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -101,7 +98,6 @@ func Test_zipInMemoryFileNode_ReadAll_EmptyFile_Success(t *testing.T) {
 
 // Expectation: ReadAll should return ENOENT for a missing file.
 func Test_zipInMemoryFileNode_ReadAll_FileNotFound_Error(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -131,7 +127,6 @@ func Test_zipInMemoryFileNode_ReadAll_FileNotFound_Error(t *testing.T) {
 
 // Expectation: ReadAll should return EINVAL for an invalid archive.
 func Test_zipInMemoryFileNode_ReadAll_InvalidArchive_Error(t *testing.T) {
-	logs = newLogBuffer(5)
 	tnow := time.Now()
 
 	node := &zipInMemoryFileNode{
@@ -151,7 +146,6 @@ func Test_zipInMemoryFileNode_ReadAll_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: Read should return the requested bytes from the specified offset.
 func Test_zipDiskStreamFileNode_Read_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -188,7 +182,6 @@ func Test_zipDiskStreamFileNode_Read_Success(t *testing.T) {
 
 // Expectation: Read should handle empty files correctly.
 func Test_zipDiskStreamFileNode_Read_EmptyFile_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -223,7 +216,6 @@ func Test_zipDiskStreamFileNode_Read_EmptyFile_Success(t *testing.T) {
 
 // Expectation: Read should handle reading from offset 0.
 func Test_zipDiskStreamFileNode_Read_OffsetZero_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -259,7 +251,6 @@ func Test_zipDiskStreamFileNode_Read_OffsetZero_Success(t *testing.T) {
 
 // Expectation: Read should handle reading beyond EOF gracefully.
 func Test_zipDiskStreamFileNode_Read_BeyondEOF_Success(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -295,7 +286,6 @@ func Test_zipDiskStreamFileNode_Read_BeyondEOF_Success(t *testing.T) {
 
 // Expectation: Read should return ENOENT for a missing file.
 func Test_zipDiskStreamFileNode_Read_FileNotFound_Error(t *testing.T) {
-	logs = newLogBuffer(5)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -329,7 +319,6 @@ func Test_zipDiskStreamFileNode_Read_FileNotFound_Error(t *testing.T) {
 
 // Expectation: Read should return EINVAL for an invalid archive.
 func Test_zipDiskStreamFileNode_Read_InvalidArchive_Error(t *testing.T) {
-	logs = newLogBuffer(5)
 	tnow := time.Now()
 
 	node := &zipDiskStreamFileNode{
