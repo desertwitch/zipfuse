@@ -7,9 +7,10 @@
     <a href="https://goreportcard.com/report/github.com/desertwitch/zipfuse"><img alt="Go Report" src="https://goreportcard.com/badge/github.com/desertwitch/zipfuse"></a>
     <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/desertwitch/zipfuse"></a>
     <br>
+    <a href="https://codecov.io/gh/desertwitch/zipfuse"><img src="https://codecov.io/gh/desertwitch/zipfuse/graph/badge.svg?token=SENW4W2GQL"/></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml"><img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg"></a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml"><img alt="Tests" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml/badge.svg"></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml"><img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg"></a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build-debug.yml"><img alt="Build Debug" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build-debug.yml/badge.svg"></a>
 </div>
 
 ## ZipFUSE Filesystem
