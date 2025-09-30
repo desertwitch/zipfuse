@@ -15,16 +15,16 @@ import (
 var _ fs.Node = (*zipBaseFileNode)(nil)
 
 // zipBaseFileNode is a file within a ZIP archive of the mirrored filesystem.
-// It is presented as a regular file in our filesystem, for in-memory unpacking.
+// It is presented as a regular file in our filesystem and unpacked on demand.
 //
 // To be embedded into either [zipInMemoryFileNode] or [zipDiskStreamFileNode],
-// depending on which [streamingThreshold] was set by CLI argument or at runtime.
+// depending on which [StreamingThreshold] was set by CLI argument or at runtime.
 type zipBaseFileNode struct {
 	Inode    uint64    // Inode within our filesystem.
-	Archive  string    // Path of the actual ZIP archive (= parent).
-	Path     string    // Path of the actual file inside the ZIP file.
-	Size     uint64    // Size of the actual file inside the ZIP file.
-	Modified time.Time // Modified time of the actual file inside the ZIP file.
+	Archive  string    // Path of the underlying ZIP archive (= parent).
+	Path     string    // Path of the file inside the underlying ZIP file.
+	Size     uint64    // Size of the file inside the underlying ZIP file.
+	Modified time.Time // Modified time of the file inside the underlying ZIP file.
 }
 
 func (z *zipBaseFileNode) Attr(_ context.Context, a *fuse.Attr) error {

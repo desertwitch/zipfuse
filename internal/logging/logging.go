@@ -9,13 +9,13 @@ import (
 	"time"
 )
 
-// BufferSize is the to-allocate size of the ring-buffer.
+// BufferSize is the allocation size of the ring-buffer.
 const BufferSize = 500
 
-// Buffer is the main ring-buffer for all program output.
+// Buffer is the primary ring-buffer for all program output.
 var Buffer = newRingBuffer(BufferSize)
 
-// ringBuffer is a simple ring-buffer for log messages.
+// ringBuffer is a simple ring-buffer implementation.
 type ringBuffer struct {
 	mu    sync.Mutex
 	buf   []string
@@ -24,6 +24,7 @@ type ringBuffer struct {
 	size  int
 }
 
+// newRingBuffer returns a pointer to a new [ringBuffer].
 func newRingBuffer(size int) *ringBuffer {
 	return &ringBuffer{
 		buf:  make([]string, size),
@@ -31,10 +32,12 @@ func newRingBuffer(size int) *ringBuffer {
 	}
 }
 
+// Size returns the size of the ring-buffer.
 func (l *ringBuffer) Size() int {
 	return l.size
 }
 
+// Lines returns a copy of the slice of ring-buffer contents.
 func (l *ringBuffer) Lines() []string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -50,6 +53,7 @@ func (l *ringBuffer) Lines() []string {
 	return out
 }
 
+// Reset returns the ring-buffer to zero state.
 func (l *ringBuffer) Reset() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -59,6 +63,7 @@ func (l *ringBuffer) Reset() {
 	l.full = false
 }
 
+// add adds a new message to the ring-buffer.
 func (l *ringBuffer) add(msg string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

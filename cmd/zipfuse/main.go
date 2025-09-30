@@ -1,10 +1,10 @@
 /*
-`zipfuse` is a tailored, read-only FUSE filesystem that exposes both directories
-and `.zip` archives of an underlying filesystem as regular directories and
+`zipfuse` is a tailored, read-only FUSE filesystem that exposes any directories
+and `.zip` archives of an underlying filesystem as both regular directories and
 files. This means it internally handles in-memory unpacking, streaming and
 serving `.zip` archives and all their contained files, so that consumers need
-not know or care about `.zip` archives mechanics. It includes a HTTP dashboard
-for basic filesystem metrics and controlling operations and behavior at runtime.
+not know or care about `.zip` archive mechanics. It includes a HTTP dashboard
+for basic filesystem metrics and controlling operations and runtime behavior.
 
 The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
