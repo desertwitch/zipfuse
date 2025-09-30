@@ -102,7 +102,10 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 		Logs:                strings.Join(logging.Buffer.Lines(), "\n"),
 	}
 
-	_ = indexTemplate.Execute(w, data)
+	if err := indexTemplate.Execute(w, data); err != nil {
+		logging.Printf("HTTP template execution error: %v\n", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func gcHandler(w http.ResponseWriter, _ *http.Request) {
