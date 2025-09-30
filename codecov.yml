@@ -1,3 +1,5 @@
+github_checks: false
+
 ignore:
   - "cmd"
   - "assets"
