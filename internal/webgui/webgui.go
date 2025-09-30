@@ -141,14 +141,7 @@ func resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
 func thresholdHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
-	valStr, ok := vars["value"]
-	if !ok {
-		http.Error(w, "Missing threshold value.", http.StatusBadRequest)
-
-		return
-	}
-
-	val, err := humanize.ParseBytes(valStr)
+	val, err := humanize.ParseBytes(vars["value"])
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid threshold: %v", err), http.StatusBadRequest)
 
