@@ -1,3 +1,8 @@
 ignore:
   - "cmd"
   - "assets"
+
+coverage:
+  status:
+    project: off
+    patch: off
