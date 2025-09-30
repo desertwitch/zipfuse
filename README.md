@@ -2,16 +2,16 @@
     <img alt="Logo" src="assets/zipfuse.png" width="150">
     <br><br>
     <img src="https://img.shields.io/badge/.zip-%E2%99%A5_FUSE-red">
-    <a href="https://github.com/desertwitch/zipfuse/tags"><img alt="Release" src="https://img.shields.io/github/tag/desertwitch/zipfuse.svg"></a>
-    <a href="https://go.dev/"><img alt="Go Version" src="https://img.shields.io/badge/go-%3E%3D%201.25.1-%23007d9c"></a>
-    <a href="https://pkg.go.dev/github.com/desertwitch/zipfuse"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/desertwitch/zipfuse.svg"></a>
-    <a href="https://goreportcard.com/report/github.com/desertwitch/zipfuse"><img alt="Go Report" src="https://goreportcard.com/badge/github.com/desertwitch/zipfuse"></a>
-    <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/desertwitch/zipfuse"></a>
+    <a href="https://github.com/desertwitch/zipfuse/tags" target="_blank"><img alt="Release" src="https://img.shields.io/github/tag/desertwitch/zipfuse.svg"></a>
+    <a href="https://go.dev/"><img alt="Go Version" src="https://img.shields.io/badge/go-%3E%3D%201.25.1-%23007d9c" target="_blank"></a>
+    <a href="https://pkg.go.dev/github.com/desertwitch/zipfuse" target="_blank"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/desertwitch/zipfuse.svg"></a>
+    <a href="https://goreportcard.com/report/github.com/desertwitch/zipfuse" target="_blank"><img alt="Go Report" src="https://goreportcard.com/badge/github.com/desertwitch/zipfuse"></a>
+    <a href="./LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/github/license/desertwitch/zipfuse"></a>
     <br>
-    <a href="https://codecov.io/gh/desertwitch/zipfuse"><img src="https://codecov.io/gh/desertwitch/zipfuse/graph/badge.svg?token=SENW4W2GQL"/></a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml"><img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg"></a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml"><img alt="Tests" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml/badge.svg"></a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml"><img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg"></a>
+    <a href="https://codecov.io/gh/desertwitch/zipfuse" target="_blank"><img src="https://codecov.io/gh/desertwitch/zipfuse/graph/badge.svg?token=SENW4W2GQL"/></a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml" target="_blank"><img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg"></a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml" target="_blank"><img alt="Tests" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml/badge.svg"></a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml" target="_blank"><img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg"></a>
 </div>
 
 ## ZipFUSE Filesystem
