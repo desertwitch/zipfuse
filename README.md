@@ -16,25 +16,17 @@
 
 ## ZipFUSE Filesystem
 
-`zipfuse` is a tailored, read-only FUSE filesystem that exposes both directories
-and `.zip` archives of an underlying filesystem as regular directories and
+`zipfuse` is a tailored, read-only FUSE filesystem that exposes any directories
+and `.zip` archives of an underlying filesystem as both regular directories and
 files. This means it internally handles in-memory unpacking, streaming and
 serving `.zip` archives and all their contained files, so that consumers need
-not know or care about the archive mechanics at all. It includes a HTTP endpoint
-for basic filesystem metrics and controlling operations and behavior at runtime.
+not know or care about `.zip` archive mechanics. It includes a HTTP dashboard
+for basic filesystem metrics and controlling operations and runtime behavior.
 
 The filesystem is realized in Go and kept as simple and stateless as possible,
 while also fully leveraging kernel caching with deterministic design choices.
 In contrast to similar filesystems, it does not mount single `.zip` files, but
 instead gracefully handles any `.zip` archives contained in another filesystem.
-
-Paths within the `.zip` archives are converted into flat structures for
-convenience and reducing complexity for the processing consumer software, with
-collisions avoided by appending 8-digit `SHA-1` hash portions to all filenames.
-
-As static binary, it can experimentally run on most Linux distributions without
-any major dependencies, however it is only meant to be used in environments that
-are sufficiently secured (itself being not security-centric but purpose-built).
 
 ```bash
 make all
@@ -47,7 +39,7 @@ target mount is at `/mnt/zipfuse`. `200M` describes the streaming threshold, at
 which individual `.zip`-contained files are no longer entirely loaded in memory
 but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 
-The diagnostics endpoint was configured on `:8000`, exposing the routes:
+The diagnostics server was configured on `:8000`, exposing the routes:
 - `/` for filesystem dashboard and event ring-buffer
 - `/gc` for forcing of a garbage collection (within Go)
 - `/reset-metrics` for resetting the FS metrics at runtime
@@ -57,6 +49,27 @@ The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
 - `SIGUSR1` forces a garbage collection (within Go)
 - `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
+
+### Path Handling and Limitations
+
+The filesystem was designed around operating on photo albums (see further
+below), so it does not waste resources in recreating structures from within
+`.zip` archives, but rather flattens any such structures so that only files
+remain within one shallow virtual directory per `.zip` archive. In order to
+avoid filename collisions, a deterministic portion of an `SHA-1` hash is then
+appended to every one of these files (8 digits to also avoid hash collisions):
+
+```
+/mnt/albums/test.zip/dir1/file.txt -> /mnt/zipfuse/test/file_V3321D81.txt
+/mnt/albums/test.zip/dir2/file.txt -> /mnt/zipfuse/test/file_A8371A86.txt
+```
+
+While this may seem unusual at first, the filesystem assumes processed `.zip`
+archives as shallow and containing few files - by design. Flattening aims to 
+reduce any unnecessary directory traversals for processing consumer software.
+For a photo gallery software to treat every `.zip` archive as a shallow album
+and not trigger any creations of subalbums was decisive for this design choice.
+In the end, photo filenames themselves rarely matter, as long as order remains.
 
 ## ZipGallery Project
 
@@ -89,14 +102,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now zipgallery.target
 ```
 
-In the example above the target is started immediately and at system boot.
+In the example above the target is started immediately and also at system boot.
 
 ## Security, Contributions, and License
 
-Security is not a priority for this personal purpose-driven project. It is
+Security is not a priority for this **personal purpose-driven project**. It is
 running in self-hosted, appropriately secured environments so that it does not
 have to be. Stability and long-term, hands-off operation are however paramount
-to it, due to its very multi-layered nature. Feel free to fork this project as
+to it, due to the very multi-layered nature. Feel free to fork this project as
 needed, or open issues and pull requests if you notice any glaring issues - but
-please do approach any such with the perspective of it being just a tool for a
-tailored, specific purpose. All code is licensed under the MIT license.
+please do approach any such with the perspective of it being a mere tool for a
+tailored, specific purpose. **All code is licensed under the MIT license.**

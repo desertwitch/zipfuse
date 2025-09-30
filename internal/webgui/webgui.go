@@ -1,4 +1,4 @@
-// Package webgui implements the diagnostics dashboard for the filesystem.
+// Package webgui implements the diagnostics server.
 package webgui
 
 import (
@@ -19,8 +19,8 @@ import (
 )
 
 var (
-	// AppVersion is the version of the program, as displayed in the dashboard.
-	AppVersion string
+	// Version is the version of the diagnostics server.
+	Version string
 
 	//go:embed templates/*.html
 	templateFS embed.FS
@@ -65,8 +65,8 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 	runtime.ReadMemStats(&m)
 
 	data := struct {
-		AppVersion          string
-		LogBufferSize       int
+		Version             string
+		RingBufferSize      int
 		OpenZips            int64
 		OpenedZips          int64
 		ClosedZips          int64
@@ -83,8 +83,8 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 		TotalExtractBytes   string
 		Logs                string
 	}{
-		AppVersion:          AppVersion,
-		LogBufferSize:       logging.Buffer.Size(),
+		Version:             Version,
+		RingBufferSize:      logging.Buffer.Size(),
 		OpenZips:            filesystem.OpenZips.Load(),
 		OpenedZips:          filesystem.TotalOpenedZips.Load(),
 		ClosedZips:          filesystem.TotalClosedZips.Load(),

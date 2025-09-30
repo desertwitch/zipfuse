@@ -20,13 +20,13 @@ var (
 	_ fs.NodeStringLookuper = (*realDirNode)(nil)
 )
 
-// realDirNode is an actual regular directory within the mirrored filesystem.
+// realDirNode is an actual regular directory of the mirrored filesystem.
 // It is presented also as a regular directory within our filesystem, however
 // only contained regular directories and ZIP archives are processed further.
 type realDirNode struct {
 	Inode    uint64    // Inode within our filesystem.
-	Path     string    // Path of the actual regular directory.
-	Modified time.Time // Modified time of the actual regular directory.
+	Path     string    // Path of the underlying regular directory.
+	Modified time.Time // Modified time of the underlying regular directory.
 }
 
 func (d *realDirNode) Attr(_ context.Context, a *fuse.Attr) error {

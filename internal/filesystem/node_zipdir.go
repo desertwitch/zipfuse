@@ -19,14 +19,14 @@ var (
 	_ fs.NodeStringLookuper = (*zipDirNode)(nil)
 )
 
-// zipDirNode is a ZIP archive within the mirrored filesystem.
-// It is presented as a regular directory within our filesystem.
-// All structures contained in the archive are flattened ([flatEntryName])
-// and presented as regular files (to be unpacked on-the-fly, when requested).
+// zipDirNode is a ZIP archive file of the mirrored filesystem.
+// It is now presented as a regular directory within our filesystem.
+// All structures contained in the archive are flattened (by [flatEntryName])
+// and presented as regular files (to be unpacked into memory when requested).
 type zipDirNode struct {
 	Inode    uint64    // Inode within our filesystem.
-	Path     string    // Path of the actual ZIP archive.
-	Modified time.Time // Modified time of the actual ZIP archive.
+	Path     string    // Path of the underlying ZIP archive.
+	Modified time.Time // Modified time of the underlying ZIP archive.
 }
 
 func (z *zipDirNode) Attr(_ context.Context, a *fuse.Attr) error {

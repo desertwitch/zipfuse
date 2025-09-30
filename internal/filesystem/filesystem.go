@@ -11,6 +11,7 @@ import (
 const (
 	fileBasePerm = 0o444 // RO
 	dirBasePerm  = 0o555 // RO
+	hashDigits   = 8     // for [flatEntryName]
 )
 
 var (
@@ -18,7 +19,7 @@ var (
 	_ fs.FSInodeGenerator = (*FS)(nil)
 
 	// StreamingThreshold when files are no longer fully loaded into RAM,
-	// but rather streamed in chunks (as requested by the kernel) instead.
+	// but rather streamed in chunks (amount as requested by the kernel).
 	StreamingThreshold atomic.Uint64
 
 	// OpenZips is the amount of currently open ZIP files.
@@ -30,13 +31,13 @@ var (
 	// TotalClosedZips is the amount of closed ZIP files.
 	TotalClosedZips atomic.Int64
 
-	// TotalMetadataReadTime is all time spent reading metadata from ZIP files.
+	// TotalMetadataReadTime is time spent reading metadata from ZIP files.
 	TotalMetadataReadTime atomic.Int64
 
 	// TotalMetadataReadCount is the amount of metadata reads from ZIP files.
 	TotalMetadataReadCount atomic.Int64
 
-	// TotalExtractTime is all time spent extracting data from ZIP files.
+	// TotalExtractTime is time spent extracting data from ZIP files.
 	TotalExtractTime atomic.Int64
 
 	// TotalExtractCount is the amount of extractions from ZIP files.
@@ -46,7 +47,7 @@ var (
 	TotalExtractBytes atomic.Int64
 )
 
-// FS is the core implementation of the ZipFUSE filesystem.
+// FS is the core implementation of the zipfuse filesystem.
 type FS struct {
 	RootDir string
 }
@@ -61,11 +62,12 @@ func (zpfs *FS) Root() (fs.Node, error) {
 }
 
 // GenerateInode implements [fs.FSInodeGenerator] to prevent dynamic
-// inode generation as a fallback method from within the FUSE library.
+// inode generation by the fallback method inside of the FUSE library.
+//
+// [FS] handles inodes internally, so dynamic inode generation within the
+// FUSE library (being the fallback on encountering zero inodes) is a core
+// violation of this very design principle. Calls to this method will panic,
+// revealing where internal inode handling does not produce the valid inode.
 func (zpfs *FS) GenerateInode(_ uint64, _ string) uint64 {
-	// zipfuse handles inodes itself, so a dynamic inode generation within the
-	// FUSE library (being the fallback on encountering zero inodes) is a core
-	// violation of this very design principle. So a panic should reveal where
-	// internal inode handling does not produce an inode and needs fixing up.
 	panic("unhandled zero inode triggered an illegal dynamic generation")
 }

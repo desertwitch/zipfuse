@@ -21,6 +21,7 @@ type zipReader struct {
 	isExtract bool
 }
 
+// Close closes the [zip.ReadCloser] and records the bytes read.
 func (z *zipReader) Close(readBytes int) error {
 	OpenZips.Add(-1)
 	TotalClosedZips.Add(1)
@@ -37,6 +38,8 @@ func (z *zipReader) Close(readBytes int) error {
 	return z.ReadCloser.Close() //nolint:wrapcheck
 }
 
+// newZipReader returns a pointer to a new [zipReader] for given path.
+// Argument isExtract separates metadata reading and extraction metrics.
 func newZipReader(path string, isExtract bool) (*zipReader, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
@@ -53,8 +56,8 @@ func newZipReader(path string, isExtract bool) (*zipReader, error) {
 	}, nil
 }
 
-// flatEntryName flattens a path into just the filename.
-// Name collisions are avoided by appending 8 digits of its SHA-1 hash.
+// flatEntryName flattens a path into a filename, discarding structure.
+// Name collisions are avoided by appending [hashDigits] of its SHA-1 hash.
 func flatEntryName(zipEntryName string) (string, bool) {
 	cleanedEntryName := filepath.Clean(filepath.ToSlash(zipEntryName))
 
@@ -74,9 +77,11 @@ func flatEntryName(zipEntryName string) (string, bool) {
 	ext := filepath.Ext(baseName)
 	nameWithoutExt := strings.TrimSuffix(baseName, ext)
 
-	return nameWithoutExt + "_" + hash[:8] + ext, true
+	return nameWithoutExt + "_" + hash[:hashDigits] + ext, true
 }
 
+// toFuseErr converts an error into either ENOENT, EACCES or EIO.
+// When the error is not convertable, a generic EIO is chosen instead.
 func toFuseErr(err error) error {
 	switch {
 	case os.IsNotExist(err):

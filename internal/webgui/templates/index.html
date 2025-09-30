@@ -1,9 +1,9 @@
 <html>
     <head>
-        <title>ZipFUSE ({{.AppVersion}})</title>
+        <title>ZipFUSE Diagnostics Server ({{.Version}})</title>
     </head>
     <body>
-        <img width=150 src="/zipfuse.png"> <b>{{.AppVersion}} / Diagnostics Server</b>
+        <img width=150 src="/zipfuse.png"> <b>Diagnostics Server ({{.Version}})</b>
         <br>
         <br>
         <b>
@@ -29,7 +29,7 @@
             <li>Avg file extract time:           {{.AvgExtractTime}}</li>
             <li>Avg file extract speed:          {{.AvgExtractSpeed}}</li>
         </ul>
-        <h3>In-Memory Ring Buffer ({{.LogBufferSize}} lines):</h3>
+        <h3>In-Memory Ring Buffer ({{.RingBufferSize}} lines):</h3>
         <pre>{{.Logs}}</pre>
     </body>
 </html>

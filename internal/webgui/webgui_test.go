@@ -49,7 +49,7 @@ func Test_dashboardMux_Success(t *testing.T) {
 func Test_dashboardHandler_Success(t *testing.T) {
 	logging.Buffer.Reset()
 
-	AppVersion = "test-version"
+	Version = "test-version"
 	logging.Println("test log entry")
 
 	filesystem.OpenZips.Store(5)
