@@ -1,4 +1,4 @@
-// Package filesystem implements the FUSE filesystem.
+// Package filesystem implements the filesystem.
 package filesystem
 
 import (
@@ -47,7 +47,7 @@ var (
 	TotalExtractBytes atomic.Int64
 )
 
-// FS is the core implementation of the zipfuse filesystem.
+// FS is the core implementation of the filesystem.
 type FS struct {
 	RootDir string
 }
