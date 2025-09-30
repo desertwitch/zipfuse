@@ -9,7 +9,7 @@ Conflicts=shutdown.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/zipfuse /mnt/media-adx2 /mnt/zipgallery 200MB
+ExecStart=/usr/local/bin/zipfuse /mnt/media-adx2 /mnt/zipgallery -m 200M -w :8000
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=60
