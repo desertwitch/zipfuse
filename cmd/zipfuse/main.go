@@ -44,7 +44,12 @@ func rootCmd() *cobra.Command {
 		Use:   "zipfuse <root-dir> <mountpoint>",
 		Short: "a read-only FUSE filesystem for browsing of ZIP files",
 		Long: `zipfuse is a FUSE filesystem that shows ZIP files as flattened, browseable
-directories - it unpacks, streams and serves files straight from memory (RAM).`,
+directories - it unpacks, streams and serves files straight from memory (RAM).
+
+When mounted, the following OS signals are observed at runtime:
+- SIGTERM/SIGINT for gracefully unmounting the FS
+- SIGUSR1 for forcing a garbage collection run within Go
+- SIGUSR2 for printing a stack trace to standard error (stderr)`,
 		Version: Version,
 		Args:    cobra.ExactArgs(2), //nolint:mnd
 		RunE: func(_ *cobra.Command, args []string) error {
