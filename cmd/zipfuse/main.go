@@ -49,7 +49,13 @@ directories - it unpacks, streams and serves files straight from memory (RAM).
 When mounted, the following OS signals are observed at runtime:
 - SIGTERM/SIGINT for gracefully unmounting the FS
 - SIGUSR1 for forcing a garbage collection run within Go
-- SIGUSR2 for printing a stack trace to standard error (stderr)`,
+- SIGUSR2 for printing a stack trace to standard error (stderr)
+
+When enabled, the diagnostics dashboard exposes the following routes:
+- "/" for filesystem dashboard and event ring-buffer
+- "/gc" for forcing of a garbage collection (within Go)
+- "/reset-metrics" for resetting the FS metrics at runtime
+- "/threshold/<value>" for adapting of the streaming threshold`,
 		Version: Version,
 		Args:    cobra.ExactArgs(2), //nolint:mnd
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -66,7 +72,7 @@ When mounted, the following OS signals are observed at runtime:
 			})
 		},
 	}
-	cmd.Flags().StringVarP(&argThreshold, "threshold", "t", "200M", "Max. size of a single ZIP-contained file to fully load into RAM")
+	cmd.Flags().StringVarP(&argThreshold, "memsize", "m", "200M", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&argDashAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
 	return cmd

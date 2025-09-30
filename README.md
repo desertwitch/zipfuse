@@ -37,7 +37,7 @@ are sufficiently secured (itself being not security-centric but purpose-built).
 ```bash
 make all
 mkdir /mnt/zipfuse
-./zipfuse /mnt/albums /mnt/zipfuse --threshold 200M --webaddr :8000
+./zipfuse /mnt/albums /mnt/zipfuse --memsize 200M --webaddr :8000
 ```
 
 In the example above, the `.zip` archives are contained in `/mnt/albums` and the
@@ -49,7 +49,7 @@ The diagnostics endpoint was configured on `:8000`, exposing the routes:
 - `/` for filesystem dashboard and event ring-buffer
 - `/gc` for forcing of a garbage collection (within Go)
 - `/reset-metrics` for resetting the FS metrics at runtime
-- `/threshold/500MB` for adapting of the streaming threshold
+- `/threshold/<value>` for adapting of the streaming threshold
 
 The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
