@@ -1,4 +1,4 @@
-package main
+package filesystem
 
 import (
 	"crypto/sha1"
@@ -6,9 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
-	"github.com/dustin/go-humanize"
+	"bazil.org/fuse"
 	"github.com/klauspost/compress/zip"
 )
 
@@ -21,16 +22,16 @@ type zipReader struct {
 }
 
 func (z *zipReader) Close(readBytes int) error {
-	openZips.Add(-1)
-	closedZips.Add(1)
+	OpenZips.Add(-1)
+	TotalClosedZips.Add(1)
 
 	if z.isExtract {
-		totalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
-		totalExtractCount.Add(1)
-		totalExtractBytes.Add(int64(readBytes))
+		TotalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
+		TotalExtractCount.Add(1)
+		TotalExtractBytes.Add(int64(readBytes))
 	} else {
-		totalMetadataReadTime.Add(time.Since(z.startTime).Nanoseconds())
-		totalMetadataReadCount.Add(1)
+		TotalMetadataReadTime.Add(time.Since(z.startTime).Nanoseconds())
+		TotalMetadataReadCount.Add(1)
 	}
 
 	return z.ReadCloser.Close() //nolint:wrapcheck
@@ -42,8 +43,8 @@ func newZipReader(path string, isExtract bool) (*zipReader, error) {
 		return nil, err //nolint:wrapcheck
 	}
 
-	openZips.Add(1)
-	openedZips.Add(1)
+	OpenZips.Add(1)
+	TotalOpenedZips.Add(1)
 
 	return &zipReader{
 		ReadCloser: zr,
@@ -52,35 +53,17 @@ func newZipReader(path string, isExtract bool) (*zipReader, error) {
 	}, nil
 }
 
-func parseArgsOrExit() (root string, mount string) { //nolint:nonamedreturns
-	if len(os.Args) < 4 { //nolint:mnd
-		logPrintf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", os.Args[0])
-		os.Exit(1)
-	}
-
-	root, mount = os.Args[1], os.Args[2]
-	threshold, err := humanize.ParseBytes(os.Args[3])
-
-	if root == "" || mount == "" || threshold <= 0 || err != nil {
-		logPrintf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", os.Args[0])
-		if err != nil {
-			logPrintf("Error: %v", err)
-		}
-		os.Exit(1)
-	}
-
-	streamingThreshold.Store(threshold)
-
-	return root, mount
-}
-
 // flatEntryName flattens a path into just the filename.
 // Name collisions are avoided by appending 8 digits of its SHA-1 hash.
 func flatEntryName(zipEntryName string) (string, bool) {
 	cleanedEntryName := filepath.Clean(filepath.ToSlash(zipEntryName))
 
+	if strings.HasPrefix(cleanedEntryName, "..") {
+		return cleanedEntryName, false
+	}
+
 	baseName := filepath.Base(cleanedEntryName)
-	if baseName == "." || strings.HasPrefix(baseName, "..") || baseName == "/" {
+	if baseName == "." || baseName == ".." || baseName == "/" {
 		return baseName, false
 	}
 
@@ -92,4 +75,17 @@ func flatEntryName(zipEntryName string) (string, bool) {
 	nameWithoutExt := strings.TrimSuffix(baseName, ext)
 
 	return nameWithoutExt + "_" + hash[:8] + ext, true
+}
+
+func toFuseErr(err error) error {
+	switch {
+	case os.IsNotExist(err):
+		return fuse.ToErrno(syscall.ENOENT)
+
+	case os.IsPermission(err):
+		return fuse.ToErrno(syscall.EACCES)
+
+	default:
+		return fuse.ToErrno(syscall.EIO)
+	}
 }

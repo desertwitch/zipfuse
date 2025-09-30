@@ -1,15 +1,17 @@
 <div align="left">
     <img alt="Logo" src="assets/zipfuse.png" width="150">
     <br><br>
+    <img src="https://img.shields.io/badge/.zip-%E2%99%A5_FUSE-red">
     <a href="https://github.com/desertwitch/zipfuse/tags"><img alt="Release" src="https://img.shields.io/github/tag/desertwitch/zipfuse.svg"></a>
     <a href="https://go.dev/"><img alt="Go Version" src="https://img.shields.io/badge/go-%3E%3D%201.25.1-%23007d9c"></a>
     <a href="https://pkg.go.dev/github.com/desertwitch/zipfuse"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/desertwitch/zipfuse.svg"></a>
     <a href="https://goreportcard.com/report/github.com/desertwitch/zipfuse"><img alt="Go Report" src="https://goreportcard.com/badge/github.com/desertwitch/zipfuse"></a>
     <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/desertwitch/zipfuse"></a>
     <br>
+    <a href="https://codecov.io/gh/desertwitch/zipfuse"><img src="https://codecov.io/gh/desertwitch/zipfuse/graph/badge.svg?token=SENW4W2GQL"/></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml"><img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg"></a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml"><img alt="Tests" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml/badge.svg"></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml"><img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg"></a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build-debug.yml"><img alt="Build Debug" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build-debug.yml/badge.svg"></a>
 </div>
 
 ## ZipFUSE Filesystem
@@ -37,7 +39,7 @@ are sufficiently secured (itself being not security-centric but purpose-built).
 ```bash
 make all
 mkdir /mnt/zipfuse
-./zipfuse /mnt/albums /mnt/zipfuse 200M
+./zipfuse /mnt/albums /mnt/zipfuse --memsize 200M --webaddr :8000
 ```
 
 In the example above, the `.zip` archives are contained in `/mnt/albums` and the
@@ -45,15 +47,16 @@ target mount is at `/mnt/zipfuse`. `200M` describes the streaming threshold, at
 which individual `.zip`-contained files are no longer entirely loaded in memory
 but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 
-The following signals are observed and handled by the filesystem:
-- `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
-- `SIGUSR1` dumps a diagnostic stacktrace to standard error (`stderr`)
-
-The diagnostics endpoint is exposed on `:8000` with the following routes:
+The diagnostics endpoint was configured on `:8000`, exposing the routes:
 - `/` for filesystem dashboard and event ring-buffer
 - `/gc` for forcing of a garbage collection (within Go)
-- `/debug/pprof/` for a full-fledged Go profiling endpoint
-- `/threshold/500MB` for runtime adapting the streaming threshold
+- `/reset-metrics` for resetting the FS metrics at runtime
+- `/threshold/<value>` for adapting of the streaming threshold
+
+The following signals are observed and handled by the filesystem:
+- `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
+- `SIGUSR1` forces a garbage collection (within Go)
+- `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
 
 ## ZipGallery Project
 

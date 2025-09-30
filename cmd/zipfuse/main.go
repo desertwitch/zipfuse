@@ -5,82 +5,118 @@ directories - it unpacks, streams and serves files straight from memory (RAM).
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/desertwitch/zipfuse/internal/filesystem"
+	"github.com/desertwitch/zipfuse/internal/logging"
+	"github.com/desertwitch/zipfuse/internal/webgui"
+	"github.com/dustin/go-humanize"
+	"github.com/spf13/cobra"
 )
 
 const (
-	logBufferLinesMax = 500
-	stackTraceBuffer  = 1 << 24
-
-	fileBasePerm = 0o444 // RO
-	dirBasePerm  = 0o555 // RO
+	stackTraceBuffer = 1 << 24
 )
 
-var (
-	// Version is the program version (filled in from the Makefile).
-	Version string
+// Version is the program version (filled in from the Makefile).
+var Version string
 
-	logs               *logBuffer
-	streamingThreshold atomic.Uint64
+type programOpts struct {
+	rootDir          string
+	mountDir         string
+	streamThreshold  uint64
+	dashboardAddress string
+}
 
-	openZips   atomic.Int64
-	openedZips atomic.Int64
-	closedZips atomic.Int64
+func rootCmd() *cobra.Command {
+	var argThreshold string
+	var argDashAddress string
 
-	totalMetadataReadTime  atomic.Int64
-	totalMetadataReadCount atomic.Int64
+	cmd := &cobra.Command{
+		Use:   "zipfuse <root-dir> <mountpoint>",
+		Short: "a read-only FUSE filesystem for browsing of ZIP files",
+		Long: `zipfuse is a FUSE filesystem that shows ZIP files as flattened, browseable
+directories - it unpacks, streams and serves files straight from memory (RAM).
 
-	totalExtractTime  atomic.Int64
-	totalExtractCount atomic.Int64
-	totalExtractBytes atomic.Int64
-)
+When mounted, the following OS signals are observed at runtime:
+- SIGTERM/SIGINT for gracefully unmounting the FS
+- SIGUSR1 for forcing a garbage collection run within Go
+- SIGUSR2 for printing a stack trace to standard error (stderr)
+
+When enabled, the diagnostics dashboard exposes the following routes:
+- "/" for filesystem dashboard and event ring-buffer
+- "/gc" for forcing of a garbage collection (within Go)
+- "/reset-metrics" for resetting the FS metrics at runtime
+- "/threshold/<value>" for adapting of the streaming threshold`,
+		Version: Version,
+		Args:    cobra.ExactArgs(2), //nolint:mnd
+		RunE: func(_ *cobra.Command, args []string) error {
+			numThreshold, err := humanize.ParseBytes(argThreshold)
+			if err != nil {
+				return fmt.Errorf("failed to parse threshold: %w", err)
+			}
+
+			return run(programOpts{
+				rootDir:          args[0],
+				mountDir:         args[1],
+				streamThreshold:  numThreshold,
+				dashboardAddress: argDashAddress,
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&argThreshold, "memsize", "m", "200M", "Size cutoff for loading a file fully into RAM (streaming instead)")
+	cmd.Flags().StringVarP(&argDashAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
+
+	return cmd
+}
 
 func main() {
-	var exitCode int
-	var wg sync.WaitGroup
+	if err := rootCmd().Execute(); err != nil {
+		os.Exit(1)
+	}
+}
 
-	defer func() { os.Exit(exitCode) }()
+func run(opts programOpts) error {
+	filesystem.StreamingThreshold.Store(opts.streamThreshold)
 
-	logs = newLogBuffer(logBufferLinesMax)
-	logPrintf("zipfuse %s\n", Version)
-	root, mount := parseArgsOrExit()
-
-	c, err := fuse.Mount(mount, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))
+	c, err := fuse.Mount(opts.mountDir, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))
 	if err != nil {
-		logPrintf("Mount error: %v\n", err)
-		exitCode = 1
-
-		return
+		return fmt.Errorf("fs mount error: %w", err)
 	}
 	defer c.Close()
-	defer fuse.Unmount(mount) //nolint:errcheck
+	defer fuse.Unmount(opts.mountDir) //nolint:errcheck
 
+	var wg sync.WaitGroup
+	errChan := make(chan error, 1)
 	wg.Go(func() {
-		if err := fs.Serve(c, &zipFS{root}); err != nil {
-			logPrintf("FS serve error: %v\n", err)
-			exitCode = 1
+		defer close(errChan)
+		if err := fs.Serve(c, &filesystem.FS{RootDir: opts.rootDir}); err != nil {
+			errChan <- fmt.Errorf("fs serve error: %w", err)
 		}
 	})
 
-	srv := serveMetrics(":8000")
-	defer srv.Close()
+	if opts.dashboardAddress != "" {
+		webgui.AppVersion = Version
+		srv := webgui.Serve(opts.dashboardAddress)
+		defer srv.Close()
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		for range sig {
-			logPrintln("Signal received, unmounting the filesystem...")
+			logging.Println("Signal received, unmounting the filesystem...")
 
-			if err := fuse.Unmount(mount); err != nil {
-				logPrintf("Unmount error: %v (try again later)\n", err)
+			if err := fuse.Unmount(opts.mountDir); err != nil {
+				logging.Printf("Unmount error: %v (try again later)\n", err)
 
 				continue
 			}
@@ -89,11 +125,21 @@ func main() {
 		}
 	}()
 
+	sig1 := make(chan os.Signal, 1)
+	signal.Notify(sig1, syscall.SIGUSR1)
+	go func() {
+		for range sig1 {
+			logging.Println("Signal received, forcing garbage collection...")
+			runtime.GC()
+			debug.FreeOSMemory()
+		}
+	}()
+
 	sig2 := make(chan os.Signal, 1)
-	signal.Notify(sig2, syscall.SIGUSR1)
+	signal.Notify(sig2, syscall.SIGUSR2)
 	go func() {
 		for range sig2 {
-			logPrintln("Signal received, printing stacktrace to standard error (stderr)...")
+			logging.Println("Signal received, printing stacktrace (to stderr)...")
 			buf := make([]byte, stackTraceBuffer)
 			stacklen := runtime.Stack(buf, true)
 			os.Stderr.Write(buf[:stacklen])
@@ -101,4 +147,6 @@ func main() {
 	}()
 
 	wg.Wait()
+
+	return <-errChan
 }
