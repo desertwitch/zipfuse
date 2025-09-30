@@ -20,7 +20,7 @@
 and `.zip` archives of an underlying filesystem as regular directories and
 files. This means it internally handles in-memory unpacking, streaming and
 serving `.zip` archives and all their contained files, so that consumers need
-not know or care about the archive mechanics at all. It includes a HTTP endpoint
+not know or care about `.zip` archives mechanics. It includes a HTTP dashboard
 for basic filesystem metrics and controlling operations and behavior at runtime.
 
 The filesystem is realized in Go and kept as simple and stateless as possible,
@@ -47,7 +47,7 @@ target mount is at `/mnt/zipfuse`. `200M` describes the streaming threshold, at
 which individual `.zip`-contained files are no longer entirely loaded in memory
 but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 
-The diagnostics endpoint was configured on `:8000`, exposing the routes:
+The diagnostics server was configured on `:8000`, exposing the routes:
 - `/` for filesystem dashboard and event ring-buffer
 - `/gc` for forcing of a garbage collection (within Go)
 - `/reset-metrics` for resetting the FS metrics at runtime

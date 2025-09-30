@@ -61,11 +61,12 @@ func (zpfs *FS) Root() (fs.Node, error) {
 }
 
 // GenerateInode implements [fs.FSInodeGenerator] to prevent dynamic
-// inode generation as a fallback method from within the FUSE library.
+// inode generation by the fallback method from within the FUSE library.
+//
+// [FS] handles inodes internally, so dynamic inode generation within the
+// FUSE library (being the fallback on encountering zero inodes) is a core
+// violation of this very design principle. Calling this method will panic,
+// to reveal where internal inode handling does not produce the valid inode.
 func (zpfs *FS) GenerateInode(_ uint64, _ string) uint64 {
-	// zipfuse handles inodes itself, so a dynamic inode generation within the
-	// FUSE library (being the fallback on encountering zero inodes) is a core
-	// violation of this very design principle. So a panic should reveal where
-	// internal inode handling does not produce an inode and needs fixing up.
 	panic("unhandled zero inode triggered an illegal dynamic generation")
 }

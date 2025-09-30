@@ -1,6 +1,21 @@
 /*
-zipfuse is a FUSE filesystem that shows ZIP files as flattened, browseable
-directories - it unpacks, streams and serves files straight from memory (RAM).
+`zipfuse` is a tailored, read-only FUSE filesystem that exposes both directories
+and `.zip` archives of an underlying filesystem as regular directories and
+files. This means it internally handles in-memory unpacking, streaming and
+serving `.zip` archives and all their contained files, so that consumers need
+not know or care about `.zip` archives mechanics. It includes a HTTP dashboard
+for basic filesystem metrics and controlling operations and behavior at runtime.
+
+The following signals are observed and handled by the filesystem:
+- `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
+- `SIGUSR1` forces a garbage collection (within Go)
+- `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
+
+When enabled, the diagnostics server exposes the following routes over HTTP:
+- `/` for filesystem dashboard and event ring-buffer
+- `/gc` for forcing of a garbage collection (within Go)
+- `/reset-metrics` for resetting the FS metrics at runtime
+- `/threshold/<value>` for adapting of the streaming threshold
 */
 package main
 
@@ -104,7 +119,7 @@ func run(opts programOpts) error {
 	})
 
 	if opts.dashboardAddress != "" {
-		webgui.AppVersion = Version
+		webgui.Version = Version
 		srv := webgui.Serve(opts.dashboardAddress)
 		defer srv.Close()
 	}

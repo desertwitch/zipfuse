@@ -35,9 +35,9 @@ func captureStderr(t *testing.T, f func()) string {
 	return buf.String()
 }
 
-// Expectation: newLogBuffer should create a buffer with the correct size.
-func Test_newLogBuffer_Success(t *testing.T) {
-	buf := newLogBuffer(10)
+// Expectation: newRingBuffer should create a buffer with the correct size.
+func Test_newRingBuffer_Success(t *testing.T) {
+	buf := newRingBuffer(10)
 
 	require.NotNil(t, buf)
 	require.Equal(t, 10, buf.Size())
@@ -46,8 +46,8 @@ func Test_newLogBuffer_Success(t *testing.T) {
 }
 
 // Expectation: add should append messages to the buffer.
-func Test_logBuffer_add_Success(t *testing.T) {
-	buf := newLogBuffer(3)
+func Test_ringBuffer_add_Success(t *testing.T) {
+	buf := newRingBuffer(3)
 
 	buf.add("first")
 	buf.add("second")
@@ -62,8 +62,8 @@ func Test_logBuffer_add_Success(t *testing.T) {
 }
 
 // Expectation: add should wrap around when the buffer is full.
-func Test_logBuffer_add_WrapAround_Success(t *testing.T) {
-	buf := newLogBuffer(3)
+func Test_ringBuffer_add_WrapAround_Success(t *testing.T) {
+	buf := newRingBuffer(3)
 
 	buf.add("first")
 	buf.add("second")
@@ -80,8 +80,8 @@ func Test_logBuffer_add_WrapAround_Success(t *testing.T) {
 }
 
 // Expectation: add should trim trailing newlines.
-func Test_logBuffer_add_TrimNewline_Success(t *testing.T) {
-	buf := newLogBuffer(2)
+func Test_ringBuffer_add_TrimNewline_Success(t *testing.T) {
+	buf := newRingBuffer(2)
 
 	buf.add("message with newline\n")
 	buf.add("another\n\n")
@@ -94,8 +94,8 @@ func Test_logBuffer_add_TrimNewline_Success(t *testing.T) {
 }
 
 // Expectation: Lines should return the partial buffer when not full.
-func Test_logBuffer_Lines_PartialBuffer_Success(t *testing.T) {
-	buf := newLogBuffer(5)
+func Test_ringBuffer_Lines_PartialBuffer_Success(t *testing.T) {
+	buf := newRingBuffer(5)
 
 	buf.add("one")
 	buf.add("two")
@@ -108,8 +108,8 @@ func Test_logBuffer_Lines_PartialBuffer_Success(t *testing.T) {
 }
 
 // Expectation: Reset should return the buffer to empty, pre-allocated state.
-func Test_logBuffer_Reset_Success(t *testing.T) {
-	buf := newLogBuffer(5)
+func Test_ringBuffer_Reset_Success(t *testing.T) {
+	buf := newRingBuffer(5)
 
 	buf.add("one")
 	buf.add("two")
@@ -124,8 +124,8 @@ func Test_logBuffer_Reset_Success(t *testing.T) {
 }
 
 // Expectation: Concurrent access should be thread-safe.
-func Test_logBuffer_Concurrency_Success(t *testing.T) {
-	buf := newLogBuffer(100)
+func Test_ringBuffer_Concurrency_Success(t *testing.T) {
+	buf := newRingBuffer(100)
 	done := make(chan bool)
 
 	for i := range 10 {

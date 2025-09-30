@@ -1,4 +1,4 @@
-// Package logging implements the handling of log messages within the program.
+// Package logging implements the handling of log messages.
 package logging
 
 import (
@@ -9,13 +9,14 @@ import (
 	"time"
 )
 
-const logBufferLinesMax = 500
+// BufferSize is the to-allocate size of the ring-buffer.
+const BufferSize = 500
 
-// Buffer is the global ring-buffer for all of the program events.
-var Buffer = newLogBuffer(logBufferLinesMax)
+// Buffer is the main ring-buffer for all program output.
+var Buffer = newRingBuffer(BufferSize)
 
-// logBuffer is a simple ring-buffer for log messages.
-type logBuffer struct {
+// ringBuffer is a simple ring-buffer for log messages.
+type ringBuffer struct {
 	mu    sync.Mutex
 	buf   []string
 	index int
@@ -23,18 +24,18 @@ type logBuffer struct {
 	size  int
 }
 
-func newLogBuffer(size int) *logBuffer {
-	return &logBuffer{
+func newRingBuffer(size int) *ringBuffer {
+	return &ringBuffer{
 		buf:  make([]string, size),
 		size: size,
 	}
 }
 
-func (l *logBuffer) Size() int {
+func (l *ringBuffer) Size() int {
 	return l.size
 }
 
-func (l *logBuffer) Lines() []string {
+func (l *ringBuffer) Lines() []string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -49,7 +50,7 @@ func (l *logBuffer) Lines() []string {
 	return out
 }
 
-func (l *logBuffer) Reset() {
+func (l *ringBuffer) Reset() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -58,7 +59,7 @@ func (l *logBuffer) Reset() {
 	l.full = false
 }
 
-func (l *logBuffer) add(msg string) {
+func (l *ringBuffer) add(msg string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
