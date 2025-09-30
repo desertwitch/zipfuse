@@ -5,9 +5,11 @@ directories - it unpacks, streams and serves files straight from memory (RAM).
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"syscall"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/desertwitch/zipfuse/internal/logging"
 	"github.com/desertwitch/zipfuse/internal/webgui"
 	"github.com/dustin/go-humanize"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -26,35 +29,74 @@ const (
 // Version is the program version (filled in from the Makefile).
 var Version string
 
+type programOpts struct {
+	rootDir          string
+	mountDir         string
+	streamThreshold  uint64
+	dashboardAddress string
+}
+
+func rootCmd() *cobra.Command {
+	var argThreshold string
+	var argDashAddress string
+
+	cmd := &cobra.Command{
+		Use:   "zipfuse <root-dir> <mountpoint>",
+		Short: "a read-only FUSE filesystem for browsing of ZIP files",
+		Long: `zipfuse is a FUSE filesystem that shows ZIP files as flattened, browseable
+directories - it unpacks, streams and serves files straight from memory (RAM).`,
+		Version: Version,
+		Args:    cobra.ExactArgs(2), //nolint:mnd
+		RunE: func(_ *cobra.Command, args []string) error {
+			numThreshold, err := humanize.ParseBytes(argThreshold)
+			if err != nil {
+				return fmt.Errorf("failed to parse threshold: %w", err)
+			}
+
+			return run(programOpts{
+				rootDir:          args[0],
+				mountDir:         args[1],
+				streamThreshold:  numThreshold,
+				dashboardAddress: argDashAddress,
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&argThreshold, "threshold", "t", "200M", "Max. size of a single ZIP-contained file to fully load into RAM")
+	cmd.Flags().StringVarP(&argDashAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
+
+	return cmd
+}
+
 func main() {
-	var exitCode int
-	var wg sync.WaitGroup
+	if err := rootCmd().Execute(); err != nil {
+		os.Exit(1)
+	}
+}
 
-	defer func() { os.Exit(exitCode) }()
+func run(opts programOpts) error {
+	filesystem.StreamingThreshold.Store(opts.streamThreshold)
 
-	logging.Printf("zipfuse %s\n", Version)
-	root, mount := parseArgsOrExit(os.Args)
-
-	c, err := fuse.Mount(mount, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))
+	c, err := fuse.Mount(opts.mountDir, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))
 	if err != nil {
-		logging.Printf("Mount error: %v\n", err)
-		exitCode = 1
-
-		return
+		return fmt.Errorf("fs mount error: %w", err)
 	}
 	defer c.Close()
-	defer fuse.Unmount(mount) //nolint:errcheck
+	defer fuse.Unmount(opts.mountDir) //nolint:errcheck
 
+	var wg sync.WaitGroup
+	errChan := make(chan error, 1)
 	wg.Go(func() {
-		if err := fs.Serve(c, &filesystem.FS{RootDir: root}); err != nil {
-			logging.Printf("FS serve error: %v\n", err)
-			exitCode = 1
+		defer close(errChan)
+		if err := fs.Serve(c, &filesystem.FS{RootDir: opts.rootDir}); err != nil {
+			errChan <- fmt.Errorf("fs serve error: %w", err)
 		}
 	})
 
-	webgui.AppVersion = Version
-	srv := webgui.Serve(":8000")
-	defer srv.Close()
+	if opts.dashboardAddress != "" {
+		webgui.AppVersion = Version
+		srv := webgui.Serve(opts.dashboardAddress)
+		defer srv.Close()
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -62,7 +104,7 @@ func main() {
 		for range sig {
 			logging.Println("Signal received, unmounting the filesystem...")
 
-			if err := fuse.Unmount(mount); err != nil {
+			if err := fuse.Unmount(opts.mountDir); err != nil {
 				logging.Printf("Unmount error: %v (try again later)\n", err)
 
 				continue
@@ -72,11 +114,21 @@ func main() {
 		}
 	}()
 
+	sig1 := make(chan os.Signal, 1)
+	signal.Notify(sig1, syscall.SIGUSR1)
+	go func() {
+		for range sig1 {
+			logging.Println("Signal received, forcing garbage collection...")
+			runtime.GC()
+			debug.FreeOSMemory()
+		}
+	}()
+
 	sig2 := make(chan os.Signal, 1)
-	signal.Notify(sig2, syscall.SIGUSR1)
+	signal.Notify(sig2, syscall.SIGUSR2)
 	go func() {
 		for range sig2 {
-			logging.Println("Signal received, printing stacktrace to standard error (stderr)...")
+			logging.Println("Signal received, printing stacktrace (to stderr)...")
 			buf := make([]byte, stackTraceBuffer)
 			stacklen := runtime.Stack(buf, true)
 			os.Stderr.Write(buf[:stacklen])
@@ -84,26 +136,6 @@ func main() {
 	}()
 
 	wg.Wait()
-}
 
-func parseArgsOrExit(args []string) (root string, mount string) { //nolint:nonamedreturns
-	if len(args) < 4 { //nolint:mnd
-		logging.Printf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", args[0])
-		os.Exit(1)
-	}
-
-	root, mount = args[1], args[2]
-	threshold, err := humanize.ParseBytes(args[3])
-
-	if root == "" || mount == "" || threshold <= 0 || err != nil {
-		logging.Printf("Usage: %s <root-dir> <mountpoint> <streaming-threshold>\n", args[0])
-		if err != nil {
-			logging.Printf("Error: %v", err)
-		}
-		os.Exit(1)
-	}
-
-	filesystem.StreamingThreshold.Store(threshold)
-
-	return root, mount
+	return <-errChan
 }

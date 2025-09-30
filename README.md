@@ -47,7 +47,8 @@ but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 
 The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
-- `SIGUSR1` dumps a diagnostic stacktrace to standard error (`stderr`)
+- `SIGUSR1` forces a garbage collection (within Go)
+- `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
 
 The diagnostics endpoint is exposed on `:8000` with the following routes:
 - `/` for filesystem dashboard and event ring-buffer
