@@ -1,4 +1,4 @@
-// Package logging implements the handling of log messages.
+// Package logging implements the handling of logs.
 package logging
 
 import (
