@@ -37,7 +37,7 @@ are sufficiently secured (itself being not security-centric but purpose-built).
 ```bash
 make all
 mkdir /mnt/zipfuse
-./zipfuse /mnt/albums /mnt/zipfuse 200M
+./zipfuse /mnt/albums /mnt/zipfuse --threshold 200M --webaddr :8000
 ```
 
 In the example above, the `.zip` archives are contained in `/mnt/albums` and the
@@ -45,15 +45,16 @@ target mount is at `/mnt/zipfuse`. `200M` describes the streaming threshold, at
 which individual `.zip`-contained files are no longer entirely loaded in memory
 but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 
+The diagnostics endpoint was configured on `:8000`, exposing the routes:
+- `/` for filesystem dashboard and event ring-buffer
+- `/gc` for forcing of a garbage collection (within Go)
+- `/reset-metrics` for resetting the FS metrics at runtime
+- `/threshold/500MB` for adapting of the streaming threshold
+
 The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
 - `SIGUSR1` forces a garbage collection (within Go)
 - `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
-
-The diagnostics endpoint is exposed on `:8000` with the following routes:
-- `/` for filesystem dashboard and event ring-buffer
-- `/gc` for forcing of a garbage collection (within Go)
-- `/threshold/500MB` for adapting of the streaming threshold
 
 ## ZipGallery Project
 
