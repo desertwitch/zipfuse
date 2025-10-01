@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bazil.org/fuse"
+	"github.com/klauspost/compress/zip"
 	"github.com/stretchr/testify/require"
 )
 
@@ -254,4 +255,56 @@ func Test_toFuseErr_WrappedNotExist_Success(t *testing.T) {
 
 	err := toFuseErr(osErr)
 	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
+}
+
+// Expectation: The function should behave according to the table expectations.
+func Test_isDir_Success(t *testing.T) {
+	tests := []struct {
+		name      string
+		fileName  string
+		isDirAttr bool
+		want      bool
+	}{
+		{"file with dir attribute", "folder/", true, true},
+		{"file with suffix slash", "fake.txt/", false, true},
+		{"regular file", "file.txt", false, false},
+		{"regular file in subdir", "folder/file.txt", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &zip.File{
+				FileHeader: zip.FileHeader{
+					Name: tt.fileName,
+				},
+			}
+
+			if tt.isDirAttr {
+				f.SetMode(0o755 | os.ModeDir)
+			}
+
+			got := isDir(f, normalizeZipPath(tt.fileName))
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// Expectation: The function should behave according to the table expectations.
+func Test_normalizeZipPath_Success(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"foo//bar/baz.txt", "foo/bar/baz.txt"},
+		{"/leading/slash.txt", "leading/slash.txt"},
+		{"normal/path.txt", "normal/path.txt"},
+		{"////file.txt", "file.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got := normalizeZipPath(tt.in)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

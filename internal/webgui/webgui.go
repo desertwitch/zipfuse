@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -70,6 +71,7 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 		OpenZips            int64
 		OpenedZips          int64
 		ClosedZips          int64
+		FlatMode            string
 		StreamingThreshold  string
 		AllocBytes          string
 		TotalAlloc          string
@@ -88,6 +90,7 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 		OpenZips:            filesystem.OpenZips.Load(),
 		OpenedZips:          filesystem.TotalOpenedZips.Load(),
 		ClosedZips:          filesystem.TotalClosedZips.Load(),
+		FlatMode:            strconv.FormatBool(filesystem.FlatMode),
 		StreamingThreshold:  humanize.Bytes(filesystem.StreamingThreshold.Load()),
 		AllocBytes:          humanize.Bytes(m.Alloc),
 		TotalAlloc:          humanize.Bytes(m.TotalAlloc),

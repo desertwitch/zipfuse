@@ -11,12 +11,17 @@ import (
 const (
 	fileBasePerm = 0o444 // RO
 	dirBasePerm  = 0o555 // RO
-	hashDigits   = 8     // for [flatEntryName]
+	hashDigits   = 8     // [flatEntryName]
 )
 
 var (
 	_ fs.FS               = (*FS)(nil)
 	_ fs.FSInodeGenerator = (*FS)(nil)
+
+	// FlatMode controls if ZIP-contained subdirectories and files
+	// should be flattened with [flatEntryName] for shallow directories.
+	// This variable should no longer be modified when the FS is mounted.
+	FlatMode bool
 
 	// StreamingThreshold when files are no longer fully loaded into RAM,
 	// but rather streamed in chunks (amount as requested by the kernel).

@@ -45,6 +45,7 @@ const (
 var Version string
 
 type programOpts struct {
+	flatMode         bool
 	rootDir          string
 	mountDir         string
 	streamThreshold  uint64
@@ -52,6 +53,7 @@ type programOpts struct {
 }
 
 func rootCmd() *cobra.Command {
+	var argFlatMode bool
 	var argThreshold string
 	var argDashAddress string
 
@@ -80,6 +82,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 			}
 
 			return run(programOpts{
+				flatMode:         argFlatMode,
 				rootDir:          args[0],
 				mountDir:         args[1],
 				streamThreshold:  numThreshold,
@@ -87,6 +90,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 			})
 		},
 	}
+	cmd.Flags().BoolVarP(&argFlatMode, "flat", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().StringVarP(&argThreshold, "memsize", "m", "200M", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&argDashAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
@@ -100,6 +104,7 @@ func main() {
 }
 
 func run(opts programOpts) error {
+	filesystem.FlatMode = opts.flatMode
 	filesystem.StreamingThreshold.Store(opts.streamThreshold)
 
 	c, err := fuse.Mount(opts.mountDir, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))

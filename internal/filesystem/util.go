@@ -56,10 +56,10 @@ func newZipReader(path string, isExtract bool) (*zipReader, error) {
 	}, nil
 }
 
-// flatEntryName flattens a path into a filename, discarding structure.
-// Name collisions are avoided by appending [hashDigits] of its SHA-1 hash.
-func flatEntryName(zipEntryName string) (string, bool) {
-	cleanedEntryName := filepath.Clean(filepath.ToSlash(zipEntryName))
+// flatEntryName flattens a normalized path to a filename, discarding structure.
+// Any name collisions are avoided via appending [hashDigits] of its SHA-1 hash.
+func flatEntryName(normalizedPath string) (string, bool) {
+	cleanedEntryName := filepath.Clean(normalizedPath)
 
 	if strings.HasPrefix(cleanedEntryName, "..") {
 		return cleanedEntryName, false
@@ -93,4 +93,22 @@ func toFuseErr(err error) error {
 	default:
 		return fuse.ToErrno(syscall.EIO)
 	}
+}
+
+// isDir checks if [zip.File] is a directory either by mode or normalized path.
+func isDir(f *zip.File, normalizedPath string) bool {
+	return f.FileInfo().IsDir() || strings.HasSuffix(normalizedPath, "/")
+}
+
+// normalizeZipPath ensures ZIP paths use slashes and removes malformations.
+func normalizeZipPath(path string) string {
+	path = filepath.ToSlash(path)
+
+	for strings.Contains(path, "//") {
+		path = strings.ReplaceAll(path, "//", "/")
+	}
+
+	path = strings.TrimPrefix(path, "/")
+
+	return path
 }
