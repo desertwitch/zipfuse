@@ -105,7 +105,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 	}
 	cmd.Flags().BoolVarP(&argAllowOther, "allowother", "a", true, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&argDryRun, "dryrun", "d", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
-	cmd.Flags().BoolVarP(&argFlatMode, "flatten", "p", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
+	cmd.Flags().BoolVarP(&argFlatMode, "flatten", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&argMustCRC32, "checkall", "c", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
 	cmd.Flags().StringVarP(&argThreshold, "memsize", "m", "200M", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&argDashAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
