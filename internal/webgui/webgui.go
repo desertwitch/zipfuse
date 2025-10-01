@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -49,8 +50,9 @@ func dashboardMux() *mux.Router {
 
 	mux.HandleFunc("/", dashboardHandler)
 	mux.HandleFunc("/gc", gcHandler)
-	mux.HandleFunc("/reset-metrics", resetMetricsHandler)
-	mux.HandleFunc("/threshold/{value}", thresholdHandler)
+	mux.HandleFunc("/reset", resetMetricsHandler)
+	mux.HandleFunc("/set/checkall/{value}", mustCRC32Handler)
+	mux.HandleFunc("/set/threshold/{value}", thresholdHandler)
 
 	mux.HandleFunc("/zipfuse.png", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
@@ -70,6 +72,8 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 		OpenZips            int64
 		OpenedZips          int64
 		ClosedZips          int64
+		FlatMode            string
+		MustCRC32           string
 		StreamingThreshold  string
 		AllocBytes          string
 		TotalAlloc          string
@@ -85,19 +89,21 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 	}{
 		Version:             Version,
 		RingBufferSize:      logging.Buffer.Size(),
-		OpenZips:            filesystem.OpenZips.Load(),
-		OpenedZips:          filesystem.TotalOpenedZips.Load(),
-		ClosedZips:          filesystem.TotalClosedZips.Load(),
-		StreamingThreshold:  humanize.Bytes(filesystem.StreamingThreshold.Load()),
+		OpenZips:            filesystem.Metrics.OpenZips.Load(),
+		OpenedZips:          filesystem.Metrics.TotalOpenedZips.Load(),
+		ClosedZips:          filesystem.Metrics.TotalClosedZips.Load(),
+		FlatMode:            strconv.FormatBool(filesystem.Options.FlatMode),
+		MustCRC32:           strconv.FormatBool(filesystem.Options.MustCRC32.Load()),
+		StreamingThreshold:  humanize.Bytes(filesystem.Options.StreamingThreshold.Load()),
 		AllocBytes:          humanize.Bytes(m.Alloc),
 		TotalAlloc:          humanize.Bytes(m.TotalAlloc),
 		SysBytes:            humanize.Bytes(m.Sys),
 		NumGC:               m.NumGC,
 		AvgMetadataReadTime: avgMetadataReadTime(),
-		TotalMetadatas:      filesystem.TotalMetadataReadCount.Load(),
+		TotalMetadatas:      filesystem.Metrics.TotalMetadataReadCount.Load(),
 		AvgExtractTime:      avgExtractTime(),
 		AvgExtractSpeed:     avgExtractSpeed(),
-		TotalExtracts:       filesystem.TotalExtractCount.Load(),
+		TotalExtracts:       filesystem.Metrics.TotalExtractCount.Load(),
 		TotalExtractBytes:   totalExtractBytes(),
 		Logs:                strings.Join(logging.Buffer.Lines(), "\n"),
 	}
@@ -115,7 +121,7 @@ func gcHandler(w http.ResponseWriter, _ *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	logging.Printf("GC forced via /gc, current heap: %s.\n", humanize.Bytes(m.Alloc))
+	logging.Printf("GC forced via API, current heap: %s.\n", humanize.Bytes(m.Alloc))
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -123,19 +129,37 @@ func gcHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
-	filesystem.TotalMetadataReadTime.Store(0)
-	filesystem.TotalMetadataReadCount.Store(0)
-	filesystem.TotalExtractTime.Store(0)
-	filesystem.TotalExtractCount.Store(0)
-	filesystem.TotalExtractBytes.Store(0)
-	filesystem.TotalOpenedZips.Store(0)
-	filesystem.TotalClosedZips.Store(0)
+	filesystem.Metrics.TotalMetadataReadTime.Store(0)
+	filesystem.Metrics.TotalMetadataReadCount.Store(0)
+	filesystem.Metrics.TotalExtractTime.Store(0)
+	filesystem.Metrics.TotalExtractCount.Store(0)
+	filesystem.Metrics.TotalExtractBytes.Store(0)
+	filesystem.Metrics.TotalOpenedZips.Store(0)
+	filesystem.Metrics.TotalClosedZips.Store(0)
 
-	logging.Println("Metrics reset via /reset-metrics.")
+	logging.Println("Metrics reset via API.")
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "Metrics reset.")
+}
+
+func mustCRC32Handler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	val, err := strconv.ParseBool(vars["value"])
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid boolean value: %v", err), http.StatusBadRequest)
+
+		return
+	}
+	filesystem.Options.MustCRC32.Store(val)
+
+	logging.Printf("Forced integrity checking set via API: %t.\n", val)
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Forced integrity checking set: %t.\n", val)
 }
 
 func thresholdHandler(w http.ResponseWriter, r *http.Request) {
@@ -143,13 +167,13 @@ func thresholdHandler(w http.ResponseWriter, r *http.Request) {
 
 	val, err := humanize.ParseBytes(vars["value"])
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Invalid threshold: %v", err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Invalid string value: %v", err), http.StatusBadRequest)
 
 		return
 	}
-	filesystem.StreamingThreshold.Store(val)
+	filesystem.Options.StreamingThreshold.Store(val)
 
-	logging.Printf("Streaming threshold set via /threshold: %s.\n", humanize.Bytes(val))
+	logging.Printf("Streaming threshold set via API: %s.\n", humanize.Bytes(val))
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)

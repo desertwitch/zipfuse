@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bazil.org/fuse"
+	"github.com/klauspost/compress/zip"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,19 +47,19 @@ func Test_zipReader_Close_Extract_Success(t *testing.T) {
 		{Path: "test.txt", ModTime: tnow, Content: content},
 	})
 
-	OpenZips.Store(0)
-	TotalOpenedZips.Store(0)
-	TotalClosedZips.Store(0)
-	TotalExtractCount.Store(0)
-	TotalExtractBytes.Store(0)
-	TotalExtractTime.Store(0)
+	Metrics.OpenZips.Store(0)
+	Metrics.TotalOpenedZips.Store(0)
+	Metrics.TotalClosedZips.Store(0)
+	Metrics.TotalExtractCount.Store(0)
+	Metrics.TotalExtractBytes.Store(0)
+	Metrics.TotalExtractTime.Store(0)
 
 	zr, err := newZipReader(zipPath, true)
 	require.NoError(t, err)
 	require.NotNil(t, zr)
 
-	require.Equal(t, int64(1), OpenZips.Load())
-	require.Equal(t, int64(1), TotalOpenedZips.Load())
+	require.Equal(t, int64(1), Metrics.OpenZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalOpenedZips.Load())
 
 	var bytesRead int
 	for _, f := range zr.File {
@@ -77,12 +78,12 @@ func Test_zipReader_Close_Extract_Success(t *testing.T) {
 	err = zr.Close(bytesRead)
 	require.NoError(t, err)
 
-	require.Equal(t, int64(0), OpenZips.Load())
-	require.Equal(t, int64(1), TotalClosedZips.Load())
-	require.Equal(t, int64(1), TotalExtractCount.Load())
-	require.Equal(t, int64(bytesRead), TotalExtractBytes.Load())
-	require.Equal(t, int64(len(content)), TotalExtractBytes.Load())
-	require.Positive(t, TotalExtractTime.Load(), int64(0))
+	require.Equal(t, int64(0), Metrics.OpenZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalClosedZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalExtractCount.Load())
+	require.Equal(t, int64(bytesRead), Metrics.TotalExtractBytes.Load())
+	require.Equal(t, int64(len(content)), Metrics.TotalExtractBytes.Load())
+	require.Positive(t, Metrics.TotalExtractTime.Load(), int64(0))
 }
 
 // Expectation: zipReader should track metrics correctly on Close for metadata operations.
@@ -100,18 +101,18 @@ func Test_zipReader_Close_Metadata_Success(t *testing.T) {
 		{Path: "other.txt", ModTime: tnow, Content: []byte("other")},
 	})
 
-	OpenZips.Store(0)
-	TotalOpenedZips.Store(0)
-	TotalClosedZips.Store(0)
-	TotalMetadataReadCount.Store(0)
-	TotalMetadataReadTime.Store(0)
+	Metrics.OpenZips.Store(0)
+	Metrics.TotalOpenedZips.Store(0)
+	Metrics.TotalClosedZips.Store(0)
+	Metrics.TotalMetadataReadCount.Store(0)
+	Metrics.TotalMetadataReadTime.Store(0)
 
 	zr, err := newZipReader(zipPath, false)
 	require.NoError(t, err)
 	require.NotNil(t, zr)
 
-	require.Equal(t, int64(1), OpenZips.Load())
-	require.Equal(t, int64(1), TotalOpenedZips.Load())
+	require.Equal(t, int64(1), Metrics.OpenZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalOpenedZips.Load())
 
 	fileCount := len(zr.File)
 	require.Equal(t, 2, fileCount)
@@ -119,10 +120,562 @@ func Test_zipReader_Close_Metadata_Success(t *testing.T) {
 	err = zr.Close(0)
 	require.NoError(t, err)
 
-	require.Equal(t, int64(0), OpenZips.Load())
-	require.Equal(t, int64(1), TotalClosedZips.Load())
-	require.Equal(t, int64(1), TotalMetadataReadCount.Load())
-	require.Positive(t, TotalMetadataReadTime.Load(), int64(0))
+	require.Equal(t, int64(0), Metrics.OpenZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalClosedZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalMetadataReadCount.Load())
+	require.Positive(t, Metrics.TotalMetadataReadTime.Load(), int64(0))
+}
+
+// Expectation: newZipFileReader should successfully open a stored (uncompressed) file.
+func Test_newZipFileReader_Store_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("test content")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	require.Len(t, zr.File, 1)
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	require.NotNil(t, fr)
+	defer fr.Close()
+
+	data, err := io.ReadAll(fr)
+	require.NoError(t, err)
+	require.Equal(t, content, data)
+}
+
+// Expectation: newZipFileReader should successfully open a compressed file.
+func Test_newZipFileReader_Deflate_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	zipPath := filepath.Join(tmpDir, "test.zip")
+	f, err := os.Create(zipPath)
+	require.NoError(t, err)
+
+	zw := zip.NewWriter(f)
+	w, err := zw.CreateHeader(&zip.FileHeader{
+		Name:   "compressed.txt",
+		Method: zip.Deflate,
+	})
+	require.NoError(t, err)
+
+	content := []byte("compressed test content")
+	_, err = w.Write(content)
+	require.NoError(t, err)
+
+	err = zw.Close()
+	require.NoError(t, err)
+	err = f.Close()
+	require.NoError(t, err)
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	require.NotNil(t, fr)
+	defer fr.Close()
+
+	data, err := io.ReadAll(fr)
+	require.NoError(t, err)
+	require.Equal(t, content, data)
+}
+
+// Expectation: zipFileReader.Read should correctly track position.
+func Test_zipFileReader_Read_Position_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("0123456789")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	require.Equal(t, int64(0), fr.pos)
+
+	buf := make([]byte, 3)
+	n, err := fr.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 3, n)
+	require.Equal(t, int64(3), fr.pos)
+	require.Equal(t, []byte("012"), buf)
+
+	n, err = fr.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 3, n)
+	require.Equal(t, int64(6), fr.pos)
+	require.Equal(t, []byte("345"), buf)
+}
+
+// Expectation: zipFileReader should handle empty files.
+func Test_zipFileReader_Read_EmptyFile_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "empty.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	require.Equal(t, int64(0), fr.pos)
+
+	data, err := io.ReadAll(fr)
+	require.NoError(t, err)
+	require.Empty(t, data)
+	require.Equal(t, int64(0), fr.pos)
+}
+
+// Expectation: zipFileReader.Read should handle EOF correctly.
+func Test_zipFileReader_Read_EOF_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("short")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	data, err := io.ReadAll(fr)
+	require.NoError(t, err)
+	require.Equal(t, content, data)
+	require.Equal(t, int64(len(content)), fr.pos)
+
+	buf := make([]byte, 10)
+	n, err := fr.Read(buf)
+	require.Equal(t, 0, n)
+	require.ErrorIs(t, err, io.EOF)
+}
+
+// Expectation: zipFileReader.ForwardTo should return early when already at target offset.
+func Test_zipFileReader_ForwardTo_AlreadyAtOffset_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("test content")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(0)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), pos)
+	require.Equal(t, int64(0), fr.pos)
+}
+
+// Expectation: zipFileReader.ForwardTo should seek forward by discarding bytes.
+func Test_zipFileReader_ForwardTo_Discard_Success(t *testing.T) {
+	Options.MustCRC32.Store(true)
+	defer Options.MustCRC32.Store(false)
+
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("0123456789")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(5)
+	require.NoError(t, err)
+	require.Equal(t, int64(5), pos)
+	require.Equal(t, int64(5), fr.pos)
+
+	buf := make([]byte, 1)
+	n, err := fr.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, []byte("5"), buf)
+}
+
+// Expectation: zipFileReader.ForwardTo should work with multiple forward discards.
+func Test_zipFileReader_ForwardTo_Discard_Multiple_Success(t *testing.T) {
+	Options.MustCRC32.Store(true)
+	defer Options.MustCRC32.Store(false)
+
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("0123456789ABCDEFGHIJ")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(5)
+	require.NoError(t, err)
+	require.Equal(t, int64(5), pos)
+
+	pos, err = fr.ForwardTo(10)
+	require.NoError(t, err)
+	require.Equal(t, int64(10), pos)
+
+	pos, err = fr.ForwardTo(15)
+	require.NoError(t, err)
+	require.Equal(t, int64(15), pos)
+
+	buf := make([]byte, 1)
+	n, err := fr.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, []byte("F"), buf)
+}
+
+// Expectation: zipFileReader.ForwardTo should handle discarding to end of file.
+func Test_zipFileReader_ForwardTo_Discard_EndOfFile_Success(t *testing.T) {
+	Options.MustCRC32.Store(true)
+	defer Options.MustCRC32.Store(false)
+
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("test")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(int64(len(content)))
+	require.NoError(t, err)
+	require.Equal(t, int64(len(content)), pos)
+
+	buf := make([]byte, 1)
+	n, err := fr.Read(buf)
+	require.Equal(t, 0, n)
+	require.ErrorIs(t, err, io.EOF)
+}
+
+// Expectation: zipFileReader.ForwardTo should handle discarding beyond EOF gracefully.
+func Test_zipFileReader_ForwardTo_Discard_BeyondEOF_Success(t *testing.T) {
+	Options.MustCRC32.Store(true)
+	defer Options.MustCRC32.Store(false)
+
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("short")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(1000)
+	require.NoError(t, err)
+
+	require.Equal(t, int64(len(content)), pos)
+	require.Equal(t, int64(len(content)), fr.pos)
+}
+
+// Expectation: zipFileReader.ForwardTo should error when seeking backward on non-seekable reader.
+func Test_zipFileReader_ForwardTo_Discard_NonSeekableRewind_Error(t *testing.T) {
+	Options.MustCRC32.Store(true)
+	defer Options.MustCRC32.Store(false)
+
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("0123456789")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	_, err = fr.ForwardTo(5)
+	require.NoError(t, err)
+
+	pos, err := fr.ForwardTo(2)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrNonSeekableRewind)
+	require.Equal(t, int64(5), pos)
+}
+
+// Expectation: zipFileReader.ForwardTo should seek forward by actual seeking.
+func Test_zipFileReader_ForwardTo_Seek_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("0123456789")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(5)
+	require.NoError(t, err)
+	require.Equal(t, int64(5), pos)
+	require.Equal(t, int64(5), fr.pos)
+
+	buf := make([]byte, 1)
+	n, err := fr.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, []byte("5"), buf)
+}
+
+// Expectation: zipFileReader.ForwardTo should work with multiple forward seeks.
+func Test_zipFileReader_ForwardTo_Seek_Multiple_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("0123456789ABCDEFGHIJ")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(5)
+	require.NoError(t, err)
+	require.Equal(t, int64(5), pos)
+
+	pos, err = fr.ForwardTo(10)
+	require.NoError(t, err)
+	require.Equal(t, int64(10), pos)
+
+	pos, err = fr.ForwardTo(15)
+	require.NoError(t, err)
+	require.Equal(t, int64(15), pos)
+
+	buf := make([]byte, 1)
+	n, err := fr.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, []byte("F"), buf)
+}
+
+// Expectation: zipFileReader.ForwardTo should handle seeking to end of file.
+func Test_zipFileReader_ForwardTo_Seek_EndOfFile_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("test")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(int64(len(content)))
+	require.NoError(t, err)
+	require.Equal(t, int64(len(content)), pos)
+
+	buf := make([]byte, 1)
+	n, err := fr.Read(buf)
+	require.Equal(t, 0, n)
+	require.ErrorIs(t, err, io.EOF)
+}
+
+// Expectation: zipFileReader.ForwardTo should handle seeking beyond EOF gracefully.
+func Test_zipFileReader_ForwardTo_Seek_BeyondEOF_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("short")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	defer fr.Close()
+
+	pos, err := fr.ForwardTo(1000)
+	require.NoError(t, err)
+
+	require.Equal(t, int64(1000), pos)
+	require.Equal(t, int64(1000), fr.pos)
+}
+
+// Expectation: zipFileReader.Close should close underlying ReadCloser.
+func Test_zipFileReader_Close_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+	content := []byte("test content")
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	fr, err := newZipFileReader(zr.File[0])
+	require.NoError(t, err)
+	require.NotNil(t, fr)
+
+	err = fr.Close()
+	require.NoError(t, err)
+}
+
+// Expectation: zipFileReader.Close should handle non-ReadCloser gracefully.
+func Test_zipFileReader_Close_NonCloser_Success(t *testing.T) {
+	fr := &zipFileReader{
+		r:   io.NopCloser(nil),
+		pos: 0,
+	}
+
+	err := fr.Close()
+	require.NoError(t, err)
 }
 
 // Expectation: flatEntryName should flatten paths correctly and produce hashes.
@@ -254,4 +807,56 @@ func Test_toFuseErr_WrappedNotExist_Success(t *testing.T) {
 
 	err := toFuseErr(osErr)
 	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
+}
+
+// Expectation: The function should behave according to the table expectations.
+func Test_isDir_Success(t *testing.T) {
+	tests := []struct {
+		name      string
+		fileName  string
+		isDirAttr bool
+		want      bool
+	}{
+		{"file with dir attribute", "folder/", true, true},
+		{"file with suffix slash", "fake.txt/", false, true},
+		{"regular file", "file.txt", false, false},
+		{"regular file in subdir", "folder/file.txt", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &zip.File{
+				FileHeader: zip.FileHeader{
+					Name: tt.fileName,
+				},
+			}
+
+			if tt.isDirAttr {
+				f.SetMode(0o755 | os.ModeDir)
+			}
+
+			got := isDir(f, normalizeZipPath(tt.fileName))
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// Expectation: The function should behave according to the table expectations.
+func Test_normalizeZipPath_Success(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"foo//bar/baz.txt", "foo/bar/baz.txt"},
+		{"/leading/slash.txt", "leading/slash.txt"},
+		{"normal/path.txt", "normal/path.txt"},
+		{"////file.txt", "file.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got := normalizeZipPath(tt.in)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

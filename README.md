@@ -42,34 +42,14 @@ but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 The diagnostics server was configured on `:8000`, exposing the routes:
 - `/` for filesystem dashboard and event ring-buffer
 - `/gc` for forcing of a garbage collection (within Go)
-- `/reset-metrics` for resetting the FS metrics at runtime
-- `/threshold/<value>` for adapting of the streaming threshold
+- `/reset` for resetting the filesystem metrics at runtime
+- `/set/checkall/<bool>` for adapting forced integrity checking
+- `/set/threshold/<string>` for adapting of the streaming threshold
 
 The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
 - `SIGUSR1` forces a garbage collection (within Go)
 - `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
-
-### Path Handling and Limitations
-
-The filesystem was designed around operating on photo albums (see further
-below), so it does not waste resources in recreating structures from within
-`.zip` archives, but rather flattens any such structures so that only files
-remain within one shallow virtual directory per `.zip` archive. In order to
-avoid filename collisions, a deterministic portion of an `SHA-1` hash is then
-appended to every one of these files (8 digits to also avoid hash collisions):
-
-```
-/mnt/albums/test.zip/dir1/file.txt -> /mnt/zipfuse/test/file_V3321D81.txt
-/mnt/albums/test.zip/dir2/file.txt -> /mnt/zipfuse/test/file_A8371A86.txt
-```
-
-While this may seem unusual at first, the filesystem assumes processed `.zip`
-archives as shallow and containing few files - by design. Flattening aims to 
-reduce any unnecessary directory traversals for processing consumer software.
-For a photo gallery software to treat every `.zip` archive as a shallow album
-and not trigger any creations of subalbums was decisive for this design choice.
-In the end, photo filenames themselves rarely matter, as long as order remains.
 
 ## ZipGallery Project
 
@@ -103,6 +83,27 @@ sudo systemctl enable --now zipgallery.target
 ```
 
 In the example above the target is started immediately and also at system boot.
+
+### Path Flattening Mode
+
+Some users may specifically want the `--flatten` argument when mounting their
+filesystem, so it does not waste resources in recreating structures from within
+`.zip` archives, but rather flattens any such structures so that only files
+remain within one shallow virtual directory per `.zip` archive. In order to
+avoid filename collisions, a deterministic portion of an `SHA-1` hash is then
+appended to every one of these files (8 digits to also avoid hash collisions):
+
+```
+/mnt/albums/test.zip/dir1/file.txt -> /mnt/zipfuse/test/file_V3321D81.txt
+/mnt/albums/test.zip/dir2/file.txt -> /mnt/zipfuse/test/file_A8371A86.txt
+```
+
+While this may seem unusual at first, one could assume all to process `.zip`
+archives as shallow and containing few files. Flattening would help to reduce
+unnecessary directory traversals for processing consumer software. For a photo
+gallery software to treat every `.zip` archive as a shallow album and not
+trigger additional creations of subalbums could also be one factor. In the end,
+photo filenames themselves rarely matter, as long as order and sorting remains.
 
 ## Security, Contributions, and License
 
