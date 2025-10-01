@@ -77,7 +77,7 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 		}
 
 		name, ok := flatEntryName(normalizedPath)
-		if !ok || seen[name] {
+		if !ok || name == "" || seen[name] {
 			logging.Printf("Skipped: %q->ReadDirAll: %q -> %q (duplicate or invalid sanitized name)\n", z.Path, f.Name, name)
 
 			continue
