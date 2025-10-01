@@ -124,6 +124,44 @@ func Test_zipDirNode_readDirAllFlat_Success(t *testing.T) {
 	require.Equal(t, fuse.DT_File, ent[1].Type)
 }
 
+// Expectation: Leading slashes in ZIP entries should be handled in flat mode.
+func Test_zipDirNode_readDirAllFlat_LeadingSlash_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "/file.txt", ModTime: tnow, Content: []byte("test")},    // malformed
+		{Path: "//normal.txt", ModTime: tnow, Content: []byte("test")}, // malformed
+	})
+
+	node := &zipDirNode{
+		Inode:    fs.GenerateDynamicInode(1, "test"),
+		Path:     zipPath,
+		Prefix:   "",
+		Modified: tnow,
+	}
+
+	ent, err := node.readDirAllFlat(t.Context())
+	require.NoError(t, err)
+	require.Len(t, ent, 2)
+
+	name, ok := flatEntryName(normalizeZipPath("/file.txt"))
+	require.True(t, ok)
+	require.Equal(t, name, ent[0].Name)
+	require.NotContains(t, name, "/")
+	require.Equal(t, fuse.DT_File, ent[0].Type)
+
+	name, ok = flatEntryName(normalizeZipPath("//normal.txt"))
+	require.True(t, ok)
+	require.Equal(t, name, ent[1].Name)
+	require.NotContains(t, name, "/")
+	require.Equal(t, fuse.DT_File, ent[1].Type)
+}
+
 // Expectation: EINVAL should be returned upon accessing an invalid ZIP file (flat mode).
 func Test_zipDirNode_readDirAllFlat_InvalidArchive_Error(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -372,6 +410,36 @@ func Test_zipDirNode_readDirAllNested_LeadingSlash_Success(t *testing.T) {
 
 	require.Equal(t, "normal.txt", ent[1].Name)
 	require.Equal(t, fuse.DT_File, ent[1].Type)
+}
+
+// Expectation: Double slashes in ZIP entries should be handled in nested mode.
+func Test_zipDirNode_readDirAllNested_DoubleSlash_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "/file.txt", ModTime: tnow, Content: []byte("test")},       // malformed
+		{Path: "dir//normal.txt", ModTime: tnow, Content: []byte("test")}, // malformed
+	})
+
+	node := &zipDirNode{
+		Inode:    fs.GenerateDynamicInode(1, "test"),
+		Path:     zipPath,
+		Prefix:   "dir/",
+		Modified: tnow,
+	}
+
+	ent, err := node.readDirAllNested(t.Context())
+	require.NoError(t, err)
+	require.Len(t, ent, 1)
+
+	require.Equal(t, "normal.txt", ent[0].Name)
+	require.NotContains(t, ent[0].Name, "/")
+	require.Equal(t, fuse.DT_File, ent[0].Type)
 }
 
 // Expectation: Duplicate prefixed entries in ReadDirAll should be deduplicated in nested mode.

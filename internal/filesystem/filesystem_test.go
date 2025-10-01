@@ -105,38 +105,6 @@ func Test_FS_Deterministic_Success(t *testing.T) {
 	}
 }
 
-// Expectation: The filesystem should correctly normalize malformed ZIP paths in all nodes.
-func Test_FS_MalformedPaths_Success(t *testing.T) {
-	tmpDir := t.TempDir()
-	tnow := time.Now()
-
-	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
-		Path    string
-		ModTime time.Time
-		Content []byte
-	}{
-		{Path: "/file.txt", ModTime: tnow, Content: []byte("malformed leading slash")},
-		{Path: "//nested/file.txt", ModTime: tnow, Content: []byte("malformed double slash")},
-	})
-	require.FileExists(t, zipPath)
-
-	zpfs := &FS{RootDir: tmpDir}
-	visited := make(map[string]bool)
-
-	err := zpfs.Walk(t.Context(), func(path string, _ *fuse.Dirent, _ fs.Node, _ fuse.Attr) error {
-		visited[path] = true
-
-		return nil
-	})
-	require.NoError(t, err)
-
-	require.Contains(t, visited, "/")
-	require.Contains(t, visited, "/test")
-	require.Contains(t, visited, "/test/file.txt")
-	require.Contains(t, visited, "/test/nested")
-	require.Contains(t, visited, "/test/nested/file.txt")
-}
-
 // Expectation: A panic should occur when GenerateInode is called.
 func Test_FS_GenerateInode_Panic(t *testing.T) {
 	defer func() {
