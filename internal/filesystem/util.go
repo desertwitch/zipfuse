@@ -3,6 +3,9 @@ package filesystem
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,12 +16,37 @@ import (
 	"github.com/klauspost/compress/zip"
 )
 
+var (
+	_ io.ReadCloser = (*zipFileReader)(nil)
+
+	// ErrNonSeekableRewind occurs when an attempt is made to rewind a non-seekable file.
+	ErrNonSeekableRewind = errors.New("cannot rewind non-seekable file")
+)
+
 // zipReader is a metrics-aware [zip.ReadCloser].
 type zipReader struct {
 	*zip.ReadCloser
 
 	startTime time.Time
 	isExtract bool
+}
+
+// newZipReader returns a pointer to a new [zipReader] for given path.
+// Argument isExtract separates metadata reading and extraction metrics.
+func newZipReader(path string, isExtract bool) (*zipReader, error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	Metrics.OpenZips.Add(1)
+	Metrics.TotalOpenedZips.Add(1)
+
+	return &zipReader{
+		ReadCloser: zr,
+		startTime:  time.Now(),
+		isExtract:  isExtract,
+	}, nil
 }
 
 // Close closes the [zip.ReadCloser] and records the bytes read.
@@ -38,22 +66,79 @@ func (z *zipReader) Close(readBytes int) error {
 	return z.ReadCloser.Close() //nolint:wrapcheck
 }
 
-// newZipReader returns a pointer to a new [zipReader] for given path.
-// Argument isExtract separates metadata reading and extraction metrics.
-func newZipReader(path string, isExtract bool) (*zipReader, error) {
-	zr, err := zip.OpenReader(path)
+// zipFileReader opens a [zip.File] for reading and forward seeking.
+// Depending on compression and runtime options, the seeking is implemented
+// either by actual seeking (type assertion) or reading bytes to [io.Discard].
+type zipFileReader struct {
+	r   io.Reader
+	pos int64
+}
+
+// newZipFileReader opens a [zip.File] and returns a new [zipFileReader].
+// An error is returned if the [zip.File] cannot be opened.
+// You should ensure that Close will always be called after use.
+func newZipFileReader(f *zip.File) (*zipFileReader, error) {
+	var r io.Reader
+	var err error
+
+	if f.Method == zip.Store && !Options.MustCRC32.Load() {
+		r, err = f.OpenRaw()
+	} else {
+		r, err = f.Open()
+	}
 	if err != nil {
-		return nil, err //nolint:wrapcheck
+		return nil, fmt.Errorf("failed to Open: %w", err)
 	}
 
-	Metrics.OpenZips.Add(1)
-	Metrics.TotalOpenedZips.Add(1)
+	return &zipFileReader{r: r}, nil
+}
 
-	return &zipReader{
-		ReadCloser: zr,
-		startTime:  time.Now(),
-		isExtract:  isExtract,
-	}, nil
+// Read facilitates reading of a fixed amount of bytes.
+// It returns the number of bytes that were read and an error.
+func (fr *zipFileReader) Read(p []byte) (int, error) {
+	n, err := fr.r.Read(p)
+	fr.pos += int64(n)
+
+	return n, err //nolint:wrapcheck
+}
+
+// ForwardTo advances the reader position to the specified offset.
+// It returns the offset of the internal reader position and an error.
+func (fr *zipFileReader) ForwardTo(offset int64) (int64, error) {
+	if offset == fr.pos {
+		return fr.pos, nil
+	}
+
+	if seeker, ok := fr.r.(io.Seeker); ok {
+		n, err := seeker.Seek(offset, io.SeekStart)
+		fr.pos = n
+		if err != nil {
+			return fr.pos, fmt.Errorf("failed to Seek: %w", err)
+		}
+
+		return fr.pos, nil
+	}
+
+	if offset < fr.pos {
+		return fr.pos, fmt.Errorf("%w (offset %d, current %d)", ErrNonSeekableRewind, offset, fr.pos)
+	}
+
+	n, err := io.CopyN(io.Discard, fr.r, offset-fr.pos)
+	fr.pos += n
+	if err != nil && !errors.Is(err, io.EOF) {
+		return fr.pos, fmt.Errorf("failed to CopyN: %w", err)
+	}
+
+	return fr.pos, nil
+}
+
+// Close facilitiates the closing of the reader after use.
+func (fr *zipFileReader) Close() error {
+	if closer, ok := fr.r.(io.ReadCloser); ok {
+		return closer.Close() //nolint:wrapcheck
+	}
+
+	return nil
 }
 
 // flatEntryName flattens a normalized path to a filename, discarding structure.

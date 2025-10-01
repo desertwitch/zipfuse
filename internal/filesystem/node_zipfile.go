@@ -66,9 +66,9 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 
 	for _, f := range zr.File {
 		if f.Name == z.Path {
-			rc, err := f.Open()
+			rc, err := newZipFileReader(f)
 			if err != nil {
-				logging.Printf("Error: %q->ReadAll->%q: Open Error: %v\n", z.Archive, z.Path, err)
+				logging.Printf("Error: %q->ReadAll->%q: %v\n", z.Archive, z.Path, err)
 
 				return nil, fuse.ToErrno(syscall.EIO)
 			}
@@ -115,33 +115,24 @@ func (z *zipDiskStreamFileNode) Read(_ context.Context, req *fuse.ReadRequest, r
 
 	for _, f := range zr.File {
 		if f.Name == z.Path {
-			rc, err := f.Open()
+			rc, err := newZipFileReader(f)
 			if err != nil {
-				logging.Printf("Error: %q->Read->%q: Open Error: %v\n", z.Archive, z.Path, err)
+				logging.Printf("Error: %q->Read->%q: %v\n", z.Archive, z.Path, err)
 
 				return fuse.ToErrno(syscall.EIO)
 			}
 			defer rc.Close()
 
-			if seeker, ok := rc.(io.Seeker); ok {
-				if _, err := seeker.Seek(req.Offset, io.SeekStart); err != nil {
-					logging.Printf("Error: %q->Read->%q: Seek Error: %v\n", z.Archive, z.Path, err)
+			if _, err := rc.ForwardTo(req.Offset); err != nil {
+				logging.Printf("Error: %q->Forward->%q: %v\n", z.Archive, z.Path, err)
 
-					return fuse.ToErrno(syscall.EIO)
-				}
-			} else {
-				_, err = io.CopyN(io.Discard, rc, req.Offset)
-				if err != nil {
-					logging.Printf("Error: %q->Read->%q: CopyN Error: %v\n", z.Archive, z.Path, err)
-
-					return fuse.ToErrno(syscall.EIO)
-				}
+				return fuse.ToErrno(syscall.EIO)
 			}
 
 			buf := make([]byte, req.Size)
 
-			n, err := io.ReadFull(rc, buf)
-			if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			n, err := rc.Read(buf)
+			if err != nil && !errors.Is(err, io.EOF) {
 				logging.Printf("Error: %q->Read->%q: IO Error: %v\n", z.Archive, z.Path, err)
 
 				return fuse.ToErrno(syscall.EIO)

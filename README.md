@@ -42,8 +42,9 @@ but streamed to the kernel in chunks instead (bytes as requested by the kernel).
 The diagnostics server was configured on `:8000`, exposing the routes:
 - `/` for filesystem dashboard and event ring-buffer
 - `/gc` for forcing of a garbage collection (within Go)
-- `/reset-metrics` for resetting the FS metrics at runtime
-- `/threshold/<value>` for adapting of the streaming threshold
+- `/reset` for resetting the filesystem metrics at runtime
+- `/set/checkall/<bool>` for adapting forced integrity checking
+- `/set/threshold/<string>` for adapting of the streaming threshold
 
 The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem

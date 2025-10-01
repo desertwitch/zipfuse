@@ -954,8 +954,8 @@ func Test_zipDirNode_DeterministicInodes_Nested_Success(t *testing.T) {
 		ModTime time.Time
 		Content []byte
 	}{
-		{Path: "readme.txt", ModTime: tnow, Content: []byte{}},
 		{Path: "docs/", ModTime: tnow, Content: nil},
+		{Path: "readme.txt", ModTime: tnow, Content: []byte{}},
 		{Path: "docs/a.txt", ModTime: tnow, Content: []byte("test")},
 	})
 

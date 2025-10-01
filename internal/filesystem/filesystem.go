@@ -21,21 +21,40 @@ var (
 	_ fs.FS               = (*FS)(nil)
 	_ fs.FSInodeGenerator = (*FS)(nil)
 
+	// Options is a pointer to the filesystem [FSOptions].
+	// As there is ever only one filesystem per program, keeping it as global
+	// variable is an acceptable trade-off over passing around [FS] pointers.
+	//
+	// Beware that any contained non-atomic variables should not be modified
+	// after the filesystem was mounted and are also not considered thread-safe.
 	Options = &FSOptions{}
+
+	// Metrics is a pointer to the filesystem [FSMetrics].
+	// As there is ever only one filesystem per program, keeping it as global
+	// variable is an acceptable trade-off over passing around [FS] pointers.
+	//
+	// Beware that any contained non-atomic variables should not be modified
+	// after the filesystem was mounted and are also not considered thread-safe.
 	Metrics = &FSMetrics{}
 )
 
+// FSOptions contains all settings for the operation of the filesystem.
 type FSOptions struct {
 	// FlatMode controls if ZIP-contained subdirectories and files
 	// should be flattened with [flatEntryName] for shallow directories.
 	// This variable should no longer be modified when the FS is mounted.
 	FlatMode bool
 
+	// MustCRC32 controls if ZIP-contained uncompressed files must still run
+	// through the integrity verification algorithm (CRC32), which is slower.
+	MustCRC32 atomic.Bool
+
 	// StreamingThreshold when files are no longer fully loaded into RAM,
 	// but rather streamed in chunks (amount as requested by the kernel).
 	StreamingThreshold atomic.Uint64
 }
 
+// FSMetrics contains all metrics which are collected within the filesystem.
 type FSMetrics struct {
 	// OpenZips is the amount of currently open ZIP files.
 	OpenZips atomic.Int64
@@ -92,7 +111,7 @@ func (zpfs *FS) GenerateInode(_ uint64, _ string) uint64 {
 // All paths provided to the callback will be relative to the filesystem root dir.
 type WalkFunc func(path string, dirent *fuse.Dirent, node fs.Node, attr fuse.Attr) error
 
-// Walk in-memory walks the [FS], calling walkFn on each visited [fs.Node].
+// Walk constructs and walks the [FS] in-memory, calling walkFn on each visited [fs.Node].
 func (zpfs *FS) Walk(ctx context.Context, walkFn WalkFunc) error {
 	root, err := zpfs.Root()
 	if err != nil {
@@ -102,6 +121,7 @@ func (zpfs *FS) Walk(ctx context.Context, walkFn WalkFunc) error {
 	return zpfs.walkNode(ctx, "/", nil, root, walkFn)
 }
 
+// walkNode handles walking of a [fs.Node] within the [FS].
 func (zpfs *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, node fs.Node, walkFn WalkFunc) error {
 	var attr fuse.Attr
 
@@ -137,7 +157,7 @@ func (zpfs *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 				}
 
 				if err := zpfs.walkNode(ctx, childPath, &de, childNode, walkFn); err != nil {
-					return err
+					return fmt.Errorf("walkFn error at %q: %w", childPath, err)
 				}
 			}
 		}

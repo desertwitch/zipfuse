@@ -14,8 +14,9 @@ The following signals are observed and handled by the filesystem:
 When enabled, the diagnostics server exposes the following routes over HTTP:
   - "/" for filesystem dashboard and event ring-buffer
   - "/gc" for forcing of a garbage collection (within Go)
-  - "/reset-metrics" for resetting the FS metrics at runtime
-  - "/threshold/<value>" for adapting of the streaming threshold
+  - "/reset" for resetting the filesystem metrics at runtime
+  - "/set/checkall/<bool>" for adapting forced integrity checking
+  - "/set/threshold/<string>" for adapting of the streaming threshold
 */
 package main
 
@@ -49,6 +50,7 @@ var Version string
 type programOpts struct {
 	dryRun           bool
 	flatMode         bool
+	mustCRC32        bool
 	rootDir          string
 	mountDir         string
 	streamThreshold  uint64
@@ -58,6 +60,7 @@ type programOpts struct {
 func rootCmd() *cobra.Command {
 	var argDryRun bool
 	var argFlatMode bool
+	var argMustCRC32 bool
 	var argThreshold string
 	var argDashAddress string
 
@@ -75,8 +78,9 @@ When mounted, the following OS signals are observed at runtime:
 When enabled, the diagnostics dashboard exposes the following routes:
 - "/" for filesystem dashboard and event ring-buffer
 - "/gc" for forcing of a garbage collection (within Go)
-- "/reset-metrics" for resetting the FS metrics at runtime
-- "/threshold/<value>" for adapting of the streaming threshold`,
+- "/reset" for resetting the filesystem metrics at runtime
+- "/set/checkall/<bool>" for adapting forced integrity checking
+- "/set/threshold/<string>" for adapting of the streaming threshold`,
 		Version: Version,
 		Args:    cobra.ExactArgs(2), //nolint:mnd
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -88,6 +92,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 			return run(programOpts{
 				dryRun:           argDryRun,
 				flatMode:         argFlatMode,
+				mustCRC32:        argMustCRC32,
 				rootDir:          args[0],
 				mountDir:         args[1],
 				streamThreshold:  numThreshold,
@@ -95,8 +100,9 @@ When enabled, the diagnostics dashboard exposes the following routes:
 			})
 		},
 	}
-	cmd.Flags().BoolVar(&argDryRun, "dryrun", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
-	cmd.Flags().BoolVar(&argFlatMode, "flatten", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
+	cmd.Flags().BoolVarP(&argDryRun, "dryrun", "d", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
+	cmd.Flags().BoolVarP(&argFlatMode, "flatten", "p", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
+	cmd.Flags().BoolVarP(&argMustCRC32, "checkall", "c", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
 	cmd.Flags().StringVarP(&argThreshold, "memsize", "m", "200M", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&argDashAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
@@ -137,6 +143,7 @@ func dryRunAndExit(opts programOpts) {
 
 func run(opts programOpts) error {
 	filesystem.Options.FlatMode = opts.flatMode
+	filesystem.Options.MustCRC32.Store(opts.mustCRC32)
 	filesystem.Options.StreamingThreshold.Store(opts.streamThreshold)
 
 	if opts.dryRun {

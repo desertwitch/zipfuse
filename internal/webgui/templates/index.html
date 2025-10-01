@@ -7,14 +7,15 @@
         <br>
         <br>
         <b>
-            <a href="/reset-metrics" target="_blank">Reset Metrics</a> / 
+            <a href="/reset" target="_blank">Reset</a> / 
             <a href="/gc" target="_blank">Force GC</a>
         </b>
         <ul>
             <li>ZIP handles:                     {{.OpenZips}}</li>
             <li>Total ZIP opens:                 {{.OpenedZips}}</li>
             <li>Total ZIP closes:                {{.ClosedZips}}</li>
-            <li>ZIP flattening:</li>             {{.FlatMode}}</li>
+            <li>Forced flattening:</li>          {{.FlatMode}}</li>
+            <li>Forced integrity checking:</li>  {{.MustCRC32}}</li>
             <li>Streaming threshold:             {{.StreamingThreshold}}</li>
             <br>
             <li>Current heap alloc:              {{.AllocBytes}}</li>
