@@ -114,7 +114,7 @@ func (z *zipDiskStreamFileNode) Read(_ context.Context, req *fuse.ReadRequest, r
 	}()
 
 	for _, f := range zr.File {
-		if f.Name == z.Path { //nolint:nestif
+		if f.Name == z.Path {
 			rc, err := f.Open()
 			if err != nil {
 				logging.Printf("Error: %q->Read->%q: Open Error: %v\n", z.Archive, z.Path, err)

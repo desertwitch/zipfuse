@@ -20,7 +20,9 @@ When enabled, the diagnostics server exposes the following routes over HTTP:
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -45,6 +47,7 @@ const (
 var Version string
 
 type programOpts struct {
+	dryRun           bool
 	flatMode         bool
 	rootDir          string
 	mountDir         string
@@ -53,6 +56,7 @@ type programOpts struct {
 }
 
 func rootCmd() *cobra.Command {
+	var argDryRun bool
 	var argFlatMode bool
 	var argThreshold string
 	var argDashAddress string
@@ -82,6 +86,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 			}
 
 			return run(programOpts{
+				dryRun:           argDryRun,
 				flatMode:         argFlatMode,
 				rootDir:          args[0],
 				mountDir:         args[1],
@@ -90,7 +95,8 @@ When enabled, the diagnostics dashboard exposes the following routes:
 			})
 		},
 	}
-	cmd.Flags().BoolVarP(&argFlatMode, "flat", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
+	cmd.Flags().BoolVar(&argDryRun, "dryrun", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
+	cmd.Flags().BoolVar(&argFlatMode, "flatten", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().StringVarP(&argThreshold, "memsize", "m", "200M", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&argDashAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
@@ -98,14 +104,44 @@ When enabled, the diagnostics dashboard exposes the following routes:
 }
 
 func main() {
+	log.SetOutput(os.Stderr)
 	if err := rootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
+func dryRunAndExit(opts programOpts) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		for range sig {
+			log.Println("Signal received, cancelling the filesystem walk...")
+			cancel()
+		}
+	}()
+
+	zpfs := &filesystem.FS{RootDir: opts.rootDir}
+	err := zpfs.Walk(ctx, func(path string, _ *fuse.Dirent, _ fs.Node, attr fuse.Attr) error {
+		fmt.Fprintf(os.Stdout, "%d:%s%s\n", attr.Inode, opts.mountDir, path)
+
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("fs walk error: %v\n", err)
+	}
+
+	os.Exit(0)
+}
+
 func run(opts programOpts) error {
 	filesystem.FlatMode = opts.flatMode
 	filesystem.StreamingThreshold.Store(opts.streamThreshold)
+
+	if opts.dryRun {
+		dryRunAndExit(opts)
+	}
 
 	c, err := fuse.Mount(opts.mountDir, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))
 	if err != nil {
