@@ -48,6 +48,7 @@ const (
 var Version string
 
 type programOpts struct {
+	allowOther       bool
 	dryRun           bool
 	flatMode         bool
 	mustCRC32        bool
@@ -58,6 +59,7 @@ type programOpts struct {
 }
 
 func rootCmd() *cobra.Command {
+	var argAllowOther bool
 	var argDryRun bool
 	var argFlatMode bool
 	var argMustCRC32 bool
@@ -90,6 +92,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 			}
 
 			return run(programOpts{
+				allowOther:       argAllowOther,
 				dryRun:           argDryRun,
 				flatMode:         argFlatMode,
 				mustCRC32:        argMustCRC32,
@@ -100,6 +103,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 			})
 		},
 	}
+	cmd.Flags().BoolVarP(&argAllowOther, "allowother", "a", true, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&argDryRun, "dryrun", "d", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
 	cmd.Flags().BoolVarP(&argFlatMode, "flatten", "p", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&argMustCRC32, "checkall", "c", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
@@ -150,7 +154,12 @@ func run(opts programOpts) error {
 		dryRunAndExit(opts)
 	}
 
-	c, err := fuse.Mount(opts.mountDir, fuse.ReadOnly(), fuse.AllowOther(), fuse.FSName("zipfuse"))
+	mountOpts := []fuse.MountOption{fuse.FSName("zipfuse"), fuse.ReadOnly()}
+	if opts.allowOther {
+		mountOpts = append(mountOpts, fuse.AllowOther())
+	}
+
+	c, err := fuse.Mount(opts.mountDir, mountOpts...)
 	if err != nil {
 		return fmt.Errorf("fs mount error: %w", err)
 	}
