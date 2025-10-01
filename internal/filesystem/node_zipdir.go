@@ -42,7 +42,7 @@ func (z *zipDirNode) Attr(_ context.Context, a *fuse.Attr) error {
 }
 
 func (z *zipDirNode) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
-	if FlatMode {
+	if Options.FlatMode {
 		return z.readDirAllFlat(ctx)
 	}
 
@@ -50,7 +50,7 @@ func (z *zipDirNode) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 }
 
 func (z *zipDirNode) Lookup(ctx context.Context, name string) (fs.Node, error) {
-	if FlatMode {
+	if Options.FlatMode {
 		return z.lookupFlat(ctx, name)
 	}
 
@@ -131,7 +131,7 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 			Modified: f.Modified,
 		}
 
-		if f.UncompressedSize64 <= StreamingThreshold.Load() {
+		if f.UncompressedSize64 <= Options.StreamingThreshold.Load() {
 			return &zipInMemoryFileNode{base}, nil
 		}
 
@@ -223,7 +223,7 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 				Modified: f.Modified,
 			}
 
-			if f.UncompressedSize64 <= StreamingThreshold.Load() {
+			if f.UncompressedSize64 <= Options.StreamingThreshold.Load() {
 				return &zipInMemoryFileNode{base}, nil
 			}
 

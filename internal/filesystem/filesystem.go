@@ -21,6 +21,11 @@ var (
 	_ fs.FS               = (*FS)(nil)
 	_ fs.FSInodeGenerator = (*FS)(nil)
 
+	Options = &FSOptions{}
+	Metrics = &FSMetrics{}
+)
+
+type FSOptions struct {
 	// FlatMode controls if ZIP-contained subdirectories and files
 	// should be flattened with [flatEntryName] for shallow directories.
 	// This variable should no longer be modified when the FS is mounted.
@@ -29,7 +34,9 @@ var (
 	// StreamingThreshold when files are no longer fully loaded into RAM,
 	// but rather streamed in chunks (amount as requested by the kernel).
 	StreamingThreshold atomic.Uint64
+}
 
+type FSMetrics struct {
 	// OpenZips is the amount of currently open ZIP files.
 	OpenZips atomic.Int64
 
@@ -53,7 +60,7 @@ var (
 
 	// TotalExtractBytes is the amount of bytes extracted from ZIP files.
 	TotalExtractBytes atomic.Int64
-)
+}
 
 // FS is the core implementation of the filesystem.
 type FS struct {

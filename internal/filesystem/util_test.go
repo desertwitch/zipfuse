@@ -47,19 +47,19 @@ func Test_zipReader_Close_Extract_Success(t *testing.T) {
 		{Path: "test.txt", ModTime: tnow, Content: content},
 	})
 
-	OpenZips.Store(0)
-	TotalOpenedZips.Store(0)
-	TotalClosedZips.Store(0)
-	TotalExtractCount.Store(0)
-	TotalExtractBytes.Store(0)
-	TotalExtractTime.Store(0)
+	Metrics.OpenZips.Store(0)
+	Metrics.TotalOpenedZips.Store(0)
+	Metrics.TotalClosedZips.Store(0)
+	Metrics.TotalExtractCount.Store(0)
+	Metrics.TotalExtractBytes.Store(0)
+	Metrics.TotalExtractTime.Store(0)
 
 	zr, err := newZipReader(zipPath, true)
 	require.NoError(t, err)
 	require.NotNil(t, zr)
 
-	require.Equal(t, int64(1), OpenZips.Load())
-	require.Equal(t, int64(1), TotalOpenedZips.Load())
+	require.Equal(t, int64(1), Metrics.OpenZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalOpenedZips.Load())
 
 	var bytesRead int
 	for _, f := range zr.File {
@@ -78,12 +78,12 @@ func Test_zipReader_Close_Extract_Success(t *testing.T) {
 	err = zr.Close(bytesRead)
 	require.NoError(t, err)
 
-	require.Equal(t, int64(0), OpenZips.Load())
-	require.Equal(t, int64(1), TotalClosedZips.Load())
-	require.Equal(t, int64(1), TotalExtractCount.Load())
-	require.Equal(t, int64(bytesRead), TotalExtractBytes.Load())
-	require.Equal(t, int64(len(content)), TotalExtractBytes.Load())
-	require.Positive(t, TotalExtractTime.Load(), int64(0))
+	require.Equal(t, int64(0), Metrics.OpenZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalClosedZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalExtractCount.Load())
+	require.Equal(t, int64(bytesRead), Metrics.TotalExtractBytes.Load())
+	require.Equal(t, int64(len(content)), Metrics.TotalExtractBytes.Load())
+	require.Positive(t, Metrics.TotalExtractTime.Load(), int64(0))
 }
 
 // Expectation: zipReader should track metrics correctly on Close for metadata operations.
@@ -101,18 +101,18 @@ func Test_zipReader_Close_Metadata_Success(t *testing.T) {
 		{Path: "other.txt", ModTime: tnow, Content: []byte("other")},
 	})
 
-	OpenZips.Store(0)
-	TotalOpenedZips.Store(0)
-	TotalClosedZips.Store(0)
-	TotalMetadataReadCount.Store(0)
-	TotalMetadataReadTime.Store(0)
+	Metrics.OpenZips.Store(0)
+	Metrics.TotalOpenedZips.Store(0)
+	Metrics.TotalClosedZips.Store(0)
+	Metrics.TotalMetadataReadCount.Store(0)
+	Metrics.TotalMetadataReadTime.Store(0)
 
 	zr, err := newZipReader(zipPath, false)
 	require.NoError(t, err)
 	require.NotNil(t, zr)
 
-	require.Equal(t, int64(1), OpenZips.Load())
-	require.Equal(t, int64(1), TotalOpenedZips.Load())
+	require.Equal(t, int64(1), Metrics.OpenZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalOpenedZips.Load())
 
 	fileCount := len(zr.File)
 	require.Equal(t, 2, fileCount)
@@ -120,10 +120,10 @@ func Test_zipReader_Close_Metadata_Success(t *testing.T) {
 	err = zr.Close(0)
 	require.NoError(t, err)
 
-	require.Equal(t, int64(0), OpenZips.Load())
-	require.Equal(t, int64(1), TotalClosedZips.Load())
-	require.Equal(t, int64(1), TotalMetadataReadCount.Load())
-	require.Positive(t, TotalMetadataReadTime.Load(), int64(0))
+	require.Equal(t, int64(0), Metrics.OpenZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalClosedZips.Load())
+	require.Equal(t, int64(1), Metrics.TotalMetadataReadCount.Load())
+	require.Positive(t, Metrics.TotalMetadataReadTime.Load(), int64(0))
 }
 
 // Expectation: flatEntryName should flatten paths correctly and produce hashes.

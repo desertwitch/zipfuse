@@ -9,8 +9,8 @@ import (
 
 // Expectation: avgMetadataReadTime should calculate correctly.
 func Test_avgMetadataReadTime_Success(t *testing.T) {
-	filesystem.TotalMetadataReadTime.Store(1_000_000_000)
-	filesystem.TotalMetadataReadCount.Store(10)
+	filesystem.Metrics.TotalMetadataReadTime.Store(1_000_000_000)
+	filesystem.Metrics.TotalMetadataReadCount.Store(10)
 
 	result := avgMetadataReadTime()
 	require.Contains(t, result, "100ms")
@@ -18,8 +18,8 @@ func Test_avgMetadataReadTime_Success(t *testing.T) {
 
 // Expectation: avgMetadataReadTime should handle zero count.
 func Test_avgMetadataReadTime_ZeroCount_Success(t *testing.T) {
-	filesystem.TotalMetadataReadTime.Store(1000)
-	filesystem.TotalMetadataReadCount.Store(0)
+	filesystem.Metrics.TotalMetadataReadTime.Store(1000)
+	filesystem.Metrics.TotalMetadataReadCount.Store(0)
 
 	result := avgMetadataReadTime()
 	require.NotEmpty(t, result)
@@ -27,8 +27,8 @@ func Test_avgMetadataReadTime_ZeroCount_Success(t *testing.T) {
 
 // Expectation: avgExtractTime should calculate correctly.
 func Test_avgExtractTime_Success(t *testing.T) {
-	filesystem.TotalExtractTime.Store(2_000_000_000)
-	filesystem.TotalExtractCount.Store(20)
+	filesystem.Metrics.TotalExtractTime.Store(2_000_000_000)
+	filesystem.Metrics.TotalExtractCount.Store(20)
 
 	result := avgExtractTime()
 	require.Contains(t, result, "100ms")
@@ -36,8 +36,8 @@ func Test_avgExtractTime_Success(t *testing.T) {
 
 // Expectation: avgExtractTime should handle zero count.
 func Test_avgExtractTime_ZeroCount_Success(t *testing.T) {
-	filesystem.TotalExtractTime.Store(1000)
-	filesystem.TotalExtractCount.Store(0)
+	filesystem.Metrics.TotalExtractTime.Store(1000)
+	filesystem.Metrics.TotalExtractCount.Store(0)
 
 	result := avgExtractTime()
 	require.NotEmpty(t, result)
@@ -45,8 +45,8 @@ func Test_avgExtractTime_ZeroCount_Success(t *testing.T) {
 
 // Expectation: avgExtractSpeed should calculate bytes per second correctly.
 func Test_avgExtractSpeed_Success(t *testing.T) {
-	filesystem.TotalExtractBytes.Store(1_000_000)
-	filesystem.TotalExtractTime.Store(1_000_000_000)
+	filesystem.Metrics.TotalExtractBytes.Store(1_000_000)
+	filesystem.Metrics.TotalExtractTime.Store(1_000_000_000)
 
 	result := avgExtractSpeed()
 	require.Contains(t, result, "/s")
@@ -55,8 +55,8 @@ func Test_avgExtractSpeed_Success(t *testing.T) {
 
 // Expectation: avgExtractSpeed should handle zero time.
 func Test_avgExtractSpeed_ZeroTime_Success(t *testing.T) {
-	filesystem.TotalExtractBytes.Store(1000)
-	filesystem.TotalExtractTime.Store(0)
+	filesystem.Metrics.TotalExtractBytes.Store(1000)
+	filesystem.Metrics.TotalExtractTime.Store(0)
 
 	result := avgExtractSpeed()
 	require.Equal(t, "0 B/s", result)
@@ -64,7 +64,7 @@ func Test_avgExtractSpeed_ZeroTime_Success(t *testing.T) {
 
 // Expectation: totalExtractBytes should format bytes correctly.
 func Test_totalExtractBytes_Success(t *testing.T) {
-	filesystem.TotalExtractBytes.Store(500_000_000)
+	filesystem.Metrics.TotalExtractBytes.Store(500_000_000)
 
 	result := totalExtractBytes()
 	require.Contains(t, result, "500 MB")
@@ -72,7 +72,7 @@ func Test_totalExtractBytes_Success(t *testing.T) {
 
 // Expectation: totalExtractBytes should handle negative values.
 func Test_totalExtractBytes_Negative_Success(t *testing.T) {
-	filesystem.TotalExtractBytes.Store(-100)
+	filesystem.Metrics.TotalExtractBytes.Store(-100)
 
 	result := totalExtractBytes()
 	require.Equal(t, "0 B", result)

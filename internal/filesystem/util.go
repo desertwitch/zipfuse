@@ -23,16 +23,16 @@ type zipReader struct {
 
 // Close closes the [zip.ReadCloser] and records the bytes read.
 func (z *zipReader) Close(readBytes int) error {
-	OpenZips.Add(-1)
-	TotalClosedZips.Add(1)
+	Metrics.OpenZips.Add(-1)
+	Metrics.TotalClosedZips.Add(1)
 
 	if z.isExtract {
-		TotalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
-		TotalExtractCount.Add(1)
-		TotalExtractBytes.Add(int64(readBytes))
+		Metrics.TotalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
+		Metrics.TotalExtractCount.Add(1)
+		Metrics.TotalExtractBytes.Add(int64(readBytes))
 	} else {
-		TotalMetadataReadTime.Add(time.Since(z.startTime).Nanoseconds())
-		TotalMetadataReadCount.Add(1)
+		Metrics.TotalMetadataReadTime.Add(time.Since(z.startTime).Nanoseconds())
+		Metrics.TotalMetadataReadCount.Add(1)
 	}
 
 	return z.ReadCloser.Close() //nolint:wrapcheck
@@ -46,8 +46,8 @@ func newZipReader(path string, isExtract bool) (*zipReader, error) {
 		return nil, err //nolint:wrapcheck
 	}
 
-	OpenZips.Add(1)
-	TotalOpenedZips.Add(1)
+	Metrics.OpenZips.Add(1)
+	Metrics.TotalOpenedZips.Add(1)
 
 	return &zipReader{
 		ReadCloser: zr,

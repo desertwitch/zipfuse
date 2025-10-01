@@ -87,20 +87,20 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 	}{
 		Version:             Version,
 		RingBufferSize:      logging.Buffer.Size(),
-		OpenZips:            filesystem.OpenZips.Load(),
-		OpenedZips:          filesystem.TotalOpenedZips.Load(),
-		ClosedZips:          filesystem.TotalClosedZips.Load(),
-		FlatMode:            strconv.FormatBool(filesystem.FlatMode),
-		StreamingThreshold:  humanize.Bytes(filesystem.StreamingThreshold.Load()),
+		OpenZips:            filesystem.Metrics.OpenZips.Load(),
+		OpenedZips:          filesystem.Metrics.TotalOpenedZips.Load(),
+		ClosedZips:          filesystem.Metrics.TotalClosedZips.Load(),
+		FlatMode:            strconv.FormatBool(filesystem.Options.FlatMode),
+		StreamingThreshold:  humanize.Bytes(filesystem.Options.StreamingThreshold.Load()),
 		AllocBytes:          humanize.Bytes(m.Alloc),
 		TotalAlloc:          humanize.Bytes(m.TotalAlloc),
 		SysBytes:            humanize.Bytes(m.Sys),
 		NumGC:               m.NumGC,
 		AvgMetadataReadTime: avgMetadataReadTime(),
-		TotalMetadatas:      filesystem.TotalMetadataReadCount.Load(),
+		TotalMetadatas:      filesystem.Metrics.TotalMetadataReadCount.Load(),
 		AvgExtractTime:      avgExtractTime(),
 		AvgExtractSpeed:     avgExtractSpeed(),
-		TotalExtracts:       filesystem.TotalExtractCount.Load(),
+		TotalExtracts:       filesystem.Metrics.TotalExtractCount.Load(),
 		TotalExtractBytes:   totalExtractBytes(),
 		Logs:                strings.Join(logging.Buffer.Lines(), "\n"),
 	}
@@ -126,13 +126,13 @@ func gcHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
-	filesystem.TotalMetadataReadTime.Store(0)
-	filesystem.TotalMetadataReadCount.Store(0)
-	filesystem.TotalExtractTime.Store(0)
-	filesystem.TotalExtractCount.Store(0)
-	filesystem.TotalExtractBytes.Store(0)
-	filesystem.TotalOpenedZips.Store(0)
-	filesystem.TotalClosedZips.Store(0)
+	filesystem.Metrics.TotalMetadataReadTime.Store(0)
+	filesystem.Metrics.TotalMetadataReadCount.Store(0)
+	filesystem.Metrics.TotalExtractTime.Store(0)
+	filesystem.Metrics.TotalExtractCount.Store(0)
+	filesystem.Metrics.TotalExtractBytes.Store(0)
+	filesystem.Metrics.TotalOpenedZips.Store(0)
+	filesystem.Metrics.TotalClosedZips.Store(0)
 
 	logging.Println("Metrics reset via /reset-metrics.")
 
@@ -150,7 +150,7 @@ func thresholdHandler(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	filesystem.StreamingThreshold.Store(val)
+	filesystem.Options.StreamingThreshold.Store(val)
 
 	logging.Printf("Streaming threshold set via /threshold: %s.\n", humanize.Bytes(val))
 

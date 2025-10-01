@@ -76,11 +76,11 @@ func Test_FS_Deterministic_Success(t *testing.T) {
 	}
 
 	defer func() {
-		FlatMode = false
+		Options.FlatMode = false
 	}()
 
 	for _, mode := range []bool{false, true} {
-		FlatMode = mode
+		Options.FlatMode = mode
 		t.Run("FlatMode="+strconv.FormatBool(mode), func(t *testing.T) {
 			fs1 := &FS{RootDir: tmpDir}
 			fs2 := &FS{RootDir: tmpDir}

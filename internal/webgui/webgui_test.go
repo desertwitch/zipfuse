@@ -52,10 +52,10 @@ func Test_dashboardHandler_Success(t *testing.T) {
 	Version = "test-version"
 	logging.Println("test log entry")
 
-	filesystem.OpenZips.Store(5)
-	filesystem.TotalOpenedZips.Store(100)
-	filesystem.TotalClosedZips.Store(95)
-	filesystem.StreamingThreshold.Store(200_000_000)
+	filesystem.Metrics.OpenZips.Store(5)
+	filesystem.Metrics.TotalOpenedZips.Store(100)
+	filesystem.Metrics.TotalClosedZips.Store(95)
+	filesystem.Options.StreamingThreshold.Store(200_000_000)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
@@ -101,13 +101,13 @@ func Test_gcHandler_Success(t *testing.T) {
 func Test_resetMetricsHandler_Success(t *testing.T) {
 	logging.Buffer.Reset()
 
-	filesystem.TotalMetadataReadTime.Store(1000)
-	filesystem.TotalMetadataReadCount.Store(10)
-	filesystem.TotalExtractTime.Store(2000)
-	filesystem.TotalExtractCount.Store(20)
-	filesystem.TotalExtractBytes.Store(3000)
-	filesystem.TotalOpenedZips.Store(30)
-	filesystem.TotalClosedZips.Store(40)
+	filesystem.Metrics.TotalMetadataReadTime.Store(1000)
+	filesystem.Metrics.TotalMetadataReadCount.Store(10)
+	filesystem.Metrics.TotalExtractTime.Store(2000)
+	filesystem.Metrics.TotalExtractCount.Store(20)
+	filesystem.Metrics.TotalExtractBytes.Store(3000)
+	filesystem.Metrics.TotalOpenedZips.Store(30)
+	filesystem.Metrics.TotalClosedZips.Store(40)
 
 	req := httptest.NewRequest(http.MethodGet, "/reset-metrics", nil)
 	w := httptest.NewRecorder()
@@ -123,13 +123,13 @@ func Test_resetMetricsHandler_Success(t *testing.T) {
 	body := w.Body.String()
 	require.Contains(t, body, "Metrics reset")
 
-	require.Zero(t, filesystem.TotalMetadataReadTime.Load())
-	require.Zero(t, filesystem.TotalMetadataReadCount.Load())
-	require.Zero(t, filesystem.TotalExtractTime.Load())
-	require.Zero(t, filesystem.TotalExtractCount.Load())
-	require.Zero(t, filesystem.TotalExtractBytes.Load())
-	require.Zero(t, filesystem.TotalOpenedZips.Load())
-	require.Zero(t, filesystem.TotalClosedZips.Load())
+	require.Zero(t, filesystem.Metrics.TotalMetadataReadTime.Load())
+	require.Zero(t, filesystem.Metrics.TotalMetadataReadCount.Load())
+	require.Zero(t, filesystem.Metrics.TotalExtractTime.Load())
+	require.Zero(t, filesystem.Metrics.TotalExtractCount.Load())
+	require.Zero(t, filesystem.Metrics.TotalExtractBytes.Load())
+	require.Zero(t, filesystem.Metrics.TotalOpenedZips.Load())
+	require.Zero(t, filesystem.Metrics.TotalClosedZips.Load())
 
 	logs := logging.Buffer.Lines()
 	require.NotEmpty(t, logs)
@@ -139,7 +139,7 @@ func Test_resetMetricsHandler_Success(t *testing.T) {
 // Expectation: thresholdHandler should update threshold with valid input.
 func Test_thresholdHandler_Success(t *testing.T) {
 	logging.Buffer.Reset()
-	filesystem.StreamingThreshold.Store(0)
+	filesystem.Options.StreamingThreshold.Store(0)
 
 	req := httptest.NewRequest(http.MethodGet, "/threshold/500MB", nil)
 	w := httptest.NewRecorder()
@@ -157,7 +157,7 @@ func Test_thresholdHandler_Success(t *testing.T) {
 	require.Contains(t, body, "Streaming threshold set")
 	require.Contains(t, body, "500 MB")
 
-	require.Equal(t, uint64(500_000_000), filesystem.StreamingThreshold.Load())
+	require.Equal(t, uint64(500_000_000), filesystem.Options.StreamingThreshold.Load())
 
 	logs := logging.Buffer.Lines()
 	require.NotEmpty(t, logs)
@@ -167,7 +167,7 @@ func Test_thresholdHandler_Success(t *testing.T) {
 // Expectation: thresholdHandler should return error for invalid threshold.
 func Test_thresholdHandler_InvalidThreshold_Error(t *testing.T) {
 	logging.Buffer.Reset()
-	filesystem.StreamingThreshold.Store(100)
+	filesystem.Options.StreamingThreshold.Store(100)
 
 	req := httptest.NewRequest(http.MethodGet, "/threshold/invalid", nil)
 	w := httptest.NewRecorder()
@@ -183,13 +183,13 @@ func Test_thresholdHandler_InvalidThreshold_Error(t *testing.T) {
 	body := w.Body.String()
 	require.Contains(t, body, "Invalid threshold")
 
-	require.Equal(t, uint64(100), filesystem.StreamingThreshold.Load())
+	require.Equal(t, uint64(100), filesystem.Options.StreamingThreshold.Load())
 }
 
 // Expectation: thresholdHandler should return error for empty threshold value.
 func Test_thresholdHandler_EmptyThreshold_Error(t *testing.T) {
 	logging.Buffer.Reset()
-	filesystem.StreamingThreshold.Store(100)
+	filesystem.Options.StreamingThreshold.Store(100)
 
 	req := httptest.NewRequest(http.MethodGet, "/threshold", nil)
 	w := httptest.NewRecorder()
@@ -201,7 +201,7 @@ func Test_thresholdHandler_EmptyThreshold_Error(t *testing.T) {
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
-	require.Equal(t, uint64(100), filesystem.StreamingThreshold.Load())
+	require.Equal(t, uint64(100), filesystem.Options.StreamingThreshold.Load())
 }
 
 // Expectation: thresholdHandler should handle various threshold formats.
@@ -220,7 +220,7 @@ func Test_thresholdHandler_VariousFormats_Success(t *testing.T) {
 
 	for _, tc := range testCases {
 		logging.Buffer.Reset()
-		filesystem.StreamingThreshold.Store(0)
+		filesystem.Options.StreamingThreshold.Store(0)
 
 		req := httptest.NewRequest(http.MethodGet, "/threshold/"+tc.input, nil)
 		w := httptest.NewRecorder()
@@ -232,7 +232,7 @@ func Test_thresholdHandler_VariousFormats_Success(t *testing.T) {
 		resp.Body.Close()
 
 		require.Equal(t, http.StatusOK, resp.StatusCode)
-		require.Equal(t, tc.expected, filesystem.StreamingThreshold.Load())
+		require.Equal(t, tc.expected, filesystem.Options.StreamingThreshold.Load())
 	}
 }
 

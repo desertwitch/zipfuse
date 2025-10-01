@@ -8,16 +8,16 @@ import (
 )
 
 func avgMetadataReadTime() string {
-	return time.Duration(filesystem.TotalMetadataReadTime.Load() / max(1, filesystem.TotalMetadataReadCount.Load())).String()
+	return time.Duration(filesystem.Metrics.TotalMetadataReadTime.Load() / max(1, filesystem.Metrics.TotalMetadataReadCount.Load())).String()
 }
 
 func avgExtractTime() string {
-	return time.Duration(filesystem.TotalExtractTime.Load() / max(1, filesystem.TotalExtractCount.Load())).String()
+	return time.Duration(filesystem.Metrics.TotalExtractTime.Load() / max(1, filesystem.Metrics.TotalExtractCount.Load())).String()
 }
 
 func avgExtractSpeed() string {
-	bytes := filesystem.TotalExtractBytes.Load()
-	ns := filesystem.TotalExtractTime.Load()
+	bytes := filesystem.Metrics.TotalExtractBytes.Load()
+	ns := filesystem.Metrics.TotalExtractTime.Load()
 
 	if ns == 0 {
 		return "0 B/s"
@@ -29,7 +29,7 @@ func avgExtractSpeed() string {
 }
 
 func totalExtractBytes() string {
-	bytes := filesystem.TotalExtractBytes.Load()
+	bytes := filesystem.Metrics.TotalExtractBytes.Load()
 
 	if bytes < 0 {
 		return humanize.Bytes(0)

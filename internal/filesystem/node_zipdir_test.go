@@ -528,7 +528,7 @@ func Test_zipDirNode_readDirAllNested_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: The returned lookup nodes should meet the expectations (flat mode).
 func Test_zipDirNode_lookupFlat_Success(t *testing.T) {
-	StreamingThreshold.Store(1)
+	Options.StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -571,7 +571,7 @@ func Test_zipDirNode_lookupFlat_Success(t *testing.T) {
 
 // Expectation: A lookup on a non-existing entry should return ENOENT (flat mode).
 func Test_zipDirNode_lookupFlat_EntryNotExist_Error(t *testing.T) {
-	StreamingThreshold.Store(1)
+	Options.StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -600,7 +600,7 @@ func Test_zipDirNode_lookupFlat_EntryNotExist_Error(t *testing.T) {
 
 // Expectation: A lookup on an invalid backing archive should return EINVAL (flat mode).
 func Test_zipDirNode_lookupFlat_InvalidArchive_Error(t *testing.T) {
-	StreamingThreshold.Store(1)
+	Options.StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -619,7 +619,7 @@ func Test_zipDirNode_lookupFlat_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: The returned lookup nodes should meet the expectations (nested mode - file).
 func Test_zipDirNode_lookupNested_File_Success(t *testing.T) {
-	StreamingThreshold.Store(1)
+	Options.StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -717,7 +717,7 @@ func Test_zipDirNode_lookupNested_Timestamps_Success(t *testing.T) {
 
 // Expectation: Directory and file lookup should work at multiple nesting levels.
 func Test_zipDirNode_lookupNested_DeepStructure_Success(t *testing.T) {
-	StreamingThreshold.Store(1)
+	Options.StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -802,7 +802,7 @@ func Test_zipDirNode_lookupNested_ImplicitDirectory_Success(t *testing.T) {
 
 // Expectation: Prefix matching should be exact (not substring) in nested mode.
 func Test_zipDirNode_lookupNested_ExactPrefixMatch_Success(t *testing.T) {
-	StreamingThreshold.Store(1)
+	Options.StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -888,7 +888,7 @@ func Test_zipDirNode_lookupNested_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: Inodes should remain deterministic and equal across calls (flat mode).
 func Test_zipDirNode_DeterministicInodes_Flat_Success(t *testing.T) {
-	StreamingThreshold.Store(1)
+	Options.StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -945,7 +945,7 @@ func Test_zipDirNode_DeterministicInodes_Flat_Success(t *testing.T) {
 
 // Expectation: Inodes should remain deterministic and equal across calls (nested mode).
 func Test_zipDirNode_DeterministicInodes_Nested_Success(t *testing.T) {
-	StreamingThreshold.Store(1)
+	Options.StreamingThreshold.Store(1)
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 

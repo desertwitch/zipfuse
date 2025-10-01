@@ -136,8 +136,8 @@ func dryRunAndExit(opts programOpts) {
 }
 
 func run(opts programOpts) error {
-	filesystem.FlatMode = opts.flatMode
-	filesystem.StreamingThreshold.Store(opts.streamThreshold)
+	filesystem.Options.FlatMode = opts.flatMode
+	filesystem.Options.StreamingThreshold.Store(opts.streamThreshold)
 
 	if opts.dryRun {
 		dryRunAndExit(opts)
