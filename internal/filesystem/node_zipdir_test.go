@@ -168,41 +168,14 @@ func Test_zipDirNode_readDirAllNested_Root_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ent, 3)
 
-	found := false
-	for _, e := range ent {
-		if e.Name == "readme.txt" {
-			require.Equal(t, fuse.DT_File, e.Type)
-			require.Equal(t, fs.GenerateDynamicInode(node.Inode, "readme.txt"), e.Inode)
-			found = true
+	require.Equal(t, "docs", ent[0].Name)
+	require.Equal(t, fuse.DT_Dir, ent[0].Type)
 
-			break
-		}
-	}
-	require.True(t, found)
+	require.Equal(t, "src", ent[1].Name)
+	require.Equal(t, fuse.DT_Dir, ent[1].Type)
 
-	found = false
-	for _, e := range ent {
-		if e.Name == "docs" {
-			require.Equal(t, fuse.DT_Dir, e.Type)
-			require.Equal(t, fs.GenerateDynamicInode(node.Inode, "docs"), e.Inode)
-			found = true
-
-			break
-		}
-	}
-	require.True(t, found)
-
-	found = false
-	for _, e := range ent {
-		if e.Name == "src" {
-			require.Equal(t, fuse.DT_Dir, e.Type)
-			require.Equal(t, fs.GenerateDynamicInode(node.Inode, "src"), e.Inode)
-			found = true
-
-			break
-		}
-	}
-	require.True(t, found)
+	require.Equal(t, "readme.txt", ent[2].Name)
+	require.Equal(t, fuse.DT_File, ent[2].Type)
 }
 
 // Expectation: The returned [fuse.Dirent] slice should meet the expectations (nested mode - subdir).
@@ -234,39 +207,14 @@ func Test_zipDirNode_readDirAllNested_Subdir_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ent, 3)
 
-	found := false
-	for _, e := range ent {
-		if e.Name == "a.txt" {
-			require.Equal(t, fuse.DT_File, e.Type)
-			found = true
+	require.Equal(t, "images", ent[0].Name)
+	require.Equal(t, fuse.DT_Dir, ent[0].Type)
 
-			break
-		}
-	}
-	require.True(t, found)
+	require.Equal(t, "a.txt", ent[1].Name)
+	require.Equal(t, fuse.DT_File, ent[1].Type)
 
-	// Check for b.txt (file)
-	found = false
-	for _, e := range ent {
-		if e.Name == "b.txt" {
-			require.Equal(t, fuse.DT_File, e.Type)
-			found = true
-
-			break
-		}
-	}
-	require.True(t, found)
-
-	found = false
-	for _, e := range ent {
-		if e.Name == "images" {
-			require.Equal(t, fuse.DT_Dir, e.Type)
-			found = true
-
-			break
-		}
-	}
-	require.True(t, found)
+	require.Equal(t, "b.txt", ent[2].Name)
+	require.Equal(t, fuse.DT_File, ent[2].Type)
 }
 
 // Expectation: Empty names should be skipped in nested mode.
@@ -354,13 +302,11 @@ func Test_zipDirNode_readDirAllNested_MixedDirectories_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ent, 2)
 
-	names := make(map[string]fuse.DirentType)
-	for _, e := range ent {
-		names[e.Name] = e.Type
-	}
+	require.Equal(t, "explicit", ent[0].Name)
+	require.Equal(t, fuse.DT_Dir, ent[0].Type)
 
-	require.Equal(t, fuse.DT_Dir, names["explicit"])
-	require.Equal(t, fuse.DT_Dir, names["implicit"])
+	require.Equal(t, "implicit", ent[1].Name)
+	require.Equal(t, fuse.DT_Dir, ent[1].Type)
 }
 
 func Test_zipDirNode_readDirAllNested_PrefixFiltering_Success(t *testing.T) {
@@ -389,15 +335,11 @@ func Test_zipDirNode_readDirAllNested_PrefixFiltering_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ent, 2)
 
-	names := []string{}
-	for _, e := range ent {
-		names = append(names, e.Name)
-	}
+	require.Equal(t, "a.txt", ent[0].Name)
+	require.Equal(t, fuse.DT_File, ent[0].Type)
 
-	require.Contains(t, names, "a.txt")
-	require.Contains(t, names, "b.txt")
-	require.NotContains(t, names, "readme.txt")
-	require.NotContains(t, names, "main.go")
+	require.Equal(t, "b.txt", ent[1].Name)
+	require.Equal(t, fuse.DT_File, ent[1].Type)
 }
 
 // Expectation: Leading slashes in ZIP entries should be handled in nested mode.
@@ -423,20 +365,13 @@ func Test_zipDirNode_readDirAllNested_LeadingSlash_Success(t *testing.T) {
 
 	ent, err := node.readDirAllNested(t.Context())
 	require.NoError(t, err)
+	require.Len(t, ent, 2)
 
-	foundNormal := false
-	foundFile := false
-	for _, e := range ent {
-		if e.Name == "normal.txt" {
-			foundNormal = true
-		}
-		if e.Name == "file.txt" {
-			foundFile = true
-		}
-		require.NotEmpty(t, e.Name)
-	}
-	require.True(t, foundNormal)
-	require.True(t, foundFile)
+	require.Equal(t, "file.txt", ent[0].Name)
+	require.Equal(t, fuse.DT_File, ent[0].Type)
+
+	require.Equal(t, "normal.txt", ent[1].Name)
+	require.Equal(t, fuse.DT_File, ent[1].Type)
 }
 
 // Expectation: Duplicate prefixed entries in ReadDirAll should be deduplicated in nested mode.
@@ -496,14 +431,14 @@ func Test_zipDirNode_readDirAllNested_SimilarNames_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ent, 3)
 
-	names := make(map[string]fuse.DirentType)
-	for _, e := range ent {
-		names[e.Name] = e.Type
-	}
+	require.Equal(t, "test-dir", ent[0].Name)
+	require.Equal(t, fuse.DT_Dir, ent[0].Type)
 
-	require.Equal(t, fuse.DT_Dir, names["test-dir"])
-	require.Equal(t, fuse.DT_Dir, names["testing"])
-	require.Equal(t, fuse.DT_File, names["test"])
+	require.Equal(t, "testing", ent[1].Name)
+	require.Equal(t, fuse.DT_Dir, ent[1].Type)
+
+	require.Equal(t, "test", ent[2].Name)
+	require.Equal(t, fuse.DT_File, ent[2].Type)
 }
 
 // Expectation: EINVAL should be returned upon accessing an invalid ZIP file (nested mode).
@@ -965,49 +900,33 @@ func Test_zipDirNode_DeterministicInodes_Nested_Success(t *testing.T) {
 
 	ent, err := node.readDirAllNested(t.Context())
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(ent), 2)
+	require.Len(t, ent, 2)
 
-	var readmeEnt *fuse.Dirent
-	for i := range ent {
-		if ent[i].Name == "readme.txt" {
-			readmeEnt = &ent[i]
+	require.Equal(t, "docs", ent[0].Name)
+	require.Equal(t, fuse.DT_Dir, ent[0].Type)
+	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "docs"), ent[0].Inode)
 
-			break
-		}
-	}
-	require.NotNil(t, readmeEnt)
-	require.Equal(t, fuse.DT_File, readmeEnt.Type)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "readme.txt"), readmeEnt.Inode)
-
-	lk, err := node.lookupNested(t.Context(), "readme.txt")
-	require.NoError(t, err)
-	mn, ok := lk.(*zipInMemoryFileNode)
-	require.True(t, ok)
-	require.Equal(t, readmeEnt.Inode, mn.Inode)
-	attr := fuse.Attr{}
-	err = mn.Attr(t.Context(), &attr)
-	require.NoError(t, err)
-	require.Equal(t, mn.Inode, attr.Inode)
-
-	var docsEnt *fuse.Dirent
-	for i := range ent {
-		if ent[i].Name == "docs" {
-			docsEnt = &ent[i]
-
-			break
-		}
-	}
-	require.NotNil(t, docsEnt)
-	require.Equal(t, fuse.DT_Dir, docsEnt.Type)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "docs"), docsEnt.Inode)
-
-	lk, err = node.lookupNested(t.Context(), "docs")
+	lk, err := node.lookupNested(t.Context(), "docs")
 	require.NoError(t, err)
 	dn, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, docsEnt.Inode, dn.Inode)
-	attr = fuse.Attr{}
+	require.Equal(t, ent[0].Inode, dn.Inode)
+	attr := fuse.Attr{}
 	err = dn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
 	require.Equal(t, dn.Inode, attr.Inode)
+
+	require.Equal(t, "readme.txt", ent[1].Name)
+	require.Equal(t, fuse.DT_File, ent[1].Type)
+	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "readme.txt"), ent[1].Inode)
+
+	lk, err = node.lookupNested(t.Context(), "readme.txt")
+	require.NoError(t, err)
+	mn, ok := lk.(*zipInMemoryFileNode)
+	require.True(t, ok)
+	require.Equal(t, ent[1].Inode, mn.Inode)
+	attr = fuse.Attr{}
+	err = mn.Attr(t.Context(), &attr)
+	require.NoError(t, err)
+	require.Equal(t, mn.Inode, attr.Inode)
 }

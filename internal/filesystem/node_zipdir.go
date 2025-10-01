@@ -92,7 +92,14 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 	}
 
 	slices.SortFunc(resp, func(a, b fuse.Dirent) int {
-		return strings.Compare(a.Name, b.Name)
+		if a.Type == b.Type {
+			return strings.Compare(a.Name, b.Name)
+		}
+		if a.Type == fuse.DT_Dir {
+			return -1
+		}
+
+		return 1
 	})
 
 	return resp, nil
@@ -177,6 +184,17 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 			})
 		}
 	}
+
+	slices.SortFunc(resp, func(a, b fuse.Dirent) int {
+		if a.Type == b.Type {
+			return strings.Compare(a.Name, b.Name)
+		}
+		if a.Type == fuse.DT_Dir {
+			return -1
+		}
+
+		return 1
+	})
 
 	return resp, nil
 }
