@@ -223,7 +223,10 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 			return &zipDiskStreamFileNode{base}, nil
 		}
 
-		// Can be explicit or implicit (dir/, dir/file.txt):
+		// Can be explicit or implicit (dir/, dir/file.txt).
+		// To keep things deterministic and to account for implicit
+		// directories, we assign the modified time of the archive
+		// itself to [zipDirNode] of subdirectories within archives.
 		if strings.HasPrefix(normalizedPath, fullPath+"/") {
 			return &zipDirNode{
 				Path:     z.Path,
