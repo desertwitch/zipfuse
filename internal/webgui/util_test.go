@@ -79,7 +79,7 @@ func Test_totalExtractBytes_Negative_Success(t *testing.T) {
 }
 
 // Expectation: enabledOrDisabled should produce the correct string.
-func Test_enabledOrDisabled(t *testing.T) {
+func Test_enabledOrDisabled_Success(t *testing.T) {
 	require.Equal(t, "Enabled", enabledOrDisabled(true))
 	require.Equal(t, "Disabled", enabledOrDisabled(false))
 }
