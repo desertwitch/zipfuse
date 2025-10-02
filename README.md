@@ -23,8 +23,7 @@ serving `.zip` archives and all their contained files, so that consumers need
 not know or care about `.zip` archive mechanics. It includes a HTTP dashboard
 for basic filesystem metrics and controlling operations and runtime behavior.
 
-The filesystem is realized in Go and kept as simple and stateless as possible,
-while also fully leveraging kernel caching with deterministic design choices.
+The filesystem is realized in Go and kept as simple and stateless as possible.
 In contrast to similar filesystems, it does not mount single `.zip` files, but
 instead gracefully handles any `.zip` archives contained in another filesystem.
 
