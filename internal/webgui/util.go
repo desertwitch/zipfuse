@@ -37,3 +37,11 @@ func totalExtractBytes() string {
 
 	return humanize.Bytes(uint64(bytes))
 }
+
+func enabledOrDisabled(v bool) string {
+	if v {
+		return "Enabled"
+	}
+
+	return "Disabled"
+}

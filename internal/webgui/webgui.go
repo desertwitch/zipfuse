@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
-	"strings"
 	"text/template"
 
 	"github.com/desertwitch/zipfuse/assets"
@@ -85,15 +84,15 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 		AvgExtractSpeed     string
 		TotalExtracts       int64
 		TotalExtractBytes   string
-		Logs                string
+		Logs                []string
 	}{
 		Version:             Version,
 		RingBufferSize:      logging.Buffer.Size(),
 		OpenZips:            filesystem.Metrics.OpenZips.Load(),
 		OpenedZips:          filesystem.Metrics.TotalOpenedZips.Load(),
 		ClosedZips:          filesystem.Metrics.TotalClosedZips.Load(),
-		FlatMode:            strconv.FormatBool(filesystem.Options.FlatMode),
-		MustCRC32:           strconv.FormatBool(filesystem.Options.MustCRC32.Load()),
+		FlatMode:            enabledOrDisabled(filesystem.Options.FlatMode),
+		MustCRC32:           enabledOrDisabled(filesystem.Options.MustCRC32.Load()),
 		StreamingThreshold:  humanize.Bytes(filesystem.Options.StreamingThreshold.Load()),
 		AllocBytes:          humanize.Bytes(m.Alloc),
 		TotalAlloc:          humanize.Bytes(m.TotalAlloc),
@@ -105,7 +104,7 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 		AvgExtractSpeed:     avgExtractSpeed(),
 		TotalExtracts:       filesystem.Metrics.TotalExtractCount.Load(),
 		TotalExtractBytes:   totalExtractBytes(),
-		Logs:                strings.Join(logging.Buffer.Lines(), "\n"),
+		Logs:                logging.Buffer.Lines(),
 	}
 
 	if err := indexTemplate.Execute(w, data); err != nil {

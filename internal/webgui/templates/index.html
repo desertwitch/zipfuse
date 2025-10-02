@@ -1,37 +1,241 @@
-<html>
-    <head>
-        <title>ZipFUSE Diagnostics Server ({{.Version}})</title>
-    </head>
-    <body>
-        <img width=150 src="/zipfuse.png"> <b>Diagnostics Server ({{.Version}})</b>
-        <br>
-        <br>
-        <b>
-            <a href="/reset" target="_blank">Reset Metrics</a> / 
-            <a href="/gc" target="_blank">Force GC</a>
-        </b>
-        <ul>
-            <li>ZIP handles:                     {{.OpenZips}}</li>
-            <li>Total ZIP opens:                 {{.OpenedZips}}</li>
-            <li>Total ZIP closes:                {{.ClosedZips}}</li>
-            <li>Streaming threshold:             {{.StreamingThreshold}}</li>
-            <li>Forced archive flattening:       {{.FlatMode}}</li>
-            <li>Forced integrity checking:       {{.MustCRC32}}</li>
-            <br>
-            <li>Current heap alloc:              {{.AllocBytes}}</li>
-            <li>Total heap alloc:                {{.TotalAlloc}}</li>
-            <li>OS memory obtained:              {{.SysBytes}}</li>
-            <li>GC cycles run:                   {{.NumGC}}</li>
-            <br>
-            <li>Total metadata reads:            {{.TotalMetadatas}}</li>
-            <li>Avg metadata read time:          {{.AvgMetadataReadTime}}</li>
-            <br>
-            <li>Total file extracts:             {{.TotalExtracts}}</li>
-            <li>Total byte extracts:             {{.TotalExtractBytes}}</li>
-            <li>Avg file extract time:           {{.AvgExtractTime}}</li>
-            <li>Avg file extract speed:          {{.AvgExtractSpeed}}</li>
-        </ul>
-        <h3>In-Memory Ring Buffer ({{.RingBufferSize}} lines):</h3>
-        <pre>{{.Logs}}</pre>
-    </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZipFUSE Dashboard ({{.Version}})</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            gap: 30px;
+        }
+
+        .logo {
+            width: 150px;
+            height: auto;
+        }
+
+        .header-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+
+        .actions {
+            font-size: 14px;
+        }
+
+        .actions a {
+            color: #2563eb;
+            text-decoration: none;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .actions a:hover {
+            text-decoration: underline;
+        }
+
+        .section-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #555;
+            margin: 20px 0 10px 5px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .metric-tile {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .metric-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .metric-value.true {
+            color: #22c55e;
+        }
+
+        .metric-value.false {
+            color: #ef4444;
+        }
+
+        .logs-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            margin-top: 30px;
+        }
+
+        .logs-section h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .log-list {
+            list-style: none;
+        }
+
+        .log-item {
+            padding: 8px;
+            border-bottom: 1px solid #e5e5e5;
+            color: #555;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-item:hover {
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="/zipfuse.png" alt="Logo" class="logo">
+            <div class="header-text">
+                <h1>ZipFUSE Dashboard ({{.Version}})</h1>
+                <div class="actions">
+                    <a href="/reset" target="_blank">Reset Metrics</a>
+                    <a href="/gc" target="_blank">Force GC</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-label">Filesystem Metrics</div>
+        <div class="metrics-grid">
+            <div class="metric-tile">
+                <div class="metric-label">Current Archives Opened</div>
+                <div class="metric-value">{{.OpenZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Archives Opened</div>
+                <div class="metric-value">{{.OpenedZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Archives Closed</div>
+                <div class="metric-value">{{.ClosedZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Metadata Reads</div>
+                <div class="metric-value">{{.TotalMetadatas}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total File Extractions</div>
+                <div class="metric-value">{{.TotalExtracts}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Extracted Bytes</div>
+                <div class="metric-value">{{.TotalExtractBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Metadata Read Time</div>
+                <div class="metric-value">{{.AvgMetadataReadTime}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Extraction Time</div>
+                <div class="metric-value">{{.AvgExtractTime}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Extraction Speed</div>
+                <div class="metric-value">{{.AvgExtractSpeed}}</div>
+            </div>
+        </div>
+
+        <div class="section-label">Filesystem Settings</div>
+        <div class="metrics-grid">
+            <div class="metric-tile">
+                <div class="metric-label">Streaming Threshold</div>
+                <div class="metric-value">{{.StreamingThreshold}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Forced Archive Flattening</div>
+                <div class="metric-value">{{.FlatMode}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Forced Integrity Verification</div>
+                <div class="metric-value">{{.MustCRC32}}</div>
+            </div>
+        </div>
+
+        <div class="section-label">Runtime Metrics</div>
+        <div class="metrics-grid">
+            <div class="metric-tile">
+                <div class="metric-label">Heap Allocated</div>
+                <div class="metric-value">{{.AllocBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Heap Allocations</div>
+                <div class="metric-value">{{.TotalAlloc}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">System Memory</div>
+                <div class="metric-value">{{.SysBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">GC Cycles</div>
+                <div class="metric-value">{{.NumGC}}</div>
+            </div>
+        </div>
+        
+        <div class="logs-section">
+            <h2>Filesystem Ring-Buffer ({{.RingBufferSize}} lines)</h2>
+            <ul class="log-list" id="logs">
+                {{range .Logs}}
+                    <li class="log-item">{{.}}</li>
+                {{else}}
+                    <li class="log-item">Waiting for log messages...</li>
+                {{end}}
+            </ul>
+        </div>
+    </div>
+</body>
 </html>
