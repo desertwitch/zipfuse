@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"syscall"
 
 	"bazil.org/fuse"
@@ -153,26 +154,26 @@ func run(opts programOpts) error {
 		dryRunAndExit(opts)
 	}
 
-	// mountOpts := []fuse.MountOption{fuse.FSName("zipfuse"), fuse.ReadOnly()}
-	// if opts.allowOther {
-	// 	mountOpts = append(mountOpts, fuse.AllowOther())
-	// }
+	mountOpts := []fuse.MountOption{fuse.FSName("zipfuse"), fuse.ReadOnly()}
+	if opts.allowOther {
+		mountOpts = append(mountOpts, fuse.AllowOther())
+	}
 
-	// c, err := fuse.Mount(opts.mountDir, mountOpts...)
-	// if err != nil {
-	// 	return fmt.Errorf("fs mount error: %w", err)
-	// }
-	// defer c.Close()
-	// defer fuse.Unmount(opts.mountDir) //nolint:errcheck
+	c, err := fuse.Mount(opts.mountDir, mountOpts...)
+	if err != nil {
+		return fmt.Errorf("fs mount error: %w", err)
+	}
+	defer c.Close()
+	defer fuse.Unmount(opts.mountDir) //nolint:errcheck
 
-	// var wg sync.WaitGroup
-	// errChan := make(chan error, 1)
-	// wg.Go(func() {
-	// 	defer close(errChan)
-	// 	if err := fs.Serve(c, &filesystem.FS{RootDir: opts.rootDir}); err != nil {
-	// 		errChan <- fmt.Errorf("fs serve error: %w", err)
-	// 	}
-	// })
+	var wg sync.WaitGroup
+	errChan := make(chan error, 1)
+	wg.Go(func() {
+		defer close(errChan)
+		if err := fs.Serve(c, &filesystem.FS{RootDir: opts.rootDir}); err != nil {
+			errChan <- fmt.Errorf("fs serve error: %w", err)
+		}
+	})
 
 	if opts.dashboardAddress != "" {
 		webgui.Version = Version
@@ -186,11 +187,11 @@ func run(opts programOpts) error {
 		for range sig {
 			logging.Println("Signal received, unmounting the filesystem...")
 
-			// if err := fuse.Unmount(opts.mountDir); err != nil {
-			// 	logging.Printf("Unmount error: %v (try again later)\n", err)
+			if err := fuse.Unmount(opts.mountDir); err != nil {
+				logging.Printf("Unmount error: %v (try again later)\n", err)
 
-			// 	continue
-			// }
+				continue
+			}
 
 			return
 		}
@@ -217,7 +218,7 @@ func run(opts programOpts) error {
 		}
 	}()
 
-	<-sig
+	wg.Wait()
 
-	return nil
+	return <-errChan
 }
