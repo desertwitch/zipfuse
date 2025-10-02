@@ -147,6 +147,8 @@ func Test_newZipFileReader_Store_Success(t *testing.T) {
 	require.Len(t, zr.File, 1)
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	require.NotNil(t, fr)
 	defer fr.Close()
@@ -185,6 +187,8 @@ func Test_newZipFileReader_Deflate_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(io.ReadCloser)
+	require.True(t, ok)
 	require.NoError(t, err)
 	require.NotNil(t, fr)
 	defer fr.Close()
@@ -213,22 +217,24 @@ func Test_zipFileReader_Read_Position_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
-	require.Equal(t, int64(0), fr.pos)
+	require.Equal(t, int64(0), fr.Position())
 
 	buf := make([]byte, 3)
 	n, err := fr.Read(buf)
 	require.NoError(t, err)
 	require.Equal(t, 3, n)
-	require.Equal(t, int64(3), fr.pos)
+	require.Equal(t, int64(3), fr.Position())
 	require.Equal(t, []byte("012"), buf)
 
 	n, err = fr.Read(buf)
 	require.NoError(t, err)
 	require.Equal(t, 3, n)
-	require.Equal(t, int64(6), fr.pos)
+	require.Equal(t, int64(6), fr.Position())
 	require.Equal(t, []byte("345"), buf)
 }
 
@@ -251,15 +257,17 @@ func Test_zipFileReader_Read_EmptyFile_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
-	require.Equal(t, int64(0), fr.pos)
+	require.Equal(t, int64(0), fr.Position())
 
 	data, err := io.ReadAll(fr)
 	require.NoError(t, err)
 	require.Empty(t, data)
-	require.Equal(t, int64(0), fr.pos)
+	require.Equal(t, int64(0), fr.Position())
 }
 
 // Expectation: zipFileReader.Read should handle EOF correctly.
@@ -281,13 +289,15 @@ func Test_zipFileReader_Read_EOF_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
 	data, err := io.ReadAll(fr)
 	require.NoError(t, err)
 	require.Equal(t, content, data)
-	require.Equal(t, int64(len(content)), fr.pos)
+	require.Equal(t, int64(len(content)), fr.Position())
 
 	buf := make([]byte, 10)
 	n, err := fr.Read(buf)
@@ -297,6 +307,9 @@ func Test_zipFileReader_Read_EOF_Success(t *testing.T) {
 
 // Expectation: zipFileReader.ForwardTo should return early when already at target offset.
 func Test_zipFileReader_ForwardTo_AlreadyAtOffset_Success(t *testing.T) {
+	Options.MustCRC32.Store(true)
+	defer Options.MustCRC32.Store(false)
+
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 	content := []byte("test content")
@@ -314,13 +327,15 @@ func Test_zipFileReader_ForwardTo_AlreadyAtOffset_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(io.ReadCloser)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
 	pos, err := fr.ForwardTo(0)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), pos)
-	require.Equal(t, int64(0), fr.pos)
+	require.Equal(t, int64(0), fr.Position())
 }
 
 // Expectation: zipFileReader.ForwardTo should seek forward by discarding bytes.
@@ -345,13 +360,15 @@ func Test_zipFileReader_ForwardTo_Discard_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(io.ReadCloser)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
 	pos, err := fr.ForwardTo(5)
 	require.NoError(t, err)
 	require.Equal(t, int64(5), pos)
-	require.Equal(t, int64(5), fr.pos)
+	require.Equal(t, int64(5), fr.Position())
 
 	buf := make([]byte, 1)
 	n, err := fr.Read(buf)
@@ -382,6 +399,8 @@ func Test_zipFileReader_ForwardTo_Discard_Multiple_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(io.ReadCloser)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
@@ -426,6 +445,8 @@ func Test_zipFileReader_ForwardTo_Discard_EndOfFile_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(io.ReadCloser)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
@@ -461,6 +482,8 @@ func Test_zipFileReader_ForwardTo_Discard_BeyondEOF_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(io.ReadCloser)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
@@ -468,7 +491,7 @@ func Test_zipFileReader_ForwardTo_Discard_BeyondEOF_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, int64(len(content)), pos)
-	require.Equal(t, int64(len(content)), fr.pos)
+	require.Equal(t, int64(len(content)), fr.Position())
 }
 
 // Expectation: zipFileReader.ForwardTo should error when seeking backward on non-seekable reader.
@@ -493,6 +516,8 @@ func Test_zipFileReader_ForwardTo_Discard_NonSeekableRewind_Error(t *testing.T) 
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(io.ReadCloser)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
@@ -524,13 +549,15 @@ func Test_zipFileReader_ForwardTo_Seek_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
 	pos, err := fr.ForwardTo(5)
 	require.NoError(t, err)
 	require.Equal(t, int64(5), pos)
-	require.Equal(t, int64(5), fr.pos)
+	require.Equal(t, int64(5), fr.Position())
 
 	buf := make([]byte, 1)
 	n, err := fr.Read(buf)
@@ -558,6 +585,8 @@ func Test_zipFileReader_ForwardTo_Seek_Multiple_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
@@ -599,6 +628,8 @@ func Test_zipFileReader_ForwardTo_Seek_EndOfFile_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
@@ -631,6 +662,8 @@ func Test_zipFileReader_ForwardTo_Seek_BeyondEOF_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	defer fr.Close()
 
@@ -660,6 +693,8 @@ func Test_zipFileReader_Close_Success(t *testing.T) {
 	defer zr.Close()
 
 	fr, err := newZipFileReader(zr.File[0])
+	_, ok := fr.Reader().(*io.SectionReader)
+	require.True(t, ok)
 	require.NoError(t, err)
 	require.NotNil(t, fr)
 

@@ -3,13 +3,14 @@ package webgui
 
 import (
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strconv"
-	"strings"
 	"text/template"
 
 	"github.com/desertwitch/zipfuse/assets"
@@ -49,6 +50,7 @@ func dashboardMux() *mux.Router {
 	mux := mux.NewRouter()
 
 	mux.HandleFunc("/", dashboardHandler)
+	mux.HandleFunc("/metrics.json", metricsHandler)
 	mux.HandleFunc("/gc", gcHandler)
 	mux.HandleFunc("/reset", resetMetricsHandler)
 	mux.HandleFunc("/set/checkall/{value}", mustCRC32Handler)
@@ -62,38 +64,43 @@ func dashboardMux() *mux.Router {
 	return mux
 }
 
-func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
+type dashboardData struct {
+	Version             string   `json:"version"`
+	RingBufferSize      int      `json:"ringBufferSize"`
+	OpenZips            int64    `json:"openZips"`
+	OpenedZips          int64    `json:"openedZips"`
+	ClosedZips          int64    `json:"closedZips"`
+	FlatMode            string   `json:"flatMode"`
+	MustCRC32           string   `json:"mustCrc32"`
+	StreamingThreshold  string   `json:"streamingThreshold"`
+	AllocBytes          string   `json:"allocBytes"`
+	TotalAlloc          string   `json:"totalAlloc"`
+	SysBytes            string   `json:"sysBytes"`
+	NumGC               uint32   `json:"numGc"`
+	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
+	TotalMetadatas      int64    `json:"totalMetadatas"`
+	AvgExtractTime      string   `json:"avgExtractTime"`
+	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
+	TotalExtracts       int64    `json:"totalExtracts"`
+	TotalExtractBytes   string   `json:"totalExtractBytes"`
+	Logs                []string `json:"logs"`
+}
+
+func collectMetrics() dashboardData {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	data := struct {
-		Version             string
-		RingBufferSize      int
-		OpenZips            int64
-		OpenedZips          int64
-		ClosedZips          int64
-		FlatMode            string
-		MustCRC32           string
-		StreamingThreshold  string
-		AllocBytes          string
-		TotalAlloc          string
-		SysBytes            string
-		NumGC               uint32
-		AvgMetadataReadTime string
-		TotalMetadatas      int64
-		AvgExtractTime      string
-		AvgExtractSpeed     string
-		TotalExtracts       int64
-		TotalExtractBytes   string
-		Logs                string
-	}{
+	logs := logging.Buffer.Lines()
+	slices.Reverse(logs)
+
+	return dashboardData{
 		Version:             Version,
 		RingBufferSize:      logging.Buffer.Size(),
 		OpenZips:            filesystem.Metrics.OpenZips.Load(),
 		OpenedZips:          filesystem.Metrics.TotalOpenedZips.Load(),
 		ClosedZips:          filesystem.Metrics.TotalClosedZips.Load(),
-		FlatMode:            strconv.FormatBool(filesystem.Options.FlatMode),
-		MustCRC32:           strconv.FormatBool(filesystem.Options.MustCRC32.Load()),
+		FlatMode:            enabledOrDisabled(filesystem.Options.FlatMode),
+		MustCRC32:           enabledOrDisabled(filesystem.Options.MustCRC32.Load()),
 		StreamingThreshold:  humanize.Bytes(filesystem.Options.StreamingThreshold.Load()),
 		AllocBytes:          humanize.Bytes(m.Alloc),
 		TotalAlloc:          humanize.Bytes(m.TotalAlloc),
@@ -105,12 +112,25 @@ func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 		AvgExtractSpeed:     avgExtractSpeed(),
 		TotalExtracts:       filesystem.Metrics.TotalExtractCount.Load(),
 		TotalExtractBytes:   totalExtractBytes(),
-		Logs:                strings.Join(logging.Buffer.Lines(), "\n"),
+		Logs:                logs,
 	}
+}
+
+func dashboardHandler(w http.ResponseWriter, _ *http.Request) {
+	data := collectMetrics()
 
 	if err := indexTemplate.Execute(w, data); err != nil {
 		logging.Printf("HTTP template execution error: %v\n", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func metricsHandler(w http.ResponseWriter, _ *http.Request) {
+	data := collectMetrics()
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 

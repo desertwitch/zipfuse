@@ -1,37 +1,307 @@
-<html>
-    <head>
-        <title>ZipFUSE Diagnostics Server ({{.Version}})</title>
-    </head>
-    <body>
-        <img width=150 src="/zipfuse.png"> <b>Diagnostics Server ({{.Version}})</b>
-        <br>
-        <br>
-        <b>
-            <a href="/reset" target="_blank">Reset Metrics</a> / 
-            <a href="/gc" target="_blank">Force GC</a>
-        </b>
-        <ul>
-            <li>ZIP handles:                     {{.OpenZips}}</li>
-            <li>Total ZIP opens:                 {{.OpenedZips}}</li>
-            <li>Total ZIP closes:                {{.ClosedZips}}</li>
-            <li>Streaming threshold:             {{.StreamingThreshold}}</li>
-            <li>Forced archive flattening:       {{.FlatMode}}</li>
-            <li>Forced integrity checking:       {{.MustCRC32}}</li>
-            <br>
-            <li>Current heap alloc:              {{.AllocBytes}}</li>
-            <li>Total heap alloc:                {{.TotalAlloc}}</li>
-            <li>OS memory obtained:              {{.SysBytes}}</li>
-            <li>GC cycles run:                   {{.NumGC}}</li>
-            <br>
-            <li>Total metadata reads:            {{.TotalMetadatas}}</li>
-            <li>Avg metadata read time:          {{.AvgMetadataReadTime}}</li>
-            <br>
-            <li>Total file extracts:             {{.TotalExtracts}}</li>
-            <li>Total byte extracts:             {{.TotalExtractBytes}}</li>
-            <li>Avg file extract time:           {{.AvgExtractTime}}</li>
-            <li>Avg file extract speed:          {{.AvgExtractSpeed}}</li>
-        </ul>
-        <h3>In-Memory Ring Buffer ({{.RingBufferSize}} lines):</h3>
-        <pre>{{.Logs}}</pre>
-    </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZipFUSE Dashboard ({{.Version}})</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            gap: 30px;
+        }
+
+        .logo {
+            width: 150px;
+            height: auto;
+        }
+
+        .header-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+
+        .actions {
+            font-size: 14px;
+        }
+
+        .actions a {
+            color: #2563eb;
+            text-decoration: none;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .actions a:hover {
+            text-decoration: underline;
+        }
+
+        .section-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #555;
+            margin: 20px 0 10px 5px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .metric-tile {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .metric-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .metric-value.true {
+            color: #22c55e;
+        }
+
+        .metric-value.false {
+            color: #ef4444;
+        }
+
+        .logs-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            margin-top: 30px;
+        }
+
+        .logs-section h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .log-list {
+            list-style: none;
+            max-height: 40vh;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .log-item {
+            padding: 8px;
+            border-bottom: 1px solid #e5e5e5;
+            color: #555;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-item:hover {
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="/zipfuse.png" alt="Logo" class="logo">
+            <div class="header-text">
+                <h1>ZipFUSE Dashboard ({{.Version}})</h1>
+                <div class="actions">
+                    <div id="last-updated" style="color: #888; font-size: 12px; margin-bottom: 4px;">
+                        Last updated: just now
+                    </div>
+                    <a href="/reset" target="_blank">Reset Metrics</a>
+                    <a href="/gc" target="_blank">Force GC</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-label">Filesystem Metrics</div>
+        <div class="metrics-grid">
+            <div class="metric-tile">
+                <div class="metric-label">Current Archives Opened</div>
+                <div class="metric-value" data-metric="openZips">{{.OpenZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Archives Opened</div>
+                <div class="metric-value" data-metric="openedZips">{{.OpenedZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Archives Closed</div>
+                <div class="metric-value" data-metric="closedZips">{{.ClosedZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Metadata Reads</div>
+                <div class="metric-value" data-metric="totalMetadatas">{{.TotalMetadatas}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total File Extractions</div>
+                <div class="metric-value" data-metric="totalExtracts">{{.TotalExtracts}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Extracted Bytes</div>
+                <div class="metric-value" data-metric="totalExtractBytes">{{.TotalExtractBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Metadata Read Time</div>
+                <div class="metric-value" data-metric="avgMetadataReadTime">{{.AvgMetadataReadTime}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Extraction Time</div>
+                <div class="metric-value" data-metric="avgExtractTime">{{.AvgExtractTime}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Extraction Speed</div>
+                <div class="metric-value" data-metric="avgExtractSpeed">{{.AvgExtractSpeed}}</div>
+            </div>
+        </div>
+
+        <div class="section-label">Filesystem Settings</div>
+        <div class="metrics-grid">
+            <div class="metric-tile">
+                <div class="metric-label">Streaming Threshold</div>
+                <div class="metric-value" data-metric="streamingThreshold">{{.StreamingThreshold}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Forced Archive Flattening</div>
+                <div class="metric-value" data-metric="flatMode">{{.FlatMode}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Forced Integrity Verification</div>
+                <div class="metric-value" data-metric="mustCrc32">{{.MustCRC32}}</div>
+            </div>
+        </div>
+
+        <div class="section-label">Runtime Metrics</div>
+        <div class="metrics-grid">
+            <div class="metric-tile">
+                <div class="metric-label">Heap Allocated</div>
+                <div class="metric-value" data-metric="allocBytes">{{.AllocBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Heap Allocations</div>
+                <div class="metric-value" data-metric="totalAlloc">{{.TotalAlloc}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">System Memory</div>
+                <div class="metric-value" data-metric="sysBytes">{{.SysBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">GC Cycles</div>
+                <div class="metric-value" data-metric="numGc">{{.NumGC}}</div>
+            </div>
+        </div>
+
+        <div class="logs-section">
+            <h2>Filesystem Ring-Buffer ({{.RingBufferSize}} lines)</h2>
+            <ul class="log-list" id="logs">
+                {{range .Logs}}
+                    <li class="log-item">{{.}}</li>
+                {{else}}
+                    <li class="log-item">Waiting for log messages...</li>
+                {{end}}
+            </ul>
+        </div>
+    </div>
+    <script>
+    let lastUpdatedTime = Date.now();
+
+    function timeAgo(ts) {
+        const seconds = Math.floor((Date.now() - ts) / 1000);
+        if (seconds < 5) return "just now";
+        if (seconds < 60) return `${seconds}s ago`;
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        return `${hours}h ago`;
+    }
+
+    function updateLastUpdatedText() {
+        const el = document.getElementById('last-updated');
+        if (el) {
+        el.textContent = `Last updated: ${timeAgo(lastUpdatedTime)}`;
+        }
+    }
+
+    async function refreshMetrics() {
+        try {
+        const res = await fetch('/metrics.json');
+        const data = await res.json();
+
+        document.querySelectorAll('[data-metric]').forEach(el => {
+            const key = el.getAttribute('data-metric');
+            if (data[key] !== undefined) {
+                el.textContent = data[key];
+            } else {
+                throw new Error("Missing key ("+key+") in server response.");
+            }
+        });
+
+        const logsEl = document.getElementById('logs');
+        if (data.logs !== undefined) {
+            const oldScrollTop = logsEl.scrollTop;
+            const isAtBottom = (logsEl.scrollHeight - logsEl.scrollTop - logsEl.clientHeight) < 5;
+
+            logsEl.innerHTML = data.logs.map(l => `<li class="log-item">${l}</li>`).join('');
+
+            if (isAtBottom) {
+                logsEl.scrollTop = logsEl.scrollHeight;
+            } else {
+                logsEl.scrollTop = oldScrollTop;
+            }
+        } else {
+            throw new Error("Missing key (logs) in server response.");
+        }
+
+        lastUpdatedTime = Date.now();
+        updateLastUpdatedText();
+        } catch (err) {
+        console.error('Failed to update metrics:', err);
+        }
+    }
+
+    setInterval(refreshMetrics, 3000);
+    setInterval(updateLastUpdatedText, 1000);
+    </script>
+</body>
 </html>

@@ -107,6 +107,35 @@ func Test_ringBuffer_Lines_PartialBuffer_Success(t *testing.T) {
 	require.Equal(t, "two", lines[1])
 }
 
+// Expectation: Lines should always return a copy, not the internal slice.
+func Test_ringBuffer_Lines_ReturnsCopy_Success(t *testing.T) {
+	buf := newRingBuffer(3)
+	buf.add("a")
+	buf.add("b")
+
+	lines := buf.Lines()
+	require.Equal(t, []string{"a", "b"}, lines)
+
+	lines[0] = "MUTATED"
+
+	lines2 := buf.Lines()
+	require.Equal(t, []string{"a", "b"}, lines2)
+
+	buf = newRingBuffer(3)
+	buf.add("x")
+	buf.add("y")
+	buf.add("z")
+	buf.add("w") // overwrites "x"
+
+	lines = buf.Lines()
+	require.Equal(t, []string{"y", "z", "w"}, lines)
+
+	lines[1] = "MUTATED"
+
+	lines2 = buf.Lines()
+	require.Equal(t, []string{"y", "z", "w"}, lines2)
+}
+
 // Expectation: Reset should return the buffer to empty, pre-allocated state.
 func Test_ringBuffer_Reset_Success(t *testing.T) {
 	buf := newRingBuffer(5)

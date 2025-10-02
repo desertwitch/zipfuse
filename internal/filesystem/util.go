@@ -132,6 +132,18 @@ func (fr *zipFileReader) ForwardTo(offset int64) (int64, error) {
 	return fr.pos, nil
 }
 
+// Reader returns the underlying [io.Reader] of the [zipFileReader].
+// You will need to type assert this to [io.ReadCloser] or [io.SectionReader].
+// In case of [io.ReadCloser], do not use it anymore after calling Close on it.
+func (fr *zipFileReader) Reader() io.Reader {
+	return fr.r
+}
+
+// Position is the position of the underlying [io.Reader] of [zipFileReader].
+func (fr *zipFileReader) Position() int64 {
+	return fr.pos
+}
+
 // Close facilitiates the closing of the reader after use.
 func (fr *zipFileReader) Close() error {
 	if closer, ok := fr.r.(io.ReadCloser); ok {

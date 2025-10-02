@@ -74,6 +74,35 @@ func Test_dashboardHandler_Success(t *testing.T) {
 	require.Contains(t, body, "200 MB")
 }
 
+// Expectation: metricsHandler should return JSON with current metrics.
+func Test_metricsHandler_Success(t *testing.T) {
+	logging.Buffer.Reset()
+
+	Version = "test-metrics-version"
+	logging.Println("metrics test log entry")
+
+	filesystem.Metrics.OpenZips.Store(7)
+	filesystem.Metrics.TotalOpenedZips.Store(123)
+	filesystem.Metrics.TotalClosedZips.Store(120)
+	filesystem.Options.StreamingThreshold.Store(42_000_000)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics.json", nil)
+	w := httptest.NewRecorder()
+
+	metricsHandler(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	body := w.Body.String()
+	require.Contains(t, body, "test-metrics-version")
+	require.Contains(t, body, "metrics test log entry")
+	require.Contains(t, body, "42 MB")
+}
+
 // Expectation: gcHandler should force GC and return success message.
 func Test_gcHandler_Success(t *testing.T) {
 	logging.Buffer.Reset()
