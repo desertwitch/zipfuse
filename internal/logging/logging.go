@@ -43,9 +43,11 @@ func (l *ringBuffer) Lines() []string {
 	defer l.mu.Unlock()
 
 	if !l.full {
-		return l.buf[:l.index]
-	}
+		out := make([]string, l.index)
+		copy(out, l.buf[:l.index])
 
+		return out
+	}
 	out := make([]string, l.size)
 	copy(out, l.buf[l.index:])
 	copy(out[l.size-l.index:], l.buf[:l.index])
