@@ -1,8 +1,12 @@
 package filesystem
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"os"
+	"strconv"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -512,4 +516,115 @@ func Test_zipDiskStreamFileHandle_Read_NoSeekRewind_Success(t *testing.T) {
 
 	finalReopenCount := Metrics.TotalReopenedZips.Load()
 	require.Equal(t, initialReopenCount+1, finalReopenCount)
+}
+
+// Expectation: Multiple concurrent reads on the same file handle should not
+// race or corrupt data, including when read operations require seeking (or
+// pseudo-seeking on non-seekables) in a sequential/non-sequential manner.
+func Test_zipDiskStreamFileHandle_Read_Concurrent_Success(t *testing.T) {
+	fn := func(MustCRC32 bool) {
+		Options.MustCRC32.Store(MustCRC32)
+		defer Options.MustCRC32.Store(false)
+
+		tmpDir := t.TempDir()
+		tnow := time.Now()
+
+		contentLen := 1024 * 10
+		content := make([]byte, contentLen)
+		for i := range contentLen {
+			content[i] = byte(i % 256)
+		}
+
+		zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+			Path    string
+			ModTime time.Time
+			Content []byte
+		}{
+			{Path: "dir/concurrent_seek_test.txt", ModTime: tnow, Content: content},
+		})
+
+		node := &zipDiskStreamFileNode{
+			zipBaseFileNode: &zipBaseFileNode{
+				Inode:    0,
+				Archive:  zipPath,
+				Path:     "dir/concurrent_seek_test.txt",
+				Size:     uint64(contentLen),
+				Modified: tnow,
+			},
+		}
+
+		handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, &fuse.OpenResponse{})
+		require.NoError(t, err)
+
+		fhandle, ok := handle.(*zipDiskStreamFileHandle)
+		require.True(t, ok)
+
+		defer func() {
+			err = fhandle.Release(t.Context(), &fuse.ReleaseRequest{})
+			require.NoError(t, err)
+		}()
+
+		readSize := 1024
+
+		reads := []struct {
+			Offset int64
+			Size   int
+		}{
+			{Offset: 5000, Size: readSize},                   // Initial read, deep into the file
+			{Offset: 5000 + int64(readSize), Size: readSize}, // Sequential read, deeper into the file
+			{Offset: 1000, Size: readSize},                   // Backward seek (should trigger a rewind)
+			{Offset: 8000, Size: readSize},                   // Forward seek
+			{Offset: 2000, Size: readSize},                   // Backward seek (should trigger a rewind)
+			{Offset: 0, Size: readSize},                      // Read from the very start (backward/rewind)
+			{Offset: 9216, Size: readSize},                   // Read near the end (forward)
+			{Offset: int64(contentLen), Size: readSize},      // Read beyond the end of file (EOF)
+		}
+
+		numReaders := len(reads)
+		errChan := make(chan error, numReaders)
+
+		var wg sync.WaitGroup
+
+		for i, r := range reads {
+			wg.Go(func() {
+				req := &fuse.ReadRequest{
+					Offset: r.Offset,
+					Size:   r.Size,
+				}
+				resp := &fuse.ReadResponse{}
+
+				err := fhandle.Read(context.Background(), req, resp)
+				if err != nil {
+					errChan <- fmt.Errorf("read %d (offset %d) failed: %w", i, r.Offset, err)
+
+					return
+				}
+
+				endOffset := min(int(r.Offset)+r.Size, len(content))
+				expectedData := content[r.Offset:endOffset]
+
+				if !bytes.Equal(expectedData, resp.Data) {
+					errChan <- fmt.Errorf("read %d data mismatch at offset %d: expected length %d, got %d",
+						i, r.Offset, len(expectedData), len(resp.Data))
+
+					return
+				}
+
+				errChan <- nil
+			})
+		}
+
+		wg.Wait()
+		close(errChan)
+
+		for err := range errChan {
+			require.NoError(t, err)
+		}
+	}
+
+	for _, mode := range []bool{true, false} {
+		t.Run("MustCRC32="+strconv.FormatBool(mode), func(t *testing.T) {
+			fn(mode)
+		})
+	}
 }
