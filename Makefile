@@ -14,7 +14,6 @@ all: vendor $(BINARY) ## Runs the entire build chain for the application
 
 $(BINARY): ## Builds the application
 	CGO_ENABLED=0 GOFLAGS="-mod=vendor" go build -ldflags="-w -s -X main.Version=$(VERSION) -buildid=" -trimpath -o $(BINARY) $(SRC_DIR)
-	@$(MAKE) info
 
 check: ## Runs all static analysis and tests on the application code
 	@$(MAKE) lint
