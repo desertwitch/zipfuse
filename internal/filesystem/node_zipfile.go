@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"syscall"
 	"time"
 
@@ -126,6 +127,8 @@ var (
 // reading bytes from a ZIP-contained file as part of a [fuse.ReadRequest].
 // The implemented [fs.HandleReleaser] ensures appropriate cleanup afterwards.
 type zipDiskStreamFileHandle struct {
+	sync.Mutex
+
 	archive string
 	path    string
 
@@ -136,6 +139,9 @@ type zipDiskStreamFileHandle struct {
 }
 
 func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest, resp *fuse.ReadResponse) error {
+	h.Lock()
+	defer h.Unlock()
+
 	if req.Offset != h.offset {
 		n, err := h.fr.ForwardTo(req.Offset)
 		h.offset = n
@@ -192,11 +198,16 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 }
 
 func (h *zipDiskStreamFileHandle) Release(_ context.Context, _ *fuse.ReleaseRequest) error {
+	h.Lock()
+	defer h.Unlock()
+
 	if h.fr != nil {
 		_ = h.fr.Close()
+		h.fr = nil
 	}
 	if h.zr != nil {
 		_ = h.zr.Close(h.bytesRead)
+		h.zr = nil
 	}
 
 	return nil
