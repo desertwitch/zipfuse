@@ -183,10 +183,10 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 
 	buf := make([]byte, req.Size)
 
-	n, err := h.fr.Read(buf)
+	n, err := io.ReadFull(h.fr, buf)
 	h.bytesRead += n
 	h.offset += int64(n)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		logging.Printf("Error: %q->Read->%q: IO Error: %v\n", h.archive, h.path, err)
 
 		return fuse.ToErrno(syscall.EIO)
