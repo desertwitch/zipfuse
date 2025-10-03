@@ -15,6 +15,7 @@ import (
 
 var (
 	_ fs.Node               = (*zipDirNode)(nil)
+	_ fs.NodeOpener         = (*zipDirNode)(nil)
 	_ fs.HandleReadDirAller = (*zipDirNode)(nil)
 	_ fs.NodeStringLookuper = (*zipDirNode)(nil)
 )
@@ -39,6 +40,13 @@ func (z *zipDirNode) Attr(_ context.Context, a *fuse.Attr) error {
 	a.Mtime = z.Modified
 
 	return nil
+}
+
+func (z *zipDirNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
+	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
+	resp.Flags |= fuse.OpenKeepCache | fuse.OpenCacheDir
+
+	return z, nil
 }
 
 func (z *zipDirNode) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {

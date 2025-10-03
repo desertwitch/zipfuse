@@ -713,6 +713,195 @@ func Test_zipFileReader_Close_NonCloser_Success(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Expectation: openZipEntry should successfully return readers for an existing file.
+func Test_openZipEntry_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	content := []byte("test content for openZipEntry")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "dir/", ModTime: tnow, Content: nil},
+		{Path: "dir/file.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, fr, err := openZipEntry(zipPath, "dir/file.txt")
+	require.NoError(t, err)
+	require.NotNil(t, zr)
+	require.NotNil(t, fr)
+
+	data, readErr := io.ReadAll(fr)
+	require.NoError(t, readErr)
+	require.Equal(t, content, data)
+
+	err = fr.Close()
+	require.NoError(t, err)
+	err = zr.Close(len(data))
+	require.NoError(t, err)
+}
+
+// Expectation: openZipEntry should handle files in the root of the ZIP.
+func Test_openZipEntry_RootFile_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	content := []byte("root file content")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "root.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, fr, err := openZipEntry(zipPath, "root.txt")
+	require.NoError(t, err)
+	require.NotNil(t, zr)
+	require.NotNil(t, fr)
+
+	data, readErr := io.ReadAll(fr)
+	require.NoError(t, readErr)
+	require.Equal(t, content, data)
+
+	err = fr.Close()
+	require.NoError(t, err)
+	err = zr.Close(len(data))
+	require.NoError(t, err)
+}
+
+// Expectation: openZipEntry should handle empty files correctly.
+func Test_openZipEntry_EmptyFile_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "empty.txt", ModTime: tnow, Content: []byte{}},
+	})
+
+	zr, fr, err := openZipEntry(zipPath, "empty.txt")
+	require.NoError(t, err)
+	require.NotNil(t, zr)
+	require.NotNil(t, fr)
+
+	data, readErr := io.ReadAll(fr)
+	require.NoError(t, readErr)
+	require.Empty(t, data)
+
+	err = fr.Close()
+	require.NoError(t, err)
+	err = zr.Close(0)
+	require.NoError(t, err)
+}
+
+// Expectation: openZipEntry should return ENOENT for a non-existent file.
+func Test_openZipEntry_FileNotFound_Error(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "exists.txt", ModTime: tnow, Content: []byte("content")},
+	})
+
+	zr, fr, err := openZipEntry(zipPath, "missing.txt")
+	require.Nil(t, zr)
+	require.Nil(t, fr)
+	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
+}
+
+// Expectation: openZipEntry should return EINVAL for a non-existent archive.
+func Test_openZipEntry_InvalidArchive_Error(t *testing.T) {
+	zr, fr, err := openZipEntry("/nonexistent/path/archive.zip", "file.txt")
+	require.Nil(t, zr)
+	require.Nil(t, fr)
+	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+}
+
+// Expectation: openZipEntry should return EINVAL for a corrupted ZIP file.
+func Test_openZipEntry_CorruptedArchive_Error(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	corruptedPath := tmpDir + "/corrupted.zip"
+	err := os.WriteFile(corruptedPath, []byte("not a valid zip file"), 0o644)
+	require.NoError(t, err)
+
+	zr, fr, err := openZipEntry(corruptedPath, "file.txt")
+	require.Nil(t, zr)
+	require.Nil(t, fr)
+	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+}
+
+// Expectation: openZipEntry should handle deeply nested paths.
+func Test_openZipEntry_DeeplyNested_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	content := []byte("deeply nested content")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "a/", ModTime: tnow, Content: nil},
+		{Path: "a/b/", ModTime: tnow, Content: nil},
+		{Path: "a/b/c/", ModTime: tnow, Content: nil},
+		{Path: "a/b/c/deep.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, fr, err := openZipEntry(zipPath, "a/b/c/deep.txt")
+	require.NoError(t, err)
+	require.NotNil(t, zr)
+	require.NotNil(t, fr)
+
+	data, readErr := io.ReadAll(fr)
+	require.NoError(t, readErr)
+	require.Equal(t, content, data)
+
+	err = fr.Close()
+	require.NoError(t, err)
+	err = zr.Close(len(data))
+	require.NoError(t, err)
+}
+
+// Expectation: openZipEntry should handle files with special characters in names.
+func Test_openZipEntry_SpecialCharacters_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	content := []byte("content with special chars")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "file-with_special.chars (1).txt", ModTime: tnow, Content: content},
+	})
+
+	zr, fr, err := openZipEntry(zipPath, "file-with_special.chars (1).txt")
+	require.NoError(t, err)
+	require.NotNil(t, zr)
+	require.NotNil(t, fr)
+
+	data, readErr := io.ReadAll(fr)
+	require.NoError(t, readErr)
+	require.Equal(t, content, data)
+
+	err = fr.Close()
+	require.NoError(t, err)
+	err = zr.Close(len(data))
+	require.NoError(t, err)
+}
+
 // Expectation: flatEntryName should flatten paths correctly and produce hashes.
 func Test_flatEntryName_Success(t *testing.T) {
 	testCases := []struct {

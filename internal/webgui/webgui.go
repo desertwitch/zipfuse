@@ -70,6 +70,7 @@ type dashboardData struct {
 	OpenZips            int64    `json:"openZips"`
 	OpenedZips          int64    `json:"openedZips"`
 	ClosedZips          int64    `json:"closedZips"`
+	ReopenedZips        int64    `json:"reopenedZips"`
 	FlatMode            string   `json:"flatMode"`
 	MustCRC32           string   `json:"mustCrc32"`
 	StreamingThreshold  string   `json:"streamingThreshold"`
@@ -99,6 +100,7 @@ func collectMetrics() dashboardData {
 		OpenZips:            filesystem.Metrics.OpenZips.Load(),
 		OpenedZips:          filesystem.Metrics.TotalOpenedZips.Load(),
 		ClosedZips:          filesystem.Metrics.TotalClosedZips.Load(),
+		ReopenedZips:        filesystem.Metrics.TotalReopenedZips.Load(),
 		FlatMode:            enabledOrDisabled(filesystem.Options.FlatMode),
 		MustCRC32:           enabledOrDisabled(filesystem.Options.MustCRC32.Load()),
 		StreamingThreshold:  humanize.Bytes(filesystem.Options.StreamingThreshold.Load()),

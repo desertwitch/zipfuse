@@ -42,6 +42,7 @@ func (z *zipBaseFileNode) Attr(_ context.Context, a *fuse.Attr) error {
 
 var (
 	_ fs.Node            = (*zipInMemoryFileNode)(nil)
+	_ fs.NodeOpener      = (*zipInMemoryFileNode)(nil)
 	_ fs.HandleReadAller = (*zipInMemoryFileNode)(nil)
 )
 
@@ -51,99 +52,152 @@ type zipInMemoryFileNode struct {
 	*zipBaseFileNode
 }
 
+func (z *zipInMemoryFileNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
+	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
+	resp.Flags |= fuse.OpenKeepCache
+
+	return z, nil
+}
+
 func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 	bytesRead := 0
 
-	zr, err := newZipReader(z.Archive, true)
+	zr, fr, err := openZipEntry(z.Archive, z.Path)
 	if err != nil {
 		logging.Printf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.Archive, z.Path, err)
 
-		return nil, fuse.ToErrno(syscall.EINVAL)
+		return nil, fuse.ToErrno(err)
 	}
 	defer func() {
+		fr.Close()
 		zr.Close(bytesRead)
 	}()
 
-	for _, f := range zr.File {
-		if f.Name == z.Path {
-			rc, err := newZipFileReader(f)
-			if err != nil {
-				logging.Printf("Error: %q->ReadAll->%q: %v\n", z.Archive, z.Path, err)
+	data, err := io.ReadAll(fr)
+	if err != nil {
+		logging.Printf("Error: %q->ReadAll->%q: IO Error: %v\n", z.Archive, z.Path, err)
 
-				return nil, fuse.ToErrno(syscall.EIO)
-			}
-			defer rc.Close()
-
-			data, err := io.ReadAll(rc)
-			if err != nil {
-				logging.Printf("Error: %q->Readall->%q: IO Error: %v\n", z.Archive, z.Path, err)
-
-				return nil, fuse.ToErrno(syscall.EIO)
-			}
-			bytesRead = len(data)
-
-			return data, nil
-		}
+		return nil, fuse.ToErrno(syscall.EIO)
 	}
+	bytesRead = len(data)
 
-	return nil, fuse.ToErrno(syscall.ENOENT)
+	return data, nil
 }
 
 var (
-	_ fs.Node         = (*zipDiskStreamFileNode)(nil)
-	_ fs.HandleReader = (*zipDiskStreamFileNode)(nil)
+	_ fs.Node       = (*zipDiskStreamFileNode)(nil)
+	_ fs.NodeOpener = (*zipDiskStreamFileNode)(nil)
 )
 
-// zipDiskStreamFileNode is a [zipBaseFileNode] that implements only the
-// [fs.HandleReader] for streaming the kernel requested bytes from the file.
+// zipDiskStreamFileNode is a [zipBaseFileNode] that opens to a
+// [zipDiskStreamFileHandle] for streaming from a ZIP-contained file.
 type zipDiskStreamFileNode struct {
 	*zipBaseFileNode
 }
 
-func (z *zipDiskStreamFileNode) Read(_ context.Context, req *fuse.ReadRequest, resp *fuse.ReadResponse) error {
-	bytesRead := 0
-
-	zr, err := newZipReader(z.Archive, true)
+func (z *zipDiskStreamFileNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
+	zr, fr, err := openZipEntry(z.Archive, z.Path)
 	if err != nil {
-		logging.Printf("Error: %q->Read->%q: ZIP Error: %v\n", z.Archive, z.Path, err)
+		logging.Printf("Error: %q->Open->%q: ZIP Error: %v\n", z.Archive, z.Path, err)
 
-		return fuse.ToErrno(syscall.EINVAL)
+		return nil, fuse.ToErrno(err)
 	}
-	defer func() {
-		zr.Close(bytesRead)
-	}()
 
-	for _, f := range zr.File {
-		if f.Name == z.Path {
-			rc, err := newZipFileReader(f)
+	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
+	resp.Flags |= fuse.OpenKeepCache
+
+	return &zipDiskStreamFileHandle{
+		archive:   z.Archive,
+		path:      z.Path,
+		zr:        zr,
+		fr:        fr,
+		offset:    0,
+		bytesRead: 0,
+	}, nil
+}
+
+var (
+	_ fs.HandleReader   = (*zipDiskStreamFileHandle)(nil)
+	_ fs.HandleReleaser = (*zipDiskStreamFileHandle)(nil)
+)
+
+// zipDiskStreamFileHandle is a [fs.Handle] returned when opening a
+// [zipDiskStreamFileNode]. It implements [fs.HandleReader] to allow for
+// reading bytes from a ZIP-contained file as part of a [fuse.ReadRequest].
+// The implemented [fs.HandleReleaser] ensures appropriate cleanup afterwards.
+type zipDiskStreamFileHandle struct {
+	archive string
+	path    string
+
+	zr        *zipReader
+	fr        *zipFileReader
+	offset    int64
+	bytesRead int
+}
+
+func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest, resp *fuse.ReadResponse) error {
+	if req.Offset != h.offset {
+		n, err := h.fr.ForwardTo(req.Offset)
+		h.offset = n
+		switch {
+		case errors.Is(err, ErrNonSeekableRewind):
+			_ = h.fr.Close()
+			_ = h.zr.Close(h.bytesRead)
+
+			// Reopening the entry will start with offset zero, so the
+			// pseudo-seek should always succeed even if it's a rewind.
+			zr, rc, err := openZipEntry(h.archive, h.path)
 			if err != nil {
-				logging.Printf("Error: %q->Read->%q: %v\n", z.Archive, z.Path, err)
+				logging.Printf("Error: %q->Read->%q: ZIP Error: %v\n", h.archive, h.path, err)
+
+				return fuse.ToErrno(syscall.EINVAL)
+			}
+
+			h.zr = zr
+			h.fr = rc
+			h.offset = 0
+			h.bytesRead = 0
+			Metrics.TotalReopenedZips.Add(1)
+
+			// Retry the forward... if it fails again, return an error.
+			n, err = h.fr.ForwardTo(req.Offset)
+			h.offset = n
+			if err != nil {
+				logging.Printf("Error: %q->Read->%q: Seek Error: %v\n", h.archive, h.path, err)
 
 				return fuse.ToErrno(syscall.EIO)
 			}
-			defer rc.Close()
 
-			if _, err := rc.ForwardTo(req.Offset); err != nil {
-				logging.Printf("Error: %q->Forward->%q: %v\n", z.Archive, z.Path, err)
+		case err != nil:
+			logging.Printf("Error: %q->Read->%q: Seek Error: %v\n", h.archive, h.path, err)
 
-				return fuse.ToErrno(syscall.EIO)
-			}
-
-			buf := make([]byte, req.Size)
-
-			n, err := rc.Read(buf)
-			if err != nil && !errors.Is(err, io.EOF) {
-				logging.Printf("Error: %q->Read->%q: IO Error: %v\n", z.Archive, z.Path, err)
-
-				return fuse.ToErrno(syscall.EIO)
-			}
-
-			resp.Data = buf[:n]
-			bytesRead = len(resp.Data)
-
-			return nil
+			return fuse.ToErrno(syscall.EIO)
 		}
 	}
 
-	return fuse.ToErrno(syscall.ENOENT)
+	buf := make([]byte, req.Size)
+
+	n, err := h.fr.Read(buf)
+	h.bytesRead += n
+	h.offset += int64(n)
+	if err != nil && !errors.Is(err, io.EOF) {
+		logging.Printf("Error: %q->Read->%q: IO Error: %v\n", h.archive, h.path, err)
+
+		return fuse.ToErrno(syscall.EIO)
+	}
+
+	resp.Data = buf[:n]
+
+	return nil
+}
+
+func (h *zipDiskStreamFileHandle) Release(_ context.Context, _ *fuse.ReleaseRequest) error {
+	if h.fr != nil {
+		_ = h.fr.Close()
+	}
+	if h.zr != nil {
+		_ = h.zr.Close(h.bytesRead)
+	}
+
+	return nil
 }

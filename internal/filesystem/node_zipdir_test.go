@@ -84,6 +84,40 @@ func Test_zipDirNode_Attr_Success(t *testing.T) {
 	require.Equal(t, tnow, attr.Mtime)
 }
 
+// Expectation: Open should set the caching flags and return the node itself as the handle.
+func Test_zipDirNode_Open_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	tnow := time.Now()
+
+	content := []byte("test content in directory")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "dir/", ModTime: tnow, Content: nil},
+		{Path: "dir/file.txt", ModTime: tnow, Content: content},
+	})
+
+	node := &zipDirNode{
+		Inode:    fs.GenerateDynamicInode(1, "test.zip"),
+		Path:     zipPath,
+		Prefix:   "",
+		Modified: tnow,
+	}
+
+	resp := &fuse.OpenResponse{}
+	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
+	require.NoError(t, err)
+
+	require.NotZero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should be set")
+	require.NotZero(t, resp.Flags&fuse.OpenCacheDir, "OpenCacheDir flag should be set")
+
+	dirHandle, ok := handle.(*zipDirNode)
+	require.True(t, ok, "handle should be a *zipDirNode")
+	require.Equal(t, node, dirHandle, "handle should be the same as the original node")
+}
+
 // Expectation: The returned [fuse.Dirent] slice should meet the expectations (flat mode).
 func Test_zipDirNode_readDirAllFlat_Success(t *testing.T) {
 	tmpDir := t.TempDir()

@@ -38,6 +38,7 @@ linters:
       - std-error-handling
     rules:
       - linters:
+          - dupl
           - err113
           - funlen
           - ireturn

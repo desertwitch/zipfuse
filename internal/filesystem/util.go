@@ -54,7 +54,7 @@ func (z *zipReader) Close(readBytes int) error {
 	Metrics.OpenZips.Add(-1)
 	Metrics.TotalClosedZips.Add(1)
 
-	if z.isExtract {
+	if z.isExtract && readBytes > 0 {
 		Metrics.TotalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
 		Metrics.TotalExtractCount.Add(1)
 		Metrics.TotalExtractBytes.Add(int64(readBytes))
@@ -113,20 +113,20 @@ func (fr *zipFileReader) ForwardTo(offset int64) (int64, error) {
 		n, err := seeker.Seek(offset, io.SeekStart)
 		fr.pos = n
 		if err != nil {
-			return fr.pos, fmt.Errorf("failed to Seek: %w", err)
+			return fr.pos, fmt.Errorf("failed to seek: %w", err)
 		}
 
 		return fr.pos, nil
 	}
 
 	if offset < fr.pos {
-		return fr.pos, fmt.Errorf("%w (offset %d, current %d)", ErrNonSeekableRewind, offset, fr.pos)
+		return fr.pos, fmt.Errorf("%w (want %d, current %d)", ErrNonSeekableRewind, offset, fr.pos)
 	}
 
 	n, err := io.CopyN(io.Discard, fr.r, offset-fr.pos)
 	fr.pos += n
 	if err != nil && !errors.Is(err, io.EOF) {
-		return fr.pos, fmt.Errorf("failed to CopyN: %w", err)
+		return fr.pos, fmt.Errorf("failed to discard: %w", err)
 	}
 
 	return fr.pos, nil
@@ -151,6 +151,31 @@ func (fr *zipFileReader) Close() error {
 	}
 
 	return nil
+}
+
+// openZipEntry returns for a ZIP-contained file a [zipReader] and [zipFileReader].
+func openZipEntry(archive, path string) (*zipReader, *zipFileReader, error) {
+	zr, err := newZipReader(archive, true)
+	if err != nil {
+		return nil, nil, fuse.ToErrno(syscall.EINVAL)
+	}
+
+	for _, f := range zr.File {
+		if f.Name == path {
+			fr, err := newZipFileReader(f)
+			if err != nil {
+				zr.Close(0)
+
+				return nil, nil, fuse.ToErrno(syscall.EINVAL)
+			}
+
+			return zr, fr, nil
+		}
+	}
+
+	zr.Close(0)
+
+	return nil, nil, fuse.ToErrno(syscall.ENOENT)
 }
 
 // flatEntryName flattens a normalized path to a filename, discarding structure.

@@ -65,6 +65,9 @@ type FSMetrics struct {
 	// TotalClosedZips is the amount of closed ZIP files.
 	TotalClosedZips atomic.Int64
 
+	// TotalReopenedZips is the amount of reopened ZIP files (for rewinding).
+	TotalReopenedZips atomic.Int64
+
 	// TotalMetadataReadTime is time spent reading metadata from ZIP files.
 	TotalMetadataReadTime atomic.Int64
 
