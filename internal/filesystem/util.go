@@ -54,10 +54,12 @@ func (z *zipReader) Close(readBytes int) error {
 	Metrics.OpenZips.Add(-1)
 	Metrics.TotalClosedZips.Add(1)
 
-	if z.isExtract && readBytes > 0 {
-		Metrics.TotalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
-		Metrics.TotalExtractCount.Add(1)
-		Metrics.TotalExtractBytes.Add(int64(readBytes))
+	if z.isExtract {
+		if readBytes > 0 { // We do not count Open calls without extraction.
+			Metrics.TotalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
+			Metrics.TotalExtractCount.Add(1)
+			Metrics.TotalExtractBytes.Add(int64(readBytes))
+		}
 	} else {
 		Metrics.TotalMetadataReadTime.Add(time.Since(z.startTime).Nanoseconds())
 		Metrics.TotalMetadataReadCount.Add(1)
