@@ -69,13 +69,16 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 	seen := make(map[string]bool)
 	resp := make([]fuse.Dirent, 0)
 
-	zr, err := newZipReader(z.Path, false)
+	zr, err := Cache.Archive(z.Path)
 	if err != nil {
 		logging.Printf("%q->ReadDirAll: ZIP Error: %v\n", z.Path, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
-	defer zr.Close(0)
+	defer zr.Release()
+
+	m := zipMetricStart()
+	defer zipMetricEnd(m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -107,13 +110,16 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 }
 
 func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error) {
-	zr, err := newZipReader(z.Path, false)
+	zr, err := Cache.Archive(z.Path)
 	if err != nil {
 		logging.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.Path, name, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
-	defer zr.Close(0)
+	defer zr.Release()
+
+	m := zipMetricStart()
+	defer zipMetricEnd(m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -146,13 +152,16 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 	resp := []fuse.Dirent{}
 	seen := map[string]bool{}
 
-	zr, err := newZipReader(z.Path, false)
+	zr, err := Cache.Archive(z.Path)
 	if err != nil {
 		logging.Printf("%q->ReadDirAll: ZIP error: %v\n", z.Path, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
-	defer zr.Close(0)
+	defer zr.Release()
+
+	m := zipMetricStart()
+	defer zipMetricEnd(m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -201,13 +210,16 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 }
 
 func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, error) {
-	zr, err := newZipReader(z.Path, false)
+	zr, err := Cache.Archive(z.Path)
 	if err != nil {
 		logging.Printf("%q->Lookup->%q: ZIP error: %v\n", z.Path, name, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
-	defer zr.Close(0)
+	defer zr.Release()
+
+	m := zipMetricStart()
+	defer zipMetricEnd(m)
 
 	fullPath := z.Prefix + name
 

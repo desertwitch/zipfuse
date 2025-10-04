@@ -14,7 +14,11 @@ import (
 const (
 	fileBasePerm = 0o444 // RO
 	dirBasePerm  = 0o555 // RO
-	hashDigits   = 8     // [flatEntryName]
+
+	cacheMax = 60
+	cacheTTL = time.Minute
+
+	hashDigits = 8 // [flatEntryName]
 )
 
 var (
@@ -36,6 +40,9 @@ var (
 	// Beware that any contained non-atomic variables should not be modified
 	// after the filesystem was mounted and are also not considered thread-safe.
 	Metrics = &FSMetrics{}
+
+	// Cache is a LRU cache for open ZIP file handles.
+	Cache = newZipReaderCache(cacheMax, cacheTTL)
 )
 
 // FSOptions contains all settings for the operation of the filesystem.

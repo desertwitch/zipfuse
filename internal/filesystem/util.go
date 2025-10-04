@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -23,17 +24,22 @@ var (
 	ErrNonSeekableRewind = errors.New("cannot rewind non-seekable file")
 )
 
+type zipMetric struct {
+	isExtract bool
+	startTime time.Time
+	readBytes int64
+}
+
 // zipReader is a metrics-aware [zip.ReadCloser].
 type zipReader struct {
 	*zip.ReadCloser
 
-	startTime time.Time
-	isExtract bool
+	refCount atomic.Int32
 }
 
 // newZipReader returns a pointer to a new [zipReader] for given path.
 // Argument isExtract separates metadata reading and extraction metrics.
-func newZipReader(path string, isExtract bool) (*zipReader, error) {
+func newZipReader(path string) (*zipReader, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return nil, err //nolint:wrapcheck
@@ -44,28 +50,42 @@ func newZipReader(path string, isExtract bool) (*zipReader, error) {
 
 	return &zipReader{
 		ReadCloser: zr,
-		startTime:  time.Now(),
-		isExtract:  isExtract,
 	}, nil
 }
 
+func zipMetricStart() zipMetric {
+	return zipMetric{
+		startTime: time.Now(),
+		isExtract: false,
+		readBytes: 0,
+	}
+}
+
+func zipMetricEnd(m zipMetric) {
+	if m.isExtract {
+		if m.readBytes > 0 { // We do not count Open calls without extraction.
+			Metrics.TotalExtractTime.Add(time.Since(m.startTime).Nanoseconds())
+			Metrics.TotalExtractCount.Add(1)
+			Metrics.TotalExtractBytes.Add(m.readBytes)
+		}
+	} else {
+		Metrics.TotalMetadataReadTime.Add(time.Since(m.startTime).Nanoseconds())
+		Metrics.TotalMetadataReadCount.Add(1)
+	}
+}
+
+func (zr *zipReader) Release() {
+	if zr.refCount.Add(-1) == 0 {
+		zr.Close()
+	}
+}
+
 // Close closes the [zip.ReadCloser] and records the bytes read.
-func (z *zipReader) Close(readBytes int) error {
+func (zr *zipReader) Close() error {
 	Metrics.OpenZips.Add(-1)
 	Metrics.TotalClosedZips.Add(1)
 
-	if z.isExtract {
-		if readBytes > 0 { // We do not count Open calls without extraction.
-			Metrics.TotalExtractTime.Add(time.Since(z.startTime).Nanoseconds())
-			Metrics.TotalExtractCount.Add(1)
-			Metrics.TotalExtractBytes.Add(int64(readBytes))
-		}
-	} else {
-		Metrics.TotalMetadataReadTime.Add(time.Since(z.startTime).Nanoseconds())
-		Metrics.TotalMetadataReadCount.Add(1)
-	}
-
-	return z.ReadCloser.Close() //nolint:wrapcheck
+	return zr.ReadCloser.Close() //nolint:wrapcheck
 }
 
 // zipFileReader opens a [zip.File] for reading and forward seeking.
@@ -153,31 +173,6 @@ func (fr *zipFileReader) Close() error {
 	}
 
 	return nil
-}
-
-// openZipEntry returns for a ZIP-contained file a [zipReader] and [zipFileReader].
-func openZipEntry(archive, path string) (*zipReader, *zipFileReader, error) {
-	zr, err := newZipReader(archive, true)
-	if err != nil {
-		return nil, nil, fuse.ToErrno(syscall.EINVAL)
-	}
-
-	for _, f := range zr.File {
-		if f.Name == path {
-			fr, err := newZipFileReader(f)
-			if err != nil {
-				zr.Close(0)
-
-				return nil, nil, fuse.ToErrno(syscall.EINVAL)
-			}
-
-			return zr, fr, nil
-		}
-	}
-
-	zr.Close(0)
-
-	return nil, nil, fuse.ToErrno(syscall.ENOENT)
 }
 
 // flatEntryName flattens a normalized path to a filename, discarding structure.
