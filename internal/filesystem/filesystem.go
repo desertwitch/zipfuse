@@ -16,10 +16,13 @@ const (
 	fileBasePerm = 0o444 // RO
 	dirBasePerm  = 0o555 // RO
 
-	cacheMax = 60
-	cacheTTL = time.Minute
-
 	flattenHashDigits = 8 // [flatEntryName]
+
+	defaultCacheSize          = 60
+	defaultCacheTTL           = 60 * time.Second
+	defaultFlatMode           = false
+	defaultMustCRC32          = false
+	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MB
 )
 
 var (
@@ -28,7 +31,16 @@ var (
 )
 
 // Options contains all settings for the operation of the filesystem.
+// All non-atomic fields can no longer be modified at runtime (once mounted).
 type Options struct {
+	// CacheSize is the size of the LRU cache for ZIP file descriptors.
+	// Beware the operating system file descriptor limit when changing this.
+	CacheSize int
+
+	// CacheTTL is the time-to-live for each ZIP file descriptor in the LRU.
+	// If a file descriptor is no longer used, it will be evicted after TTL.
+	CacheTTL time.Duration
+
 	// FlatMode controls if ZIP-contained subdirectories and files
 	// should be flattened with [flatEntryName] for shallow directories.
 	// This variable should no longer be modified when the FS is mounted.
@@ -41,6 +53,19 @@ type Options struct {
 	// StreamingThreshold when files are no longer fully loaded into RAM,
 	// but rather streamed in chunks (amount as requested by the kernel).
 	StreamingThreshold atomic.Uint64
+}
+
+// DefaultOptions returns a pointer to [Options] with the default settings.
+func DefaultOptions() *Options {
+	opts := &Options{
+		CacheSize: defaultCacheSize,
+		CacheTTL:  defaultCacheTTL,
+		FlatMode:  defaultFlatMode,
+	}
+	opts.MustCRC32.Store(defaultMustCRC32)
+	opts.StreamingThreshold.Store(defaultStreamingThreshold)
+
+	return opts
 }
 
 // Metrics contains all metrics which are collected within the filesystem.
@@ -85,14 +110,18 @@ type FS struct {
 }
 
 // NewFS returns a pointer to a new [FS].
-func NewFS(rootDir string, rbuf *logging.RingBuffer) *FS {
+func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) *FS {
+	if opts == nil {
+		opts = DefaultOptions()
+	}
+
 	fsys := &FS{
 		RootDir: rootDir,
-		Options: &Options{},
+		Options: opts,
 		Metrics: &Metrics{},
 		rbuf:    rbuf,
 	}
-	fsys.cache = newZipReaderCache(fsys, cacheMax, cacheTTL)
+	fsys.cache = newZipReaderCache(fsys, opts.CacheSize, opts.CacheTTL)
 
 	return fsys
 }

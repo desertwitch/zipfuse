@@ -30,6 +30,7 @@ import (
 	"runtime/debug"
 	"sync"
 	"syscall"
+	"time"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
@@ -48,24 +49,23 @@ const (
 // Version is the program version (filled in from the Makefile).
 var Version string
 
-type programOpts struct {
-	allowOther       bool
-	dryRun           bool
-	flatMode         bool
-	mustCRC32        bool
-	rootDir          string
-	mountDir         string
-	streamThreshold  uint64
-	dashboardAddress string
+type cliOptions struct {
+	allowOther         bool
+	dashboardAddress   string
+	dryRun             bool
+	flatMode           bool
+	lruSize            int
+	lruTTL             time.Duration
+	mountDir           string
+	mustCRC32          bool
+	rootDir            string
+	streamThreshold    uint64
+	streamThresholdRaw string
 }
 
+//nolint:mnd
 func rootCmd() *cobra.Command {
-	var argAllowOther bool
-	var argDryRun bool
-	var argFlatMode bool
-	var argMustCRC32 bool
-	var argThreshold string
-	var argDashAddress string
+	var opts cliOptions
 
 	cmd := &cobra.Command{
 		Use:   "zipfuse <root-dir> <mountpoint>",
@@ -85,31 +85,29 @@ When enabled, the diagnostics dashboard exposes the following routes:
 - "/set/checkall/<bool>" for adapting forced integrity checking
 - "/set/threshold/<string>" for adapting of the streaming threshold`,
 		Version: Version,
-		Args:    cobra.ExactArgs(2), //nolint:mnd
+		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
-			numThreshold, err := humanize.ParseBytes(argThreshold)
+			var err error
+
+			opts.streamThreshold, err = humanize.ParseBytes(opts.streamThresholdRaw)
 			if err != nil {
 				return fmt.Errorf("failed to parse threshold: %w", err)
 			}
 
-			return run(programOpts{
-				allowOther:       argAllowOther,
-				dryRun:           argDryRun,
-				flatMode:         argFlatMode,
-				mustCRC32:        argMustCRC32,
-				rootDir:          args[0],
-				mountDir:         args[1],
-				streamThreshold:  numThreshold,
-				dashboardAddress: argDashAddress,
-			})
+			opts.rootDir = args[0]
+			opts.mountDir = args[1]
+
+			return run(opts)
 		},
 	}
-	cmd.Flags().BoolVarP(&argAllowOther, "allowother", "a", true, "Allow other users to access the filesystem")
-	cmd.Flags().BoolVarP(&argDryRun, "dryrun", "d", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
-	cmd.Flags().BoolVarP(&argFlatMode, "flatten", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
-	cmd.Flags().BoolVarP(&argMustCRC32, "checkall", "c", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
-	cmd.Flags().StringVarP(&argThreshold, "memsize", "m", "10M", "Size cutoff for loading a file fully into RAM (streaming instead)")
-	cmd.Flags().StringVarP(&argDashAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
+	cmd.Flags().BoolVarP(&opts.allowOther, "allowother", "a", true, "Allow other users to access the filesystem")
+	cmd.Flags().BoolVarP(&opts.dryRun, "dryrun", "d", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
+	cmd.Flags().BoolVarP(&opts.flatMode, "flatten", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
+	cmd.Flags().BoolVarP(&opts.mustCRC32, "checkall", "c", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
+	cmd.Flags().DurationVar(&opts.lruTTL, "lrutime", 60*time.Second, "Max time before LRU cache evicts unused file descriptors (beware FD limits)")
+	cmd.Flags().IntVar(&opts.lruSize, "lrusize", 60, "Max total number of file descriptors in the LRU cache (beware FD limits)")
+	cmd.Flags().StringVarP(&opts.dashboardAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
+	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "memsize", "m", "10M", "Size cutoff for loading a file fully into RAM (streaming instead)")
 
 	return cmd
 }
@@ -120,7 +118,7 @@ func main() {
 	}
 }
 
-func dryRunAndExit(fsys *filesystem.FS) {
+func walkFsAndExit(fsys *filesystem.FS) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sig := make(chan os.Signal, 1)
@@ -144,16 +142,60 @@ func dryRunAndExit(fsys *filesystem.FS) {
 	os.Exit(0)
 }
 
-func run(opts programOpts) error {
+func setupSignalHandlers(unmountDir string, rbuf *logging.RingBuffer) {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		for range sig {
+			rbuf.Println("Signal received, unmounting the filesystem...")
+
+			if err := fuse.Unmount(unmountDir); err != nil {
+				rbuf.Printf("Unmount error: %v (try again later)\n", err)
+
+				continue
+			}
+
+			return
+		}
+	}()
+
+	sig1 := make(chan os.Signal, 1)
+	signal.Notify(sig1, syscall.SIGUSR1)
+	go func() {
+		for range sig1 {
+			rbuf.Println("Signal received, forcing garbage collection...")
+			runtime.GC()
+			debug.FreeOSMemory()
+		}
+	}()
+
+	sig2 := make(chan os.Signal, 1)
+	signal.Notify(sig2, syscall.SIGUSR2)
+	go func() {
+		for range sig2 {
+			rbuf.Println("Signal received, printing stacktrace (to stderr)...")
+			buf := make([]byte, stackTraceBufferSize)
+			stacklen := runtime.Stack(buf, true)
+			os.Stderr.Write(buf[:stacklen])
+		}
+	}()
+}
+
+func run(opts cliOptions) error {
 	rbuf := logging.NewRingBuffer(ringBufferSize, os.Stderr)
 
-	fsys := filesystem.NewFS(opts.rootDir, rbuf)
-	fsys.Options.FlatMode = opts.flatMode
-	fsys.Options.MustCRC32.Store(opts.mustCRC32)
-	fsys.Options.StreamingThreshold.Store(opts.streamThreshold)
+	fopts := &filesystem.Options{
+		CacheSize: opts.lruSize,
+		CacheTTL:  opts.lruTTL,
+		FlatMode:  opts.flatMode,
+	}
+	fopts.MustCRC32.Store(opts.mustCRC32)
+	fopts.StreamingThreshold.Store(opts.streamThreshold)
+
+	fsys := filesystem.NewFS(opts.rootDir, fopts, rbuf)
 
 	if opts.dryRun {
-		dryRunAndExit(fsys)
+		walkFsAndExit(fsys)
 	}
 
 	mountOpts := []fuse.MountOption{fuse.FSName("zipfuse"), fuse.ReadOnly()}
@@ -167,6 +209,8 @@ func run(opts programOpts) error {
 	}
 	defer c.Close()
 	defer fuse.Unmount(opts.mountDir) //nolint:errcheck
+
+	setupSignalHandlers(opts.mountDir, rbuf)
 
 	var wg sync.WaitGroup
 	errChan := make(chan error, 1)
@@ -182,43 +226,6 @@ func run(opts programOpts) error {
 		srv := dash.Serve(opts.dashboardAddress)
 		defer srv.Close()
 	}
-
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		for range sig {
-			// logging.Println("Signal received, unmounting the filesystem...")
-
-			if err := fuse.Unmount(opts.mountDir); err != nil {
-				// logging.Printf("Unmount error: %v (try again later)\n", err)
-
-				continue
-			}
-
-			return
-		}
-	}()
-
-	sig1 := make(chan os.Signal, 1)
-	signal.Notify(sig1, syscall.SIGUSR1)
-	go func() {
-		for range sig1 {
-			// logging.Println("Signal received, forcing garbage collection...")
-			runtime.GC()
-			debug.FreeOSMemory()
-		}
-	}()
-
-	sig2 := make(chan os.Signal, 1)
-	signal.Notify(sig2, syscall.SIGUSR2)
-	go func() {
-		for range sig2 {
-			// logging.Println("Signal received, printing stacktrace (to stderr)...")
-			buf := make([]byte, stackTraceBufferSize)
-			stacklen := runtime.Stack(buf, true)
-			os.Stderr.Write(buf[:stacklen])
-		}
-	}()
 
 	wg.Wait()
 

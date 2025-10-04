@@ -18,7 +18,7 @@ func testDashboard(t *testing.T, out io.Writer) *FSDashboard {
 	tmp := t.TempDir()
 	rbf := logging.NewRingBuffer(10, out)
 
-	return NewFSDashboard(filesystem.NewFS(tmp, rbf), rbf, "gotests")
+	return NewFSDashboard(filesystem.NewFS(tmp, nil, rbf), rbf, "gotests")
 }
 
 // Expectation: Serve should return a valid HTTP server pointer.
