@@ -43,6 +43,9 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 }
 
 func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader, error) {
+	m := newZipMetric(c.fsys, false)
+	defer m.Done()
+
 	zr, ok := c.cache.Get(archive)
 	if !ok {
 		var err error
@@ -55,9 +58,6 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 		zr.refCount.Add(1) // for cache
 		c.cache.Add(archive, zr)
 	}
-
-	m := newZipMetric(c.fsys, false) // metadata read
-	defer m.Done()
 
 	for _, f := range zr.File {
 		if f.Name == path {

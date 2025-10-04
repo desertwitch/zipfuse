@@ -148,27 +148,23 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 	m := newZipMetric(h.fsys, true)
 	defer m.Done()
 
-	zr := h.zr
-
 	if req.Offset != h.offset {
 		n, err := h.fr.ForwardTo(req.Offset)
 		h.offset = n
 		switch {
 		case errors.Is(err, errNonSeekableRewind):
-			_ = h.fr.Close()
-			zr.Release()
+			f := h.fr.f      // Save the [zip.File] for re-use
+			_ = h.fr.Close() // Close now the failed [zipFileReader]
 
 			// Reopening the entry will start with offset zero, so the
 			// pseudo-seek should always succeed even if it's a rewind.
-			zr2, rc, err := h.fsys.cache.Entry(h.archive, h.path)
+			// Re-use of the [zipReader] and [zip.File] saves overhead.
+			rc, err := newZipFileReader(h.fsys, f)
 			if err != nil {
 				h.fsys.rbuf.Printf("Error: %q->Read->%q: ZIP Error: %v\n", h.archive, h.path, err)
 
 				return fuse.ToErrno(syscall.EINVAL)
 			}
-
-			zr = zr2
-			h.zr = zr
 			h.fr = rc
 			h.offset = 0
 			h.fsys.Metrics.TotalReopenedZips.Add(1)

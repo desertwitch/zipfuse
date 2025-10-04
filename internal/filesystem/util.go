@@ -72,6 +72,7 @@ func (zr *zipReader) Close() error {
 // Depending on compression and runtime options, the seeking is implemented
 // either by actual seeking (type assertion) or reading bytes to [io.Discard].
 type zipFileReader struct {
+	f   *zip.File
 	r   io.Reader
 	pos int64
 }
@@ -92,7 +93,7 @@ func newZipFileReader(fsys *FS, f *zip.File) (*zipFileReader, error) {
 		return nil, fmt.Errorf("failed to open: %w", err)
 	}
 
-	return &zipFileReader{r: r}, nil
+	return &zipFileReader{r: r, f: f}, nil
 }
 
 // Read facilitates reading of a fixed amount of bytes.
