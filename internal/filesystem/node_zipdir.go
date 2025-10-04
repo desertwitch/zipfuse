@@ -69,9 +69,9 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 	seen := make(map[string]bool)
 	resp := make([]fuse.Dirent, 0)
 
-	zr, err := z.fsys.Cache.Archive(z.path)
+	zr, err := z.fsys.cache.Archive(z.path)
 	if err != nil {
-		z.fsys.RingBuffer.Printf("%q->ReadDirAll: ZIP Error: %v\n", z.path, err)
+		z.fsys.rbuf.Printf("%q->ReadDirAll: ZIP Error: %v\n", z.path, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
@@ -89,7 +89,7 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 
 		name, ok := flatEntryName(normalizedPath)
 		if !ok || name == "" || seen[name] {
-			z.fsys.RingBuffer.Printf("Skipped: %q->ReadDirAll: %q -> %q (duplicate or invalid sanitized name)\n", z.path, f.Name, name)
+			z.fsys.rbuf.Printf("Skipped: %q->ReadDirAll: %q -> %q (duplicate or invalid sanitized name)\n", z.path, f.Name, name)
 
 			continue
 		}
@@ -110,9 +110,9 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 }
 
 func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error) {
-	zr, err := z.fsys.Cache.Archive(z.path)
+	zr, err := z.fsys.cache.Archive(z.path)
 	if err != nil {
-		z.fsys.RingBuffer.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.path, name, err)
+		z.fsys.rbuf.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.path, name, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
@@ -153,9 +153,9 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 	resp := []fuse.Dirent{}
 	seen := map[string]bool{}
 
-	zr, err := z.fsys.Cache.Archive(z.path)
+	zr, err := z.fsys.cache.Archive(z.path)
 	if err != nil {
-		z.fsys.RingBuffer.Printf("%q->ReadDirAll: ZIP error: %v\n", z.path, err)
+		z.fsys.rbuf.Printf("%q->ReadDirAll: ZIP error: %v\n", z.path, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
@@ -211,9 +211,9 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 }
 
 func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, error) {
-	zr, err := z.fsys.Cache.Archive(z.path)
+	zr, err := z.fsys.cache.Archive(z.path)
 	if err != nil {
-		z.fsys.RingBuffer.Printf("%q->Lookup->%q: ZIP error: %v\n", z.path, name, err)
+		z.fsys.rbuf.Printf("%q->Lookup->%q: ZIP error: %v\n", z.path, name, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}

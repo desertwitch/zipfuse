@@ -8,15 +8,17 @@ import (
 	"testing"
 
 	"github.com/desertwitch/zipfuse/internal/filesystem"
+	"github.com/desertwitch/zipfuse/internal/logging"
 	"github.com/stretchr/testify/require"
 )
 
 func testDashboard(t *testing.T, out io.Writer) *FSDashboard {
 	t.Helper()
 
-	tmpDir := t.TempDir()
+	tmp := t.TempDir()
+	rbf := logging.NewRingBuffer(10, out)
 
-	return NewFSDashboard(filesystem.NewFS(tmpDir, out), "gotests")
+	return NewFSDashboard(filesystem.NewFS(tmp, rbf), rbf, "gotests")
 }
 
 // Expectation: Serve should return a valid HTTP server pointer.
@@ -66,7 +68,7 @@ func Test_dashboardHandler_Success(t *testing.T) {
 	dash := testDashboard(t, io.Discard)
 
 	dash.version = "test-version"
-	dash.fsys.RingBuffer.Println("test log entry")
+	dash.rbuf.Println("test log entry")
 
 	dash.fsys.Metrics.OpenZips.Store(5)
 	dash.fsys.Metrics.TotalOpenedZips.Store(100)
@@ -95,7 +97,7 @@ func Test_metricsHandler_Success(t *testing.T) {
 	dash := testDashboard(t, io.Discard)
 
 	dash.version = "test-metrics-version"
-	dash.fsys.RingBuffer.Println("metrics test log entry")
+	dash.rbuf.Println("metrics test log entry")
 
 	dash.fsys.Metrics.OpenZips.Store(7)
 	dash.fsys.Metrics.TotalOpenedZips.Store(123)
@@ -139,7 +141,7 @@ func Test_gcHandler_Success(t *testing.T) {
 	require.Contains(t, body, "GC forced")
 	require.Contains(t, body, "current heap")
 
-	logs := dash.fsys.RingBuffer.Lines()
+	logs := dash.rbuf.Lines()
 	require.NotEmpty(t, logs)
 	require.Contains(t, strings.Join(logs, " "), "GC forced")
 }
@@ -179,7 +181,7 @@ func Test_resetMetricsHandler_Success(t *testing.T) {
 	require.Zero(t, dash.fsys.Metrics.TotalOpenedZips.Load())
 	require.Zero(t, dash.fsys.Metrics.TotalClosedZips.Load())
 
-	logs := dash.fsys.RingBuffer.Lines()
+	logs := dash.rbuf.Lines()
 	require.NotEmpty(t, logs)
 	require.Contains(t, strings.Join(logs, " "), "Metrics reset")
 }
@@ -209,7 +211,7 @@ func Test_mustCRC32Handler_Success(t *testing.T) {
 
 	require.True(t, dash.fsys.Options.MustCRC32.Load())
 
-	logs := dash.fsys.RingBuffer.Lines()
+	logs := dash.rbuf.Lines()
 	require.NotEmpty(t, logs)
 	require.Contains(t, strings.Join(logs, " "), "Forced integrity checking")
 }
@@ -277,7 +279,7 @@ func Test_thresholdHandler_Success(t *testing.T) {
 
 	require.Equal(t, uint64(500_000_000), dash.fsys.Options.StreamingThreshold.Load())
 
-	logs := dash.fsys.RingBuffer.Lines()
+	logs := dash.rbuf.Lines()
 	require.NotEmpty(t, logs)
 	require.Contains(t, strings.Join(logs, " "), "Streaming threshold set")
 }

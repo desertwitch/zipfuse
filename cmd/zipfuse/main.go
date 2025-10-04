@@ -34,13 +34,15 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"github.com/desertwitch/zipfuse/internal/filesystem"
+	"github.com/desertwitch/zipfuse/internal/logging"
 	"github.com/desertwitch/zipfuse/internal/webserver"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
 
 const (
-	stackTraceBuffer = 1 << 24
+	stackTraceBufferSize = 1 << 24
+	ringBufferSize       = 500
 )
 
 // Version is the program version (filled in from the Makefile).
@@ -113,7 +115,6 @@ When enabled, the diagnostics dashboard exposes the following routes:
 }
 
 func main() {
-	log.SetOutput(os.Stderr)
 	if err := rootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -144,7 +145,9 @@ func dryRunAndExit(fsys *filesystem.FS) {
 }
 
 func run(opts programOpts) error {
-	fsys := filesystem.NewFS(opts.rootDir, os.Stderr)
+	rbuf := logging.NewRingBuffer(ringBufferSize, os.Stderr)
+
+	fsys := filesystem.NewFS(opts.rootDir, rbuf)
 	fsys.Options.FlatMode = opts.flatMode
 	fsys.Options.MustCRC32.Store(opts.mustCRC32)
 	fsys.Options.StreamingThreshold.Store(opts.streamThreshold)
@@ -175,8 +178,8 @@ func run(opts programOpts) error {
 	})
 
 	if opts.dashboardAddress != "" {
-		dashboard := webserver.NewFSDashboard(fsys, Version)
-		srv := dashboard.Serve(opts.dashboardAddress)
+		dash := webserver.NewFSDashboard(fsys, rbuf, Version)
+		srv := dash.Serve(opts.dashboardAddress)
 		defer srv.Close()
 	}
 
@@ -211,7 +214,7 @@ func run(opts programOpts) error {
 	go func() {
 		for range sig2 {
 			// logging.Println("Signal received, printing stacktrace (to stderr)...")
-			buf := make([]byte, stackTraceBuffer)
+			buf := make([]byte, stackTraceBufferSize)
 			stacklen := runtime.Stack(buf, true)
 			os.Stderr.Write(buf[:stacklen])
 		}

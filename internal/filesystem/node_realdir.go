@@ -46,7 +46,7 @@ func (d *realDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 
 	entries, err := os.ReadDir(d.path)
 	if err != nil {
-		d.fsys.RingBuffer.Printf("Error: %q->ReadDirAll: %v\n", d.path, err)
+		d.fsys.rbuf.Printf("Error: %q->ReadDirAll: %v\n", d.path, err)
 
 		return nil, toFuseErr(err)
 	}

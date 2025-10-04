@@ -15,6 +15,7 @@ import (
 
 	"github.com/desertwitch/zipfuse/assets"
 	"github.com/desertwitch/zipfuse/internal/filesystem"
+	"github.com/desertwitch/zipfuse/internal/logging"
 	"github.com/dustin/go-humanize"
 	"github.com/gorilla/mux"
 )
@@ -30,13 +31,15 @@ var (
 type FSDashboard struct {
 	version string
 	fsys    *filesystem.FS
+	rbuf    *logging.RingBuffer
 }
 
 // NewFSDashboard returns a pointer to a new [FSDashboard].
-func NewFSDashboard(fsys *filesystem.FS, version string) *FSDashboard {
+func NewFSDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, version string) *FSDashboard {
 	return &FSDashboard{
 		version: version,
 		fsys:    fsys,
+		rbuf:    rbuf,
 	}
 }
 
@@ -68,10 +71,10 @@ func (d *FSDashboard) Serve(addr string) *http.Server {
 	srv := &http.Server{Addr: addr, Handler: d.dashboardMux()}
 
 	go func() {
-		d.fsys.RingBuffer.Printf("serving dashboard on %s\n", addr)
+		d.rbuf.Printf("serving dashboard on %s\n", addr)
 
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			d.fsys.RingBuffer.Printf("HTTP error: %v\n", err)
+			d.rbuf.Printf("HTTP error: %v\n", err)
 		}
 	}()
 
@@ -101,12 +104,12 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	logs := d.fsys.RingBuffer.Lines()
-	slices.Reverse(logs)
+	lines := d.rbuf.Lines()
+	slices.Reverse(lines)
 
 	return fsDashboardData{
 		Version:             d.version,
-		RingBufferSize:      d.fsys.RingBuffer.Size(),
+		RingBufferSize:      d.rbuf.Size(),
 		OpenZips:            d.fsys.Metrics.OpenZips.Load(),
 		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
 		ClosedZips:          d.fsys.Metrics.TotalClosedZips.Load(),
@@ -124,7 +127,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		AvgExtractSpeed:     d.avgExtractSpeed(),
 		TotalExtracts:       d.fsys.Metrics.TotalExtractCount.Load(),
 		TotalExtractBytes:   d.totalExtractBytes(),
-		Logs:                logs,
+		Logs:                lines,
 	}
 }
 
@@ -132,7 +135,7 @@ func (d *FSDashboard) dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 	data := d.collectMetrics()
 
 	if err := indexTemplate.Execute(w, data); err != nil {
-		d.fsys.RingBuffer.Printf("HTTP template execution error: %v\n", err)
+		d.rbuf.Printf("HTTP template execution error: %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -153,7 +156,7 @@ func (d *FSDashboard) gcHandler(w http.ResponseWriter, _ *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	d.fsys.RingBuffer.Printf("GC forced via API, current heap: %s.\n", humanize.Bytes(m.Alloc))
+	d.rbuf.Printf("GC forced via API, current heap: %s.\n", humanize.Bytes(m.Alloc))
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -169,7 +172,7 @@ func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request
 	d.fsys.Metrics.TotalOpenedZips.Store(0)
 	d.fsys.Metrics.TotalClosedZips.Store(0)
 
-	d.fsys.RingBuffer.Println("Metrics reset via API.")
+	d.rbuf.Println("Metrics reset via API.")
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -187,7 +190,7 @@ func (d *FSDashboard) mustCRC32Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	d.fsys.Options.MustCRC32.Store(val)
 
-	d.fsys.RingBuffer.Printf("Forced integrity checking set via API: %t.\n", val)
+	d.rbuf.Printf("Forced integrity checking set via API: %t.\n", val)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -205,7 +208,7 @@ func (d *FSDashboard) thresholdHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	d.fsys.Options.StreamingThreshold.Store(val)
 
-	d.fsys.RingBuffer.Printf("Streaming threshold set via API: %s.\n", humanize.Bytes(val))
+	d.rbuf.Printf("Streaming threshold set via API: %s.\n", humanize.Bytes(val))
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)

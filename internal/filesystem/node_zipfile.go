@@ -61,9 +61,9 @@ func (z *zipInMemoryFileNode) Open(_ context.Context, _ *fuse.OpenRequest, resp 
 }
 
 func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
-	zr, fr, err := z.fsys.Cache.Entry(z.archive, z.path)
+	zr, fr, err := z.fsys.cache.Entry(z.archive, z.path)
 	if err != nil {
-		z.fsys.RingBuffer.Printf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.archive, z.path, err)
+		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
 		return nil, fuse.ToErrno(err)
 	}
@@ -77,7 +77,7 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 
 	data, err := io.ReadAll(fr)
 	if err != nil {
-		z.fsys.RingBuffer.Printf("Error: %q->ReadAll->%q: IO Error: %v\n", z.archive, z.path, err)
+		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: IO Error: %v\n", z.archive, z.path, err)
 		zipMetricEnd(z.fsys, m)
 
 		return nil, fuse.ToErrno(syscall.EIO)
@@ -101,9 +101,9 @@ type zipDiskStreamFileNode struct {
 }
 
 func (z *zipDiskStreamFileNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
-	zr, fr, err := z.fsys.Cache.Entry(z.archive, z.path)
+	zr, fr, err := z.fsys.cache.Entry(z.archive, z.path)
 	if err != nil {
-		z.fsys.RingBuffer.Printf("Error: %q->Open->%q: ZIP Error: %v\n", z.archive, z.path, err)
+		z.fsys.rbuf.Printf("Error: %q->Open->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
 		return nil, fuse.ToErrno(err)
 	}
@@ -165,9 +165,9 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 
 			// Reopening the entry will start with offset zero, so the
 			// pseudo-seek should always succeed even if it's a rewind.
-			zr2, rc, err := h.fsys.Cache.Entry(h.archive, h.path)
+			zr2, rc, err := h.fsys.cache.Entry(h.archive, h.path)
 			if err != nil {
-				h.fsys.RingBuffer.Printf("Error: %q->Read->%q: ZIP Error: %v\n", h.archive, h.path, err)
+				h.fsys.rbuf.Printf("Error: %q->Read->%q: ZIP Error: %v\n", h.archive, h.path, err)
 
 				return fuse.ToErrno(syscall.EINVAL)
 			}
@@ -182,13 +182,13 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 			n, err = h.fr.ForwardTo(req.Offset)
 			h.offset = n
 			if err != nil {
-				h.fsys.RingBuffer.Printf("Error: %q->Read->%q: Seek Error: %v\n", h.archive, h.path, err)
+				h.fsys.rbuf.Printf("Error: %q->Read->%q: Seek Error: %v\n", h.archive, h.path, err)
 
 				return fuse.ToErrno(syscall.EIO)
 			}
 
 		case err != nil:
-			h.fsys.RingBuffer.Printf("Error: %q->Read->%q: Seek Error: %v\n", h.archive, h.path, err)
+			h.fsys.rbuf.Printf("Error: %q->Read->%q: Seek Error: %v\n", h.archive, h.path, err)
 
 			return fuse.ToErrno(syscall.EIO)
 		}
@@ -200,7 +200,7 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 	h.offset += int64(n)
 	m.readBytes = int64(n)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-		h.fsys.RingBuffer.Printf("Error: %q->Read->%q: IO Error: %v\n", h.archive, h.path, err)
+		h.fsys.rbuf.Printf("Error: %q->Read->%q: IO Error: %v\n", h.archive, h.path, err)
 
 		return fuse.ToErrno(syscall.EIO)
 	}

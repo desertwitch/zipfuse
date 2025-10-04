@@ -4,7 +4,6 @@ package filesystem
 import (
 	"context"
 	"fmt"
-	"io"
 	"sync/atomic"
 	"time"
 
@@ -20,7 +19,6 @@ const (
 	cacheMax = 60
 	cacheTTL = time.Minute
 
-	ringBufferMax     = 500
 	flattenHashDigits = 8 // [flatEntryName]
 )
 
@@ -78,23 +76,23 @@ type Metrics struct {
 // FS is the core implementation of the filesystem.
 type FS struct {
 	RootDir string
-	Cache   *zipReaderCache
 
 	Options *Options
 	Metrics *Metrics
 
-	RingBuffer *logging.RingBuffer
+	rbuf  *logging.RingBuffer
+	cache *zipReaderCache
 }
 
 // NewFS returns a pointer to a new [FS].
-func NewFS(rootDir string, out io.Writer) *FS {
+func NewFS(rootDir string, rbuf *logging.RingBuffer) *FS {
 	fsys := &FS{
-		RootDir:    rootDir,
-		Options:    &Options{},
-		Metrics:    &Metrics{},
-		RingBuffer: logging.NewRingBuffer(ringBufferMax, out),
+		RootDir: rootDir,
+		Options: &Options{},
+		Metrics: &Metrics{},
+		rbuf:    rbuf,
 	}
-	fsys.Cache = newZipReaderCache(fsys, cacheMax, cacheTTL)
+	fsys.cache = newZipReaderCache(fsys, cacheMax, cacheTTL)
 
 	return fsys
 }
