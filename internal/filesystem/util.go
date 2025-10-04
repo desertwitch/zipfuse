@@ -77,7 +77,7 @@ func zipMetricEnd(fsys *FS, m zipMetric) {
 }
 
 func (zr *zipReader) Release() {
-	if zr.refCount.Add(-1) == 0 {
+	if zr.refCount.Add(-1) <= 0 {
 		zr.Close()
 	}
 }
@@ -111,7 +111,7 @@ func newZipFileReader(fsys *FS, f *zip.File) (*zipFileReader, error) {
 		r, err = f.Open()
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to Open: %w", err)
+		return nil, fmt.Errorf("failed to open: %w", err)
 	}
 
 	return &zipFileReader{r: r}, nil
