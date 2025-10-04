@@ -22,6 +22,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -135,11 +136,19 @@ func walkFsAndExit(fsys *filesystem.FS) {
 
 		return nil
 	})
-	if err != nil {
-		log.Fatalf("fs walk error: %v\n", err)
+	if err == nil {
+		os.Exit(0)
 	}
 
-	os.Exit(0)
+	for {
+		unwrapped := errors.Unwrap(err)
+		if unwrapped == nil {
+			// Return the deepest error, and not the whole chain.
+			// The node-produced error messages will show the details.
+			log.Fatalf("fs walk error: %v", err)
+		}
+		err = unwrapped
+	}
 }
 
 func setupSignalHandlers(unmountDir string, rbuf *logging.RingBuffer) {

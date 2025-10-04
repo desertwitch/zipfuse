@@ -175,7 +175,7 @@ func (fsys *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 	}
 
 	if err := walkFn(path, dirent, node, attr); err != nil {
-		return fmt.Errorf("walkFn error at %q: %w", path, err)
+		return fmt.Errorf("walkfn error at %q: %w", path, err)
 	}
 
 	if readDirNode, ok := node.(fs.HandleReadDirAller); ok {
@@ -198,7 +198,7 @@ func (fsys *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 				}
 
 				if err := fsys.walkNode(ctx, childPath, &de, childNode, walkFn); err != nil {
-					return fmt.Errorf("walkFn error at %q: %w", childPath, err)
+					return fmt.Errorf("walkfn error at %q: %w", childPath, err)
 				}
 			}
 		}
