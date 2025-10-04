@@ -43,8 +43,6 @@ linters:
           - funlen
           - ireturn
           - revive
-          - tparallel
-          - paralleltest
           - testpackage
         path: _test\.go
     paths:

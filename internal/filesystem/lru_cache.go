@@ -9,11 +9,12 @@ import (
 )
 
 type zipReaderCache struct {
+	fs    *FS
 	cache *expirable.LRU[string, *zipReader]
 }
 
-func newZipReaderCache(size int, ttl time.Duration) *zipReaderCache {
-	c := &zipReaderCache{}
+func newZipReaderCache(fs *FS, size int, ttl time.Duration) *zipReaderCache {
+	c := &zipReaderCache{fs: fs}
 
 	c.cache = expirable.NewLRU(size, func(_ string, zr *zipReader) {
 		zr.Release()
@@ -27,7 +28,7 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 	if !ok {
 		var err error
 
-		zr, err = newZipReader(archive)
+		zr, err = newZipReader(c.fs, archive)
 		if err != nil {
 			return nil, fuse.ToErrno(syscall.EINVAL)
 		}
@@ -46,7 +47,7 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 	if !ok {
 		var err error
 
-		zr, err = newZipReader(archive)
+		zr, err = newZipReader(c.fs, archive)
 		if err != nil {
 			return nil, nil, fuse.ToErrno(syscall.EINVAL)
 		}
@@ -56,11 +57,11 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 	}
 
 	m := zipMetricStart() // metadata read
-	defer zipMetricEnd(m)
+	defer zipMetricEnd(c.fs, m)
 
 	for _, f := range zr.File {
 		if f.Name == path {
-			fr, err := newZipFileReader(f)
+			fr, err := newZipFileReader(c.fs, f)
 			if err != nil {
 				return nil, nil, fuse.ToErrno(syscall.EINVAL)
 			}

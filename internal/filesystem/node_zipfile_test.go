@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"sync"
@@ -18,14 +19,17 @@ import (
 
 // Expectation: Attr should fill in the [fuse.Attr] with the correct values.
 func Test_zipBaseFileNode_Attr_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	node := &zipBaseFileNode{
-		Inode:    fs.GenerateDynamicInode(1, "test.txt"),
-		Archive:  "",
-		Path:     "",
-		Size:     1024,
-		Modified: tnow,
+		fsys:    fsys,
+		inode:   fs.GenerateDynamicInode(1, "test.txt"),
+		archive: "",
+		path:    "",
+		size:    1024,
+		mtime:   tnow,
 	}
 
 	attr := fuse.Attr{}
@@ -42,7 +46,8 @@ func Test_zipBaseFileNode_Attr_Success(t *testing.T) {
 
 // Expectation: Open should set the caching flag and return the node itself as the handle.
 func Test_zipInMemoryFileNode_Open_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	content := []byte("test content for in-memory node")
@@ -56,11 +61,12 @@ func Test_zipInMemoryFileNode_Open_Success(t *testing.T) {
 
 	node := &zipInMemoryFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    fs.GenerateDynamicInode(1, "test.txt"),
-			Archive:  zipPath,
-			Path:     "test.txt",
-			Size:     uint64(len(content)),
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   fs.GenerateDynamicInode(1, "test.txt"),
+			archive: zipPath,
+			path:    "test.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
 		},
 	}
 
@@ -76,7 +82,8 @@ func Test_zipInMemoryFileNode_Open_Success(t *testing.T) {
 
 // Expectation: ReadAll should return the complete content of the underlying file.
 func Test_zipInMemoryFileNode_ReadAll_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	content := []byte("test file content for in-memory reading")
@@ -91,11 +98,12 @@ func Test_zipInMemoryFileNode_ReadAll_Success(t *testing.T) {
 
 	node := &zipInMemoryFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  zipPath,
-			Path:     "dir/test.txt",
-			Size:     uint64(len(content)),
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "dir/test.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
 		},
 	}
 
@@ -106,7 +114,8 @@ func Test_zipInMemoryFileNode_ReadAll_Success(t *testing.T) {
 
 // Expectation: ReadAll should handle empty files correctly.
 func Test_zipInMemoryFileNode_ReadAll_EmptyFile_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -120,11 +129,12 @@ func Test_zipInMemoryFileNode_ReadAll_EmptyFile_Success(t *testing.T) {
 
 	node := &zipInMemoryFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  zipPath,
-			Path:     "dir/empty.txt",
-			Size:     0,
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "dir/empty.txt",
+			size:    0,
+			mtime:   tnow,
 		},
 	}
 
@@ -136,7 +146,8 @@ func Test_zipInMemoryFileNode_ReadAll_EmptyFile_Success(t *testing.T) {
 
 // Expectation: ReadAll should return ENOENT for a missing file.
 func Test_zipInMemoryFileNode_ReadAll_FileNotFound_Error(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -150,11 +161,12 @@ func Test_zipInMemoryFileNode_ReadAll_FileNotFound_Error(t *testing.T) {
 
 	node := &zipInMemoryFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  zipPath,
-			Path:     "dir/missing.txt",
-			Size:     0,
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "dir/missing.txt",
+			size:    0,
+			mtime:   tnow,
 		},
 	}
 
@@ -165,15 +177,18 @@ func Test_zipInMemoryFileNode_ReadAll_FileNotFound_Error(t *testing.T) {
 
 // Expectation: ReadAll should return EINVAL for an invalid archive.
 func Test_zipInMemoryFileNode_ReadAll_InvalidArchive_Error(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	node := &zipInMemoryFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  "/nonexistent/archive.zip",
-			Path:     "dir/test.txt",
-			Size:     100,
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: "/nonexistent/archive.zip",
+			path:    "dir/test.txt",
+			size:    100,
+			mtime:   tnow,
 		},
 	}
 
@@ -184,7 +199,8 @@ func Test_zipInMemoryFileNode_ReadAll_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: Open should set the caching flag and return a zipDiskStreamFileHandle.
 func Test_zipDiskStreamFileNode_Open_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	content := []byte("test content for disk stream node")
@@ -198,11 +214,12 @@ func Test_zipDiskStreamFileNode_Open_Success(t *testing.T) {
 
 	node := &zipDiskStreamFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    fs.GenerateDynamicInode(1, "stream.txt"),
-			Archive:  zipPath,
-			Path:     "stream.txt",
-			Size:     uint64(len(content)),
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   fs.GenerateDynamicInode(1, "stream.txt"),
+			archive: zipPath,
+			path:    "stream.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
 		},
 	}
 
@@ -224,7 +241,8 @@ func Test_zipDiskStreamFileNode_Open_Success(t *testing.T) {
 
 // Expectation: Read should return ENOENT for a missing file.
 func Test_zipDiskStreamFileNode_Open_FileNotFound_Error(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -237,11 +255,12 @@ func Test_zipDiskStreamFileNode_Open_FileNotFound_Error(t *testing.T) {
 
 	node := &zipDiskStreamFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  zipPath,
-			Path:     "missing.txt",
-			Size:     0,
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "missing.txt",
+			size:    0,
+			mtime:   tnow,
 		},
 	}
 
@@ -251,15 +270,18 @@ func Test_zipDiskStreamFileNode_Open_FileNotFound_Error(t *testing.T) {
 
 // Expectation: Read should return EINVAL for an invalid archive.
 func Test_zipDiskStreamFileNode_Open_InvalidArchive_Error(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	node := &zipDiskStreamFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  "/nonexistent/archive.zip",
-			Path:     "test.txt",
-			Size:     100,
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: "/nonexistent/archive.zip",
+			path:    "test.txt",
+			size:    100,
+			mtime:   tnow,
 		},
 	}
 
@@ -269,7 +291,8 @@ func Test_zipDiskStreamFileNode_Open_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: Read should return the requested bytes from the specified offset.
 func Test_zipDiskStreamFileHandle_Read_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	content := []byte("0123456789abcdefghijklmnopqrstuvwxyz")
@@ -284,11 +307,12 @@ func Test_zipDiskStreamFileHandle_Read_Success(t *testing.T) {
 
 	node := &zipDiskStreamFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  zipPath,
-			Path:     "dir/stream.txt",
-			Size:     uint64(len(content)),
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "dir/stream.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
 		},
 	}
 
@@ -316,7 +340,8 @@ func Test_zipDiskStreamFileHandle_Read_Success(t *testing.T) {
 
 // Expectation: Read should handle empty files correctly.
 func Test_zipDiskStreamFileHandle_Read_EmptyFile_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -329,11 +354,12 @@ func Test_zipDiskStreamFileHandle_Read_EmptyFile_Success(t *testing.T) {
 
 	node := &zipDiskStreamFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    fs.GenerateDynamicInode(1, "empty.txt"),
-			Archive:  zipPath,
-			Path:     "empty.txt",
-			Size:     0,
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   fs.GenerateDynamicInode(1, "empty.txt"),
+			archive: zipPath,
+			path:    "empty.txt",
+			size:    0,
+			mtime:   tnow,
 		},
 	}
 
@@ -361,7 +387,8 @@ func Test_zipDiskStreamFileHandle_Read_EmptyFile_Success(t *testing.T) {
 
 // Expectation: Read should handle reading from offset 0.
 func Test_zipDiskStreamFileHandle_Read_OffsetZero_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	content := []byte("test content at start")
@@ -375,11 +402,12 @@ func Test_zipDiskStreamFileHandle_Read_OffsetZero_Success(t *testing.T) {
 
 	node := &zipDiskStreamFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  zipPath,
-			Path:     "file.txt",
-			Size:     uint64(len(content)),
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "file.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
 		},
 	}
 
@@ -407,7 +435,8 @@ func Test_zipDiskStreamFileHandle_Read_OffsetZero_Success(t *testing.T) {
 
 // Expectation: Read should handle reading beyond EOF gracefully.
 func Test_zipDiskStreamFileHandle_Read_BeyondEOF_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	content := []byte("short")
@@ -421,11 +450,12 @@ func Test_zipDiskStreamFileHandle_Read_BeyondEOF_Success(t *testing.T) {
 
 	node := &zipDiskStreamFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  zipPath,
-			Path:     "short.txt",
-			Size:     uint64(len(content)),
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "short.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
 		},
 	}
 
@@ -453,10 +483,10 @@ func Test_zipDiskStreamFileHandle_Read_BeyondEOF_Success(t *testing.T) {
 
 // Expectation: Reading backwards on a non-seekable should trigger a rewind.
 func Test_zipDiskStreamFileHandle_Read_NoSeekRewind_Success(t *testing.T) {
-	Options.MustCRC32.Store(true)
-	defer Options.MustCRC32.Store(false)
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.MustCRC32.Store(true)
 
-	tmpDir := t.TempDir()
 	tnow := time.Now()
 
 	content := []byte("0123456789abcdefghijklmnopqrstuvwxyz")
@@ -471,11 +501,12 @@ func Test_zipDiskStreamFileHandle_Read_NoSeekRewind_Success(t *testing.T) {
 
 	node := &zipDiskStreamFileNode{
 		zipBaseFileNode: &zipBaseFileNode{
-			Inode:    0,
-			Archive:  zipPath,
-			Path:     "dir/rewind.txt",
-			Size:     uint64(len(content)),
-			Modified: tnow,
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "dir/rewind.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
 		},
 	}
 
@@ -501,7 +532,7 @@ func Test_zipDiskStreamFileHandle_Read_NoSeekRewind_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, content[5:15], resp1.Data)
 
-	initialReopenCount := Metrics.TotalReopenedZips.Load()
+	initialReopenCount := fsys.Metrics.TotalReopenedZips.Load()
 
 	// Second read at offset 1 (backwards) - should trigger rewind
 	req2 := &fuse.ReadRequest{
@@ -514,7 +545,7 @@ func Test_zipDiskStreamFileHandle_Read_NoSeekRewind_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, content[1:11], resp2.Data)
 
-	finalReopenCount := Metrics.TotalReopenedZips.Load()
+	finalReopenCount := fsys.Metrics.TotalReopenedZips.Load()
 	require.Equal(t, initialReopenCount+1, finalReopenCount)
 }
 
@@ -522,11 +553,12 @@ func Test_zipDiskStreamFileHandle_Read_NoSeekRewind_Success(t *testing.T) {
 // race or corrupt data, including when read operations require seeking (or
 // pseudo-seeking on non-seekables) in a sequential/non-sequential manner.
 func Test_zipDiskStreamFileHandle_Read_Concurrent_Success(t *testing.T) {
-	fn := func(MustCRC32 bool) {
-		Options.MustCRC32.Store(MustCRC32)
-		defer Options.MustCRC32.Store(false)
+	t.Parallel()
 
-		tmpDir := t.TempDir()
+	fn := func(MustCRC32 bool) {
+		tmpDir, fsys := testFS(t, io.Discard)
+		fsys.Options.MustCRC32.Store(MustCRC32)
+
 		tnow := time.Now()
 
 		contentLen := 1024 * 10
@@ -545,11 +577,12 @@ func Test_zipDiskStreamFileHandle_Read_Concurrent_Success(t *testing.T) {
 
 		node := &zipDiskStreamFileNode{
 			zipBaseFileNode: &zipBaseFileNode{
-				Inode:    0,
-				Archive:  zipPath,
-				Path:     "dir/concurrent_seek_test.txt",
-				Size:     uint64(contentLen),
-				Modified: tnow,
+				fsys:    fsys,
+				inode:   0,
+				archive: zipPath,
+				path:    "dir/concurrent_seek_test.txt",
+				size:    uint64(contentLen),
+				mtime:   tnow,
 			},
 		}
 
@@ -624,6 +657,7 @@ func Test_zipDiskStreamFileHandle_Read_Concurrent_Success(t *testing.T) {
 
 	for _, mode := range []bool{true, false} {
 		t.Run("MustCRC32="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
 			fn(mode)
 		})
 	}

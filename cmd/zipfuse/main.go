@@ -34,8 +34,7 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"github.com/desertwitch/zipfuse/internal/filesystem"
-	"github.com/desertwitch/zipfuse/internal/logging"
-	"github.com/desertwitch/zipfuse/internal/webgui"
+	"github.com/desertwitch/zipfuse/internal/webserver"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
@@ -120,7 +119,7 @@ func main() {
 	}
 }
 
-func dryRunAndExit(opts programOpts) {
+func dryRunAndExit(fsys *filesystem.FS) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sig := make(chan os.Signal, 1)
@@ -132,9 +131,8 @@ func dryRunAndExit(opts programOpts) {
 		}
 	}()
 
-	zpfs := &filesystem.FS{RootDir: opts.rootDir}
-	err := zpfs.Walk(ctx, func(path string, _ *fuse.Dirent, _ fs.Node, attr fuse.Attr) error {
-		fmt.Fprintf(os.Stdout, "%d:%s%s\n", attr.Inode, opts.mountDir, path)
+	err := fsys.Walk(ctx, func(path string, _ *fuse.Dirent, _ fs.Node, attr fuse.Attr) error {
+		fmt.Fprintf(os.Stdout, "%d:%s\n", attr.Inode, path)
 
 		return nil
 	})
@@ -146,12 +144,13 @@ func dryRunAndExit(opts programOpts) {
 }
 
 func run(opts programOpts) error {
-	filesystem.Options.FlatMode = opts.flatMode
-	filesystem.Options.MustCRC32.Store(opts.mustCRC32)
-	filesystem.Options.StreamingThreshold.Store(opts.streamThreshold)
+	fsys := filesystem.NewFS(opts.rootDir, os.Stderr)
+	fsys.Options.FlatMode = opts.flatMode
+	fsys.Options.MustCRC32.Store(opts.mustCRC32)
+	fsys.Options.StreamingThreshold.Store(opts.streamThreshold)
 
 	if opts.dryRun {
-		dryRunAndExit(opts)
+		dryRunAndExit(fsys)
 	}
 
 	mountOpts := []fuse.MountOption{fuse.FSName("zipfuse"), fuse.ReadOnly()}
@@ -170,14 +169,14 @@ func run(opts programOpts) error {
 	errChan := make(chan error, 1)
 	wg.Go(func() {
 		defer close(errChan)
-		if err := fs.Serve(c, &filesystem.FS{RootDir: opts.rootDir}); err != nil {
+		if err := fs.Serve(c, fsys); err != nil {
 			errChan <- fmt.Errorf("fs serve error: %w", err)
 		}
 	})
 
 	if opts.dashboardAddress != "" {
-		webgui.Version = Version
-		srv := webgui.Serve(opts.dashboardAddress)
+		dashboard := webserver.NewFSDashboard(fsys, Version)
+		srv := dashboard.Serve(opts.dashboardAddress)
 		defer srv.Close()
 	}
 
@@ -185,10 +184,10 @@ func run(opts programOpts) error {
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		for range sig {
-			logging.Println("Signal received, unmounting the filesystem...")
+			// logging.Println("Signal received, unmounting the filesystem...")
 
 			if err := fuse.Unmount(opts.mountDir); err != nil {
-				logging.Printf("Unmount error: %v (try again later)\n", err)
+				// logging.Printf("Unmount error: %v (try again later)\n", err)
 
 				continue
 			}
@@ -201,7 +200,7 @@ func run(opts programOpts) error {
 	signal.Notify(sig1, syscall.SIGUSR1)
 	go func() {
 		for range sig1 {
-			logging.Println("Signal received, forcing garbage collection...")
+			// logging.Println("Signal received, forcing garbage collection...")
 			runtime.GC()
 			debug.FreeOSMemory()
 		}
@@ -211,7 +210,7 @@ func run(opts programOpts) error {
 	signal.Notify(sig2, syscall.SIGUSR2)
 	go func() {
 		for range sig2 {
-			logging.Println("Signal received, printing stacktrace (to stderr)...")
+			// logging.Println("Signal received, printing stacktrace (to stderr)...")
 			buf := make([]byte, stackTraceBuffer)
 			stacklen := runtime.Stack(buf, true)
 			os.Stderr.Write(buf[:stacklen])

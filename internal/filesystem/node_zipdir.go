@@ -10,7 +10,6 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"github.com/desertwitch/zipfuse/internal/logging"
 )
 
 var (
@@ -25,19 +24,20 @@ var (
 // All structures contained in the archive are flattened (by [flatEntryName])
 // and presented as regular files (to be unpacked into memory when requested).
 type zipDirNode struct {
-	Inode    uint64    // Inode within our filesystem.
-	Path     string    // Path of the underlying ZIP archive.
-	Prefix   string    // Prefix within the underlying ZIP archive.
-	Modified time.Time // Modified time of the underlying ZIP archive.
+	fsys   *FS
+	inode  uint64    // Inode within our filesystem.
+	path   string    // Path of the underlying ZIP archive.
+	prefix string    // Prefix within the underlying ZIP archive.
+	mtime  time.Time // Modified time of the underlying ZIP archive.
 }
 
 func (z *zipDirNode) Attr(_ context.Context, a *fuse.Attr) error {
 	a.Mode = os.ModeDir | dirBasePerm
-	a.Inode = z.Inode
+	a.Inode = z.inode
 
-	a.Atime = z.Modified
-	a.Ctime = z.Modified
-	a.Mtime = z.Modified
+	a.Atime = z.mtime
+	a.Ctime = z.mtime
+	a.Mtime = z.mtime
 
 	return nil
 }
@@ -50,7 +50,7 @@ func (z *zipDirNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.Ope
 }
 
 func (z *zipDirNode) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
-	if Options.FlatMode {
+	if z.fsys.Options.FlatMode {
 		return z.readDirAllFlat(ctx)
 	}
 
@@ -58,7 +58,7 @@ func (z *zipDirNode) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 }
 
 func (z *zipDirNode) Lookup(ctx context.Context, name string) (fs.Node, error) {
-	if Options.FlatMode {
+	if z.fsys.Options.FlatMode {
 		return z.lookupFlat(ctx, name)
 	}
 
@@ -69,16 +69,16 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 	seen := make(map[string]bool)
 	resp := make([]fuse.Dirent, 0)
 
-	zr, err := Cache.Archive(z.Path)
+	zr, err := z.fsys.Cache.Archive(z.path)
 	if err != nil {
-		logging.Printf("%q->ReadDirAll: ZIP Error: %v\n", z.Path, err)
+		z.fsys.RingBuffer.Printf("%q->ReadDirAll: ZIP Error: %v\n", z.path, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release()
 
 	m := zipMetricStart()
-	defer zipMetricEnd(m)
+	defer zipMetricEnd(z.fsys, m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -89,7 +89,7 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 
 		name, ok := flatEntryName(normalizedPath)
 		if !ok || name == "" || seen[name] {
-			logging.Printf("Skipped: %q->ReadDirAll: %q -> %q (duplicate or invalid sanitized name)\n", z.Path, f.Name, name)
+			z.fsys.RingBuffer.Printf("Skipped: %q->ReadDirAll: %q -> %q (duplicate or invalid sanitized name)\n", z.path, f.Name, name)
 
 			continue
 		}
@@ -98,7 +98,7 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 		resp = append(resp, fuse.Dirent{
 			Name:  name,
 			Type:  fuse.DT_File,
-			Inode: fs.GenerateDynamicInode(z.Inode, name),
+			Inode: fs.GenerateDynamicInode(z.inode, name),
 		})
 	}
 
@@ -110,16 +110,16 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 }
 
 func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error) {
-	zr, err := Cache.Archive(z.Path)
+	zr, err := z.fsys.Cache.Archive(z.path)
 	if err != nil {
-		logging.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.Path, name, err)
+		z.fsys.RingBuffer.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.path, name, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release()
 
 	m := zipMetricStart()
-	defer zipMetricEnd(m)
+	defer zipMetricEnd(z.fsys, m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -131,14 +131,15 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 		}
 
 		base := &zipBaseFileNode{
-			Archive:  z.Path,
-			Path:     f.Name,
-			Inode:    fs.GenerateDynamicInode(z.Inode, name),
-			Size:     f.UncompressedSize64,
-			Modified: f.Modified,
+			fsys:    z.fsys,
+			archive: z.path,
+			path:    f.Name,
+			inode:   fs.GenerateDynamicInode(z.inode, name),
+			size:    f.UncompressedSize64,
+			mtime:   f.Modified,
 		}
 
-		if f.UncompressedSize64 <= Options.StreamingThreshold.Load() {
+		if f.UncompressedSize64 <= z.fsys.Options.StreamingThreshold.Load() {
 			return &zipInMemoryFileNode{base}, nil
 		}
 
@@ -152,26 +153,26 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 	resp := []fuse.Dirent{}
 	seen := map[string]bool{}
 
-	zr, err := Cache.Archive(z.Path)
+	zr, err := z.fsys.Cache.Archive(z.path)
 	if err != nil {
-		logging.Printf("%q->ReadDirAll: ZIP error: %v\n", z.Path, err)
+		z.fsys.RingBuffer.Printf("%q->ReadDirAll: ZIP error: %v\n", z.path, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release()
 
 	m := zipMetricStart()
-	defer zipMetricEnd(m)
+	defer zipMetricEnd(z.fsys, m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
 
 		// Prefix is already normalized, needs checking against that:
-		if !strings.HasPrefix(normalizedPath, z.Prefix) {
+		if !strings.HasPrefix(normalizedPath, z.prefix) {
 			continue
 		}
 
-		relPath := strings.TrimPrefix(normalizedPath, z.Prefix)
+		relPath := strings.TrimPrefix(normalizedPath, z.prefix)
 		parts := strings.SplitN(relPath, "/", 2) //nolint:mnd
 
 		name := parts[0]
@@ -184,13 +185,13 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 			resp = append(resp, fuse.Dirent{
 				Name:  name,
 				Type:  fuse.DT_File,
-				Inode: fs.GenerateDynamicInode(z.Inode, name),
+				Inode: fs.GenerateDynamicInode(z.inode, name),
 			})
 		} else { // Can be explicit or implicit (dir/, dir/file.txt):
 			resp = append(resp, fuse.Dirent{
 				Name:  name,
 				Type:  fuse.DT_Dir,
-				Inode: fs.GenerateDynamicInode(z.Inode, name),
+				Inode: fs.GenerateDynamicInode(z.inode, name),
 			})
 		}
 	}
@@ -210,18 +211,18 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 }
 
 func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, error) {
-	zr, err := Cache.Archive(z.Path)
+	zr, err := z.fsys.Cache.Archive(z.path)
 	if err != nil {
-		logging.Printf("%q->Lookup->%q: ZIP error: %v\n", z.Path, name, err)
+		z.fsys.RingBuffer.Printf("%q->Lookup->%q: ZIP error: %v\n", z.path, name, err)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release()
 
 	m := zipMetricStart()
-	defer zipMetricEnd(m)
+	defer zipMetricEnd(z.fsys, m)
 
-	fullPath := z.Prefix + name
+	fullPath := z.prefix + name
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -229,14 +230,15 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 		// Dirent is already normalized, needs checking against that:
 		if normalizedPath == fullPath && !isDir(f, normalizedPath) {
 			base := &zipBaseFileNode{
-				Archive:  z.Path,
-				Path:     f.Name,
-				Inode:    fs.GenerateDynamicInode(z.Inode, name),
-				Size:     f.UncompressedSize64,
-				Modified: f.Modified,
+				fsys:    z.fsys,
+				archive: z.path,
+				path:    f.Name,
+				inode:   fs.GenerateDynamicInode(z.inode, name),
+				size:    f.UncompressedSize64,
+				mtime:   f.Modified,
 			}
 
-			if f.UncompressedSize64 <= Options.StreamingThreshold.Load() {
+			if f.UncompressedSize64 <= z.fsys.Options.StreamingThreshold.Load() {
 				return &zipInMemoryFileNode{base}, nil
 			}
 
@@ -249,10 +251,11 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 		// [zipDirNode] of subdirectories within archives, for the time being.
 		if strings.HasPrefix(normalizedPath, fullPath+"/") {
 			return &zipDirNode{
-				Path:     z.Path,
-				Prefix:   fullPath + "/",
-				Inode:    fs.GenerateDynamicInode(z.Inode, name),
-				Modified: z.Modified,
+				fsys:   z.fsys,
+				path:   z.path,
+				prefix: fullPath + "/",
+				inode:  fs.GenerateDynamicInode(z.inode, name),
+				mtime:  z.mtime,
 			}, nil
 		}
 	}

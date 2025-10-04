@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -14,12 +15,15 @@ import (
 
 // Expectation: Attr should fill in the [fuse.Attr] with the correct values.
 func Test_realDirNode_Attr_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	node := &realDirNode{
-		Inode:    1,
-		Path:     "",
-		Modified: tnow,
+		fsys:  fsys,
+		inode: 1,
+		path:  "",
+		mtime: tnow,
 	}
 
 	attr := fuse.Attr{}
@@ -35,7 +39,8 @@ func Test_realDirNode_Attr_Success(t *testing.T) {
 
 // Expectation: The returned [fuse.Dirent] slice should meet the expectations.
 func Test_realDirNode_ReadDirAll_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 
 	_, err := os.Create(filepath.Join(tmpDir, "file1"))
 	require.NoError(t, err)
@@ -53,40 +58,44 @@ func Test_realDirNode_ReadDirAll_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	node := &realDirNode{
-		Inode:    1,
-		Path:     tmpDir,
-		Modified: time.Now(),
+		fsys:  fsys,
+		inode: 1,
+		path:  tmpDir,
+		mtime: time.Now(),
 	}
 
 	ent, err := node.ReadDirAll(t.Context())
 	require.NoError(t, err)
 	require.Len(t, ent, 4)
 
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "dir1"), ent[0].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "dir1"), ent[0].Inode)
 	require.Equal(t, "dir1", ent[0].Name)
 	require.Equal(t, fuse.DT_Dir, ent[0].Type)
 
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "dir2"), ent[1].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "dir2"), ent[1].Inode)
 	require.Equal(t, "dir2", ent[1].Name)
 	require.Equal(t, fuse.DT_Dir, ent[1].Type)
 
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "file2"), ent[2].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "file2"), ent[2].Inode)
 	require.Equal(t, "file2", ent[2].Name)
 	require.Equal(t, fuse.DT_Dir, ent[2].Type)
 
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "file3"), ent[3].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "file3"), ent[3].Inode)
 	require.Equal(t, "file3", ent[3].Name)
 	require.Equal(t, fuse.DT_Dir, ent[3].Type)
 }
 
 // Expectation: ENOENT should be returned upon accessing an invalid directory.
 func Test_realDirNode_ReadDirAll_Error(t *testing.T) {
-	tmpDir := t.TempDir() + "_notexist"
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tmpDir += "_notexist"
 
 	node := &realDirNode{
-		Inode:    1,
-		Path:     tmpDir,
-		Modified: time.Now(),
+		fsys:  fsys,
+		inode: 1,
+		path:  tmpDir,
+		mtime: time.Now(),
 	}
 
 	ent, err := node.ReadDirAll(t.Context())
@@ -96,7 +105,8 @@ func Test_realDirNode_ReadDirAll_Error(t *testing.T) {
 
 // Expectation: The returned lookup nodes should meet the expectations.
 func Test_realDirNode_Lookup_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 
 	_, err := os.Create(filepath.Join(tmpDir, "file1"))
 	require.NoError(t, err)
@@ -111,46 +121,48 @@ func Test_realDirNode_Lookup_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	node := &realDirNode{
-		Inode:    1,
-		Path:     tmpDir,
-		Modified: time.Now(),
+		fsys:  fsys,
+		inode: 1,
+		path:  tmpDir,
+		mtime: time.Now(),
 	}
 
 	lk, err := node.Lookup(t.Context(), "file2")
 	require.NoError(t, err)
 	zn, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "file2"), zn.Inode)
-	require.Equal(t, filepath.Join(tmpDir, "file2.zip"), zn.Path)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "file2"), zn.inode)
+	require.Equal(t, filepath.Join(tmpDir, "file2.zip"), zn.path)
 	info, err := os.Stat(filepath.Join(tmpDir, "file2.zip"))
 	require.NoError(t, err)
-	require.WithinDuration(t, info.ModTime(), zn.Modified, time.Second)
+	require.WithinDuration(t, info.ModTime(), zn.mtime, time.Second)
 
 	lk, err = node.Lookup(t.Context(), "dir1")
 	require.NoError(t, err)
 	dn, ok := lk.(*realDirNode)
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "dir1"), dn.Inode)
-	require.Equal(t, filepath.Join(tmpDir, "dir1"), dn.Path)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "dir1"), dn.inode)
+	require.Equal(t, filepath.Join(tmpDir, "dir1"), dn.path)
 	info, err = os.Stat(filepath.Join(tmpDir, "dir1"))
 	require.NoError(t, err)
-	require.WithinDuration(t, info.ModTime(), dn.Modified, time.Second)
+	require.WithinDuration(t, info.ModTime(), dn.mtime, time.Second)
 
 	lk, err = node.Lookup(t.Context(), "dir2")
 	require.NoError(t, err)
 	dn, ok = lk.(*realDirNode)
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "dir2"), dn.Inode)
-	require.Equal(t, filepath.Join(tmpDir, "dir2"), dn.Path)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "dir2"), dn.inode)
+	require.Equal(t, filepath.Join(tmpDir, "dir2"), dn.path)
 	info, err = os.Stat(filepath.Join(tmpDir, "dir2"))
 	require.NoError(t, err)
-	require.WithinDuration(t, info.ModTime(), dn.Modified, time.Second)
+	require.WithinDuration(t, info.ModTime(), dn.mtime, time.Second)
 }
 
 // Expectation: When a real directory and ZIP would result in the same name
 // for the directory entry slice, the real directory should always be preferred.
 func Test_realDirNode_Lookup_CollidingEntry_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 
 	_, err := os.Create(filepath.Join(tmpDir, "file.zip")) // should be ignored
 	require.NoError(t, err)
@@ -159,9 +171,10 @@ func Test_realDirNode_Lookup_CollidingEntry_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	node := &realDirNode{
-		Inode:    1,
-		Path:     tmpDir,
-		Modified: time.Now(),
+		fsys:  fsys,
+		inode: 1,
+		path:  tmpDir,
+		mtime: time.Now(),
 	}
 
 	lk, err := node.Lookup(t.Context(), "file")
@@ -172,12 +185,14 @@ func Test_realDirNode_Lookup_CollidingEntry_Success(t *testing.T) {
 
 // Expectation: A lookup on a non-existing entry should return ENOENT.
 func Test_realDirNode_Lookup_EntryNotExist_Error(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 
 	node := &realDirNode{
-		Inode:    1,
-		Path:     tmpDir,
-		Modified: time.Now(),
+		fsys:  fsys,
+		inode: 1,
+		path:  tmpDir,
+		mtime: time.Now(),
 	}
 
 	lk, err := node.Lookup(t.Context(), "notexist") // missing
@@ -185,9 +200,10 @@ func Test_realDirNode_Lookup_EntryNotExist_Error(t *testing.T) {
 	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
 }
 
-// Expectation: Inodes should remain deterministic and equal across calls.
-func Test_realDirNode_DeterministicInodes_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+// Expectation: inodes should remain deterministic and equal across calls.
+func Test_realDirNode_Deterministicinodes_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 
 	_, err := os.Create(filepath.Join(tmpDir, "file1"))
 	require.NoError(t, err)
@@ -205,16 +221,17 @@ func Test_realDirNode_DeterministicInodes_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	node := &realDirNode{
-		Inode:    1,
-		Path:     tmpDir,
-		Modified: time.Now(),
+		fsys:  fsys,
+		inode: 1,
+		path:  tmpDir,
+		mtime: time.Now(),
 	}
 
 	ent, err := node.ReadDirAll(t.Context())
 	require.NoError(t, err)
 	require.Len(t, ent, 4)
 
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "dir1"), ent[0].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "dir1"), ent[0].Inode)
 	require.Equal(t, "dir1", ent[0].Name)
 	require.Equal(t, fuse.DT_Dir, ent[0].Type)
 
@@ -222,13 +239,13 @@ func Test_realDirNode_DeterministicInodes_Success(t *testing.T) {
 	require.NoError(t, err)
 	dn, ok := lk.(*realDirNode)
 	require.True(t, ok)
-	require.Equal(t, ent[0].Inode, dn.Inode)
+	require.Equal(t, ent[0].Inode, dn.inode)
 	attr := fuse.Attr{}
 	err = dn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
-	require.Equal(t, attr.Inode, dn.Inode)
+	require.Equal(t, attr.Inode, dn.inode)
 
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "dir2"), ent[1].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "dir2"), ent[1].Inode)
 	require.Equal(t, "dir2", ent[1].Name)
 	require.Equal(t, fuse.DT_Dir, ent[1].Type)
 
@@ -236,13 +253,13 @@ func Test_realDirNode_DeterministicInodes_Success(t *testing.T) {
 	require.NoError(t, err)
 	dn, ok = lk.(*realDirNode)
 	require.True(t, ok)
-	require.Equal(t, ent[1].Inode, dn.Inode)
+	require.Equal(t, ent[1].Inode, dn.inode)
 	attr = fuse.Attr{}
 	err = dn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
-	require.Equal(t, attr.Inode, dn.Inode)
+	require.Equal(t, attr.Inode, dn.inode)
 
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "dir3"), ent[2].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "dir3"), ent[2].Inode)
 	require.Equal(t, "dir3", ent[2].Name)
 	require.Equal(t, fuse.DT_Dir, ent[2].Type)
 
@@ -250,13 +267,13 @@ func Test_realDirNode_DeterministicInodes_Success(t *testing.T) {
 	require.NoError(t, err)
 	dn, ok = lk.(*realDirNode)
 	require.True(t, ok)
-	require.Equal(t, ent[2].Inode, dn.Inode)
+	require.Equal(t, ent[2].Inode, dn.inode)
 	attr = fuse.Attr{}
 	err = dn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
-	require.Equal(t, attr.Inode, dn.Inode)
+	require.Equal(t, attr.Inode, dn.inode)
 
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "file2"), ent[3].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "file2"), ent[3].Inode)
 	require.Equal(t, "file2", ent[3].Name)
 	require.Equal(t, fuse.DT_Dir, ent[3].Type)
 
@@ -264,9 +281,9 @@ func Test_realDirNode_DeterministicInodes_Success(t *testing.T) {
 	require.NoError(t, err)
 	zn, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, ent[3].Inode, zn.Inode)
+	require.Equal(t, ent[3].Inode, zn.inode)
 	attr = fuse.Attr{}
 	err = zn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
-	require.Equal(t, attr.Inode, zn.Inode)
+	require.Equal(t, attr.Inode, zn.inode)
 }

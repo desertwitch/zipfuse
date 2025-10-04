@@ -4,11 +4,13 @@ package filesystem
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync/atomic"
 	"time"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/desertwitch/zipfuse/internal/logging"
 )
 
 const (
@@ -18,35 +20,17 @@ const (
 	cacheMax = 60
 	cacheTTL = time.Minute
 
-	hashDigits = 8 // [flatEntryName]
+	ringBufferMax     = 500
+	flattenHashDigits = 8 // [flatEntryName]
 )
 
 var (
 	_ fs.FS               = (*FS)(nil)
 	_ fs.FSInodeGenerator = (*FS)(nil)
-
-	// Options is a pointer to the filesystem [FSOptions].
-	// As there is ever only one filesystem per program, keeping it as global
-	// variable is an acceptable trade-off over passing around [FS] pointers.
-	//
-	// Beware that any contained non-atomic variables should not be modified
-	// after the filesystem was mounted and are also not considered thread-safe.
-	Options = &FSOptions{}
-
-	// Metrics is a pointer to the filesystem [FSMetrics].
-	// As there is ever only one filesystem per program, keeping it as global
-	// variable is an acceptable trade-off over passing around [FS] pointers.
-	//
-	// Beware that any contained non-atomic variables should not be modified
-	// after the filesystem was mounted and are also not considered thread-safe.
-	Metrics = &FSMetrics{}
-
-	// Cache is a LRU cache for open ZIP file handles.
-	Cache = newZipReaderCache(cacheMax, cacheTTL)
 )
 
-// FSOptions contains all settings for the operation of the filesystem.
-type FSOptions struct {
+// Options contains all settings for the operation of the filesystem.
+type Options struct {
 	// FlatMode controls if ZIP-contained subdirectories and files
 	// should be flattened with [flatEntryName] for shallow directories.
 	// This variable should no longer be modified when the FS is mounted.
@@ -61,8 +45,8 @@ type FSOptions struct {
 	StreamingThreshold atomic.Uint64
 }
 
-// FSMetrics contains all metrics which are collected within the filesystem.
-type FSMetrics struct {
+// Metrics contains all metrics which are collected within the filesystem.
+type Metrics struct {
 	// OpenZips is the amount of currently open ZIP files.
 	OpenZips atomic.Int64
 
@@ -94,14 +78,34 @@ type FSMetrics struct {
 // FS is the core implementation of the filesystem.
 type FS struct {
 	RootDir string
+	Cache   *zipReaderCache
+
+	Options *Options
+	Metrics *Metrics
+
+	RingBuffer *logging.RingBuffer
+}
+
+// NewFS returns a pointer to a new [FS].
+func NewFS(rootDir string, out io.Writer) *FS {
+	fsys := &FS{
+		RootDir:    rootDir,
+		Options:    &Options{},
+		Metrics:    &Metrics{},
+		RingBuffer: logging.NewRingBuffer(ringBufferMax, out),
+	}
+	fsys.Cache = newZipReaderCache(fsys, cacheMax, cacheTTL)
+
+	return fsys
 }
 
 // Root returns the topmost [fs.Node] of the filesystem.
-func (zpfs *FS) Root() (fs.Node, error) {
+func (fsys *FS) Root() (fs.Node, error) {
 	return &realDirNode{
-		Inode:    1,
-		Path:     zpfs.RootDir,
-		Modified: time.Now(),
+		fsys:  fsys,
+		inode: 1,
+		path:  fsys.RootDir,
+		mtime: time.Now(),
 	}, nil
 }
 
@@ -112,7 +116,7 @@ func (zpfs *FS) Root() (fs.Node, error) {
 // FUSE library (being the fallback on encountering zero inodes) is a core
 // violation of this very design principle. Calls to this method will panic,
 // revealing where internal inode handling does not produce the valid inode.
-func (zpfs *FS) GenerateInode(_ uint64, _ string) uint64 {
+func (fsys *FS) GenerateInode(_ uint64, _ string) uint64 {
 	panic("unhandled zero inode triggered an illegal dynamic generation")
 }
 
@@ -122,17 +126,17 @@ func (zpfs *FS) GenerateInode(_ uint64, _ string) uint64 {
 type WalkFunc func(path string, dirent *fuse.Dirent, node fs.Node, attr fuse.Attr) error
 
 // Walk constructs and walks the [FS] in-memory, calling walkFn on each visited [fs.Node].
-func (zpfs *FS) Walk(ctx context.Context, walkFn WalkFunc) error {
-	root, err := zpfs.Root()
+func (fsys *FS) Walk(ctx context.Context, walkFn WalkFunc) error {
+	root, err := fsys.Root()
 	if err != nil {
 		return fmt.Errorf("failed to get fs root: %w", err)
 	}
 
-	return zpfs.walkNode(ctx, "/", nil, root, walkFn)
+	return fsys.walkNode(ctx, "/", nil, root, walkFn)
 }
 
 // walkNode handles walking of a [fs.Node] within the [FS].
-func (zpfs *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, node fs.Node, walkFn WalkFunc) error {
+func (fsys *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, node fs.Node, walkFn WalkFunc) error {
 	var attr fuse.Attr
 
 	if err := ctx.Err(); err != nil {
@@ -166,7 +170,7 @@ func (zpfs *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 					return fmt.Errorf("lookup error for %q at %q: %w", de.Name, path, err)
 				}
 
-				if err := zpfs.walkNode(ctx, childPath, &de, childNode, walkFn); err != nil {
+				if err := fsys.walkNode(ctx, childPath, &de, childNode, walkFn); err != nil {
 					return fmt.Errorf("walkFn error at %q: %w", childPath, err)
 				}
 			}

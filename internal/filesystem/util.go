@@ -20,8 +20,8 @@ import (
 var (
 	_ io.ReadCloser = (*zipFileReader)(nil)
 
-	// ErrNonSeekableRewind occurs when an attempt is made to rewind a non-seekable file.
-	ErrNonSeekableRewind = errors.New("cannot rewind non-seekable file")
+	// errNonSeekableRewind occurs when an attempt is made to rewind a non-seekable file.
+	errNonSeekableRewind = errors.New("cannot rewind non-seekable file")
 )
 
 type zipMetric struct {
@@ -34,21 +34,23 @@ type zipMetric struct {
 type zipReader struct {
 	*zip.ReadCloser
 
+	fsys     *FS
 	refCount atomic.Int32
 }
 
 // newZipReader returns a pointer to a new [zipReader] for given path.
 // Argument isExtract separates metadata reading and extraction metrics.
-func newZipReader(path string) (*zipReader, error) {
+func newZipReader(fsys *FS, path string) (*zipReader, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return nil, err //nolint:wrapcheck
 	}
 
-	Metrics.OpenZips.Add(1)
-	Metrics.TotalOpenedZips.Add(1)
+	fsys.Metrics.OpenZips.Add(1)
+	fsys.Metrics.TotalOpenedZips.Add(1)
 
 	return &zipReader{
+		fsys:       fsys,
 		ReadCloser: zr,
 	}, nil
 }
@@ -61,16 +63,16 @@ func zipMetricStart() zipMetric {
 	}
 }
 
-func zipMetricEnd(m zipMetric) {
+func zipMetricEnd(fsys *FS, m zipMetric) {
 	if m.isExtract {
 		if m.readBytes > 0 { // We do not count Open calls without extraction.
-			Metrics.TotalExtractTime.Add(time.Since(m.startTime).Nanoseconds())
-			Metrics.TotalExtractCount.Add(1)
-			Metrics.TotalExtractBytes.Add(m.readBytes)
+			fsys.Metrics.TotalExtractTime.Add(time.Since(m.startTime).Nanoseconds())
+			fsys.Metrics.TotalExtractCount.Add(1)
+			fsys.Metrics.TotalExtractBytes.Add(m.readBytes)
 		}
 	} else {
-		Metrics.TotalMetadataReadTime.Add(time.Since(m.startTime).Nanoseconds())
-		Metrics.TotalMetadataReadCount.Add(1)
+		fsys.Metrics.TotalMetadataReadTime.Add(time.Since(m.startTime).Nanoseconds())
+		fsys.Metrics.TotalMetadataReadCount.Add(1)
 	}
 }
 
@@ -82,8 +84,8 @@ func (zr *zipReader) Release() {
 
 // Close closes the [zip.ReadCloser] and records the bytes read.
 func (zr *zipReader) Close() error {
-	Metrics.OpenZips.Add(-1)
-	Metrics.TotalClosedZips.Add(1)
+	zr.fsys.Metrics.OpenZips.Add(-1)
+	zr.fsys.Metrics.TotalClosedZips.Add(1)
 
 	return zr.ReadCloser.Close() //nolint:wrapcheck
 }
@@ -99,11 +101,11 @@ type zipFileReader struct {
 // newZipFileReader opens a [zip.File] and returns a new [zipFileReader].
 // An error is returned if the [zip.File] cannot be opened.
 // You should ensure that Close will always be called after use.
-func newZipFileReader(f *zip.File) (*zipFileReader, error) {
+func newZipFileReader(fsys *FS, f *zip.File) (*zipFileReader, error) {
 	var r io.Reader
 	var err error
 
-	if f.Method == zip.Store && !Options.MustCRC32.Load() {
+	if f.Method == zip.Store && !fsys.Options.MustCRC32.Load() {
 		r, err = f.OpenRaw()
 	} else {
 		r, err = f.Open()
@@ -142,7 +144,7 @@ func (fr *zipFileReader) ForwardTo(offset int64) (int64, error) {
 	}
 
 	if offset < fr.pos {
-		return fr.pos, fmt.Errorf("%w (want %d, current %d)", ErrNonSeekableRewind, offset, fr.pos)
+		return fr.pos, fmt.Errorf("%w (want %d, current %d)", errNonSeekableRewind, offset, fr.pos)
 	}
 
 	n, err := io.CopyN(io.Discard, fr.r, offset-fr.pos)
@@ -176,7 +178,7 @@ func (fr *zipFileReader) Close() error {
 }
 
 // flatEntryName flattens a normalized path to a filename, discarding structure.
-// Any name collisions are avoided via appending [hashDigits] of its SHA-1 hash.
+// Any name collisions are avoided via appending [flattenHashDigits] of its SHA-1 hash.
 func flatEntryName(normalizedPath string) (string, bool) {
 	cleanedEntryName := filepath.Clean(normalizedPath)
 
@@ -196,7 +198,7 @@ func flatEntryName(normalizedPath string) (string, bool) {
 	ext := filepath.Ext(baseName)
 	nameWithoutExt := strings.TrimSuffix(baseName, ext)
 
-	return nameWithoutExt + "_" + hash[:hashDigits] + ext, true
+	return nameWithoutExt + "_" + hash[:flattenHashDigits] + ext, true
 }
 
 // toFuseErr converts an error into either ENOENT, EACCES or EIO.
