@@ -66,6 +66,9 @@ func (z *zipDirNode) Lookup(ctx context.Context, name string) (fs.Node, error) {
 }
 
 func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
+	m := newZipMetric(z.fsys, false)
+	defer m.Done()
+
 	seen := make(map[string]bool)
 	resp := make([]fuse.Dirent, 0)
 
@@ -76,9 +79,6 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release()
-
-	m := zipMetricStart()
-	defer zipMetricEnd(z.fsys, m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -110,6 +110,9 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 }
 
 func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error) {
+	m := newZipMetric(z.fsys, false)
+	defer m.Done()
+
 	zr, err := z.fsys.cache.Archive(z.path)
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.path, name, err)
@@ -117,9 +120,6 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release()
-
-	m := zipMetricStart()
-	defer zipMetricEnd(z.fsys, m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -150,6 +150,9 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 }
 
 func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) {
+	m := newZipMetric(z.fsys, false)
+	defer m.Done()
+
 	resp := []fuse.Dirent{}
 	seen := map[string]bool{}
 
@@ -160,9 +163,6 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release()
-
-	m := zipMetricStart()
-	defer zipMetricEnd(z.fsys, m)
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -211,6 +211,9 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 }
 
 func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, error) {
+	m := newZipMetric(z.fsys, false)
+	defer m.Done()
+
 	zr, err := z.fsys.cache.Archive(z.path)
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->Lookup->%q: ZIP error: %v\n", z.path, name, err)
@@ -218,9 +221,6 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release()
-
-	m := zipMetricStart()
-	defer zipMetricEnd(z.fsys, m)
 
 	fullPath := z.prefix + name
 

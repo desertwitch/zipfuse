@@ -24,12 +24,6 @@ var (
 	errNonSeekableRewind = errors.New("cannot rewind non-seekable file")
 )
 
-type zipMetric struct {
-	isExtract bool
-	startTime time.Time
-	readBytes int64
-}
-
 // zipReader is a metrics-aware [zip.ReadCloser].
 type zipReader struct {
 	*zip.ReadCloser
@@ -55,34 +49,18 @@ func newZipReader(fsys *FS, path string) (*zipReader, error) {
 	}, nil
 }
 
-func zipMetricStart() zipMetric {
-	return zipMetric{
-		startTime: time.Now(),
-		isExtract: false,
-		readBytes: 0,
-	}
-}
-
-func zipMetricEnd(fsys *FS, m zipMetric) {
-	if m.isExtract {
-		if m.readBytes > 0 { // We do not count Open calls without extraction.
-			fsys.Metrics.TotalExtractTime.Add(time.Since(m.startTime).Nanoseconds())
-			fsys.Metrics.TotalExtractCount.Add(1)
-			fsys.Metrics.TotalExtractBytes.Add(m.readBytes)
-		}
-	} else {
-		fsys.Metrics.TotalMetadataReadTime.Add(time.Since(m.startTime).Nanoseconds())
-		fsys.Metrics.TotalMetadataReadCount.Add(1)
-	}
-}
-
-func (zr *zipReader) Release() {
+// Release decreases the reference count by one and closes the
+// [zipReader] if the new reference count is zero or negative.
+func (zr *zipReader) Release() error {
 	if zr.refCount.Add(-1) <= 0 {
-		zr.Close()
+		return zr.Close()
 	}
+
+	return nil
 }
 
-// Close closes the [zip.ReadCloser] and records the bytes read.
+// Close closes the [zip.ReadCloser].
+// You should always use Release() instead.
 func (zr *zipReader) Close() error {
 	zr.fsys.Metrics.OpenZips.Add(-1)
 	zr.fsys.Metrics.TotalClosedZips.Add(1)
@@ -175,6 +153,40 @@ func (fr *zipFileReader) Close() error {
 	}
 
 	return nil
+}
+
+// zipMetric is a single measurement of a ZIP operation.
+type zipMetric struct {
+	fsys      *FS
+	isExtract bool
+	startTime time.Time
+	readBytes int64
+}
+
+// newZipMetric returns a pointer to a new [zipMetric] for a single
+// measurement of a ZIP operation. The time is set to time.Now(),
+// and the measurement fields can be mutated as required. You must
+// call Done() on the [zipMetric] when the measurement is finished.
+func newZipMetric(fsys *FS, isExtract bool) *zipMetric {
+	return &zipMetric{
+		fsys:      fsys,
+		startTime: time.Now(),
+		isExtract: isExtract,
+		readBytes: 0,
+	}
+}
+
+// Done closes the single measurement of a ZIP operation and adds the
+// field values to the filesystem metrics.
+func (m *zipMetric) Done() {
+	if m.isExtract {
+		m.fsys.Metrics.TotalExtractTime.Add(time.Since(m.startTime).Nanoseconds())
+		m.fsys.Metrics.TotalExtractCount.Add(1)
+		m.fsys.Metrics.TotalExtractBytes.Add(m.readBytes)
+	} else {
+		m.fsys.Metrics.TotalMetadataReadTime.Add(time.Since(m.startTime).Nanoseconds())
+		m.fsys.Metrics.TotalMetadataReadCount.Add(1)
+	}
 }
 
 // flatEntryName flattens a normalized path to a filename, discarding structure.

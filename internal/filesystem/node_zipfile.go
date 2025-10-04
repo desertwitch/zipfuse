@@ -61,6 +61,9 @@ func (z *zipInMemoryFileNode) Open(_ context.Context, _ *fuse.OpenRequest, resp 
 }
 
 func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
+	m := newZipMetric(z.fsys, true)
+	defer m.Done()
+
 	zr, fr, err := z.fsys.cache.Entry(z.archive, z.path)
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.archive, z.path, err)
@@ -72,19 +75,14 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 		zr.Release()
 	}()
 
-	m := zipMetricStart()
-	m.isExtract = true
-
 	data, err := io.ReadAll(fr)
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: IO Error: %v\n", z.archive, z.path, err)
-		zipMetricEnd(z.fsys, m)
 
 		return nil, fuse.ToErrno(syscall.EIO)
 	}
 
 	m.readBytes = int64(len(data))
-	zipMetricEnd(z.fsys, m)
 
 	return data, nil
 }
@@ -147,13 +145,10 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 	h.Lock()
 	defer h.Unlock()
 
-	zr := h.zr
+	m := newZipMetric(h.fsys, true)
+	defer m.Done()
 
-	m := zipMetricStart()
-	m.isExtract = true
-	defer func() {
-		zipMetricEnd(h.fsys, m)
-	}()
+	zr := h.zr
 
 	if req.Offset != h.offset {
 		n, err := h.fr.ForwardTo(req.Offset)

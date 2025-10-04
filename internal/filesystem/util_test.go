@@ -60,8 +60,7 @@ func Test_zipReader_Close_Extract_Success(t *testing.T) {
 
 	var bytesRead int
 
-	m := zipMetricStart()
-	m.isExtract = true
+	m := newZipMetric(fsys, true)
 
 	for _, f := range zr.File {
 		if f.Name == "test.txt" {
@@ -80,7 +79,7 @@ func Test_zipReader_Close_Extract_Success(t *testing.T) {
 	err = zr.Close()
 	require.NoError(t, err)
 
-	zipMetricEnd(fsys, m)
+	m.Done()
 
 	require.Equal(t, int64(0), fsys.Metrics.OpenZips.Load())
 	require.Equal(t, int64(1), fsys.Metrics.TotalClosedZips.Load())
@@ -110,8 +109,7 @@ func Test_zipReader_Close_Metadata_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, zr)
 
-	m := zipMetricStart()
-	m.isExtract = false
+	m := newZipMetric(fsys, false)
 
 	require.Equal(t, int64(1), fsys.Metrics.OpenZips.Load())
 	require.Equal(t, int64(1), fsys.Metrics.TotalOpenedZips.Load())
@@ -119,7 +117,7 @@ func Test_zipReader_Close_Metadata_Success(t *testing.T) {
 	fileCount := len(zr.File)
 	require.Equal(t, 2, fileCount)
 
-	zipMetricEnd(fsys, m)
+	m.Done()
 
 	err = zr.Close()
 	require.NoError(t, err)
