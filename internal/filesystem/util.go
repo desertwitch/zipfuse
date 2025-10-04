@@ -24,7 +24,10 @@ var (
 	errNonSeekableRewind = errors.New("cannot rewind non-seekable file")
 )
 
-// zipReader is a metrics-aware [zip.ReadCloser].
+// zipReader is a multi-use, metrics-aware [zip.ReadCloser].
+//
+// It allows for multiple files to be read concurrently, while
+// keeping open the archive, and internally tracks reference count.
 type zipReader struct {
 	*zip.ReadCloser
 
@@ -33,9 +36,12 @@ type zipReader struct {
 }
 
 // newZipReader returns a pointer to a new [zipReader] for given path.
-// Argument isExtract separates metadata reading and extraction metrics.
+//
+// It internally increases the reference count by one upon returning the
+// pointer. Once done, you need to call Release() to close the reference.
+// When re-using the [zipReader], ensure to always Acquire() and Release().
 func newZipReader(fsys *FS, path string) (*zipReader, error) {
-	zr, err := zip.OpenReader(path)
+	rc, err := zip.OpenReader(path)
 	if err != nil {
 		return nil, err //nolint:wrapcheck
 	}
@@ -43,10 +49,19 @@ func newZipReader(fsys *FS, path string) (*zipReader, error) {
 	fsys.Metrics.OpenZips.Add(1)
 	fsys.Metrics.TotalOpenedZips.Add(1)
 
-	return &zipReader{
+	zr := &zipReader{
+		ReadCloser: rc,
 		fsys:       fsys,
-		ReadCloser: zr,
-	}, nil
+	}
+	zr.Acquire() // for caller
+
+	return zr, nil
+}
+
+// Acquire increases the reference count by one, it should be
+// called every time a [zipReader] is re-used more than once.
+func (zr *zipReader) Acquire() {
+	zr.refCount.Add(1)
 }
 
 // Release decreases the reference count by one and closes the
@@ -59,8 +74,8 @@ func (zr *zipReader) Release() error {
 	return nil
 }
 
-// Close closes the [zip.ReadCloser].
-// You should always use Release() instead.
+// Close instantly closes the [zip.ReadCloser].
+// You should use Release() instead, which internally calls Close().
 func (zr *zipReader) Close() error {
 	zr.fsys.Metrics.OpenZips.Add(-1)
 	zr.fsys.Metrics.TotalClosedZips.Add(1)
@@ -71,6 +86,9 @@ func (zr *zipReader) Close() error {
 // zipFileReader opens a [zip.File] for reading and forward seeking.
 // Depending on compression and runtime options, the seeking is implemented
 // either by actual seeking (type assertion) or reading bytes to [io.Discard].
+//
+// It is not thread-safe, but you can use the contained [zip.File] pointer to
+// establish a new [zipFileReader], if you need to re-open the file elsewhere.
 type zipFileReader struct {
 	f   *zip.File
 	r   io.Reader
@@ -78,8 +96,7 @@ type zipFileReader struct {
 }
 
 // newZipFileReader opens a [zip.File] and returns a new [zipFileReader].
-// An error is returned if the [zip.File] cannot be opened.
-// You should ensure that Close will always be called after use.
+// You should ensure that Close will always be called after use is complete.
 func newZipFileReader(fsys *FS, f *zip.File) (*zipFileReader, error) {
 	var r io.Reader
 	var err error
@@ -107,6 +124,7 @@ func (fr *zipFileReader) Read(p []byte) (int, error) {
 
 // ForwardTo advances the reader position to the specified offset.
 // It returns the offset of the internal reader position and an error.
+// [errNonSeekableRewind] is returned upon rewinding a non-seekable file.
 func (fr *zipFileReader) ForwardTo(offset int64) (int64, error) {
 	if offset == fr.pos {
 		return fr.pos, nil
@@ -178,7 +196,7 @@ func newZipMetric(fsys *FS, isExtract bool) *zipMetric {
 }
 
 // Done closes the single measurement of a ZIP operation and adds the
-// field values to the filesystem metrics.
+// field values to the filesystem metrics, it ensures saving of the metrics.
 func (m *zipMetric) Done() {
 	if m.isExtract {
 		m.fsys.Metrics.TotalExtractTime.Add(time.Since(m.startTime).Nanoseconds())

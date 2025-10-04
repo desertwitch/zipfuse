@@ -33,11 +33,11 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 			return nil, fuse.ToErrno(syscall.EINVAL)
 		}
 
-		zr.refCount.Add(1) // for cache
 		c.cache.Add(archive, zr)
 	}
 
-	zr.refCount.Add(1) // for caller
+	// Cache holds one reference, add another for the caller.
+	zr.Acquire()
 
 	return zr, nil
 }
@@ -55,7 +55,6 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 			return nil, nil, fuse.ToErrno(syscall.EINVAL)
 		}
 
-		zr.refCount.Add(1) // for cache
 		c.cache.Add(archive, zr)
 	}
 
@@ -66,7 +65,8 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 				return nil, nil, fuse.ToErrno(syscall.EINVAL)
 			}
 
-			zr.refCount.Add(1) // for caller
+			// Cache holds one reference, add another for the caller.
+			zr.Acquire()
 
 			return zr, fr, nil
 		}
