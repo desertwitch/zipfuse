@@ -49,7 +49,7 @@ type fsDashboardData struct {
 	OpenZips            int64    `json:"openZips"`
 	OpenedZips          int64    `json:"openedZips"`
 	ClosedZips          int64    `json:"closedZips"`
-	ReopenedZips        int64    `json:"reopenedZips"`
+	ReopenedEntries        int64    `json:"reopenedEntries"`
 	FlatMode            string   `json:"flatMode"`
 	MustCRC32           string   `json:"mustCrc32"`
 	StreamingThreshold  string   `json:"streamingThreshold"`
@@ -113,7 +113,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		OpenZips:            d.fsys.Metrics.OpenZips.Load(),
 		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
 		ClosedZips:          d.fsys.Metrics.TotalClosedZips.Load(),
-		ReopenedZips:        d.fsys.Metrics.TotalReopenedZips.Load(),
+		ReopenedEntries:        d.fsys.Metrics.TotalReopenedEntries.Load(),
 		FlatMode:            enabledOrDisabled(d.fsys.Options.FlatMode),
 		MustCRC32:           enabledOrDisabled(d.fsys.Options.MustCRC32.Load()),
 		StreamingThreshold:  humanize.Bytes(d.fsys.Options.StreamingThreshold.Load()),

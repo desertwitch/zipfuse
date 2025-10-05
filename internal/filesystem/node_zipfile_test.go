@@ -532,7 +532,7 @@ func Test_zipDiskStreamFileHandle_Read_NoSeekRewind_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, content[5:15], resp1.Data)
 
-	initialReopenCount := fsys.Metrics.TotalReopenedZips.Load()
+	initialReopenCount := fsys.Metrics.TotalReopenedEntries.Load()
 
 	// Second read at offset 1 (backwards) - should trigger rewind
 	req2 := &fuse.ReadRequest{
@@ -545,7 +545,7 @@ func Test_zipDiskStreamFileHandle_Read_NoSeekRewind_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, content[1:11], resp2.Data)
 
-	finalReopenCount := fsys.Metrics.TotalReopenedZips.Load()
+	finalReopenCount := fsys.Metrics.TotalReopenedEntries.Load()
 	require.Equal(t, initialReopenCount+1, finalReopenCount)
 }
 

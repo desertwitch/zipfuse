@@ -167,7 +167,7 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 			}
 			h.fr = rc
 			h.offset = 0
-			h.fsys.Metrics.TotalReopenedZips.Add(1)
+			h.fsys.Metrics.TotalReopenedEntries.Add(1)
 
 			// Retry the forward... if it fails again, return an error.
 			n, err = h.fr.ForwardTo(req.Offset)
