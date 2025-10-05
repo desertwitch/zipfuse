@@ -203,6 +203,14 @@
         <div class="section-label">Filesystem Settings</div>
         <div class="metrics-grid">
             <div class="metric-tile">
+                <div class="metric-label">LRU Cache Size</div>
+                <div class="metric-value" data-metric="cacheSize">{{.CacheSize}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">LRU Cache TTL</div>
+                <div class="metric-value" data-metric="cacheTtl">{{.CacheTTL}}</div>
+            </div>
+            <div class="metric-tile">
                 <div class="metric-label">Streaming Threshold</div>
                 <div class="metric-value" data-metric="streamingThreshold">{{.StreamingThreshold}}</div>
             </div>
