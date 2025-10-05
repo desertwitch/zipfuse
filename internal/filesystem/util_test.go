@@ -727,7 +727,7 @@ func Test_zipFileReader_Close_NonCloser_Success(t *testing.T) {
 	t.Parallel()
 
 	fr := &zipFileReader{
-		r:   io.NopCloser(nil),
+		r:   &io.SectionReader{},
 		pos: 0,
 	}
 
