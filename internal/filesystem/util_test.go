@@ -755,6 +755,164 @@ func Test_zipFileReader_Close_NonCloser_Success(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Expectation: newZipMetric should create a zipMetric with correct initial values for extract operation.
+func Test_newZipMetric_Extract_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	before := time.Now()
+	zm := newZipMetric(fsys, true)
+	after := time.Now()
+
+	require.NotNil(t, zm)
+	require.Equal(t, fsys, zm.fsys)
+	require.True(t, zm.isExtract)
+	require.GreaterOrEqual(t, zm.startTime.UnixNano(), before.UnixNano())
+	require.LessOrEqual(t, zm.startTime.UnixNano(), after.UnixNano())
+	require.Equal(t, int64(0), zm.readBytes)
+}
+
+// Expectation: newZipMetric should create a zipMetric with correct initial values for metadata operation.
+func Test_newZipMetric_Metadata_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	before := time.Now()
+	zm := newZipMetric(fsys, false)
+	after := time.Now()
+
+	require.NotNil(t, zm)
+	require.Equal(t, fsys, zm.fsys)
+	require.False(t, zm.isExtract)
+	require.GreaterOrEqual(t, zm.startTime.UnixNano(), before.UnixNano())
+	require.LessOrEqual(t, zm.startTime.UnixNano(), after.UnixNano())
+	require.Equal(t, int64(0), zm.readBytes)
+}
+
+// Expectation: zipMetric.Done should update extract metrics correctly.
+func Test_zipMetric_Done_Extract_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	initialExtractTime := fsys.Metrics.TotalExtractTime.Load()
+	initialExtractCount := fsys.Metrics.TotalExtractCount.Load()
+	initialExtractBytes := fsys.Metrics.TotalExtractBytes.Load()
+
+	zm := newZipMetric(fsys, true)
+	zm.readBytes = 1024
+
+	time.Sleep(10 * time.Millisecond)
+	zm.Done()
+
+	require.Greater(t, fsys.Metrics.TotalExtractTime.Load(), initialExtractTime)
+	require.Equal(t, initialExtractCount+1, fsys.Metrics.TotalExtractCount.Load())
+	require.Equal(t, initialExtractBytes+1024, fsys.Metrics.TotalExtractBytes.Load())
+}
+
+// Expectation: zipMetric.Done should update metadata metrics correctly.
+func Test_zipMetric_Done_Metadata_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	initialMetadataTime := fsys.Metrics.TotalMetadataReadTime.Load()
+	initialMetadataCount := fsys.Metrics.TotalMetadataReadCount.Load()
+
+	zm := newZipMetric(fsys, false)
+	zm.readBytes = 512 // Should be ignored for metadata operations
+
+	time.Sleep(10 * time.Millisecond)
+	zm.Done()
+
+	require.Greater(t, fsys.Metrics.TotalMetadataReadTime.Load(), initialMetadataTime)
+	require.Equal(t, initialMetadataCount+1, fsys.Metrics.TotalMetadataReadCount.Load())
+}
+
+// Expectation: zipMetric.Done should not update extract metrics when isExtract is false.
+func Test_zipMetric_Done_Metadata_NoExtractUpdate_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	initialExtractTime := fsys.Metrics.TotalExtractTime.Load()
+	initialExtractCount := fsys.Metrics.TotalExtractCount.Load()
+	initialExtractBytes := fsys.Metrics.TotalExtractBytes.Load()
+
+	zm := newZipMetric(fsys, false)
+	zm.readBytes = 2048
+	zm.Done()
+
+	require.Equal(t, initialExtractTime, fsys.Metrics.TotalExtractTime.Load())
+	require.Equal(t, initialExtractCount, fsys.Metrics.TotalExtractCount.Load())
+	require.Equal(t, initialExtractBytes, fsys.Metrics.TotalExtractBytes.Load())
+}
+
+// Expectation: zipMetric.Done should not update metadata metrics when isExtract is true.
+func Test_zipMetric_Done_Extract_NoMetadataUpdate_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	initialMetadataTime := fsys.Metrics.TotalMetadataReadTime.Load()
+	initialMetadataCount := fsys.Metrics.TotalMetadataReadCount.Load()
+
+	zm := newZipMetric(fsys, true)
+	zm.readBytes = 2048
+	zm.Done()
+
+	require.Equal(t, initialMetadataTime, fsys.Metrics.TotalMetadataReadTime.Load())
+	require.Equal(t, initialMetadataCount, fsys.Metrics.TotalMetadataReadCount.Load())
+}
+
+// Expectation: zipMetric should track zero bytes read correctly.
+func Test_zipMetric_Done_ZeroBytes_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	initialExtractBytes := fsys.Metrics.TotalExtractBytes.Load()
+
+	zm := newZipMetric(fsys, true)
+	zm.readBytes = 0
+	zm.Done()
+
+	require.Equal(t, initialExtractBytes, fsys.Metrics.TotalExtractBytes.Load())
+}
+
+// Expectation: zipMetric should track large byte counts correctly.
+func Test_zipMetric_Done_LargeBytes_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	initialExtractBytes := fsys.Metrics.TotalExtractBytes.Load()
+
+	zm := newZipMetric(fsys, true)
+	zm.readBytes = 1024 * 1024 * 100 // 100MB
+	zm.Done()
+
+	require.Equal(t, initialExtractBytes+1024*1024*100, fsys.Metrics.TotalExtractBytes.Load())
+}
+
+// Expectation: Multiple zipMetric operations should accumulate correctly.
+func Test_zipMetric_Done_Multiple_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	initialExtractCount := fsys.Metrics.TotalExtractCount.Load()
+	initialExtractBytes := fsys.Metrics.TotalExtractBytes.Load()
+
+	zm1 := newZipMetric(fsys, true)
+	zm1.readBytes = 512
+	zm1.Done()
+
+	zm2 := newZipMetric(fsys, true)
+	zm2.readBytes = 1024
+	zm2.Done()
+
+	zm3 := newZipMetric(fsys, true)
+	zm3.readBytes = 256
+	zm3.Done()
+
+	require.Equal(t, initialExtractCount+3, fsys.Metrics.TotalExtractCount.Load())
+	require.Equal(t, initialExtractBytes+1792, fsys.Metrics.TotalExtractBytes.Load())
+}
+
 // Expectation: flatEntryName should flatten paths correctly and produce hashes.
 func Test_flatEntryName_Success(t *testing.T) {
 	t.Parallel()

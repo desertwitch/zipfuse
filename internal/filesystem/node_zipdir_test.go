@@ -18,7 +18,7 @@ import (
 // createTestZip creates a zip file for testing with the given paths and modification times.
 // Each path can be a file (no trailing slash) or directory (with trailing slash).
 // Returns the path to the created zip file.
-func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct { //nolint:unparam
+func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct {
 	Path    string
 	ModTime time.Time
 	Content []byte // optional, only for files (can be nil)
