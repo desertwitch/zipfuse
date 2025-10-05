@@ -17,7 +17,7 @@ func newZipReaderCache(fs *FS, size int, ttl time.Duration) *zipReaderCache {
 	c := &zipReaderCache{fsys: fs}
 
 	c.cache = expirable.NewLRU(size, func(_ string, zr *zipReader) {
-		zr.Release()
+		_ = zr.Release()
 	}, ttl)
 
 	return c

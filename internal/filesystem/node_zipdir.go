@@ -78,7 +78,7 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
-	defer zr.Release()
+	defer zr.Release() //nolint:errcheck
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -119,7 +119,7 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
-	defer zr.Release()
+	defer zr.Release() //nolint:errcheck
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -162,7 +162,7 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
-	defer zr.Release()
+	defer zr.Release() //nolint:errcheck
 
 	for _, f := range zr.File {
 		normalizedPath := normalizeZipPath(f.Name)
@@ -220,7 +220,7 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 
 		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
-	defer zr.Release()
+	defer zr.Release() //nolint:errcheck
 
 	fullPath := z.prefix + name
 

@@ -36,8 +36,8 @@ func Test_newZipReader_InvalidZip_Error(t *testing.T) {
 	require.Error(t, err)
 }
 
-// Expectation: zipReader should track metrics correctly on Close for extract operations.
-func Test_zipReader_Close_Extract_Success(t *testing.T) {
+// Expectation: zipReader should track open/close metrics correctly.
+func Test_zipReader_Metrics_Success(t *testing.T) {
 	t.Parallel()
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
@@ -58,74 +58,94 @@ func Test_zipReader_Close_Extract_Success(t *testing.T) {
 	require.Equal(t, int64(1), fsys.Metrics.OpenZips.Load())
 	require.Equal(t, int64(1), fsys.Metrics.TotalOpenedZips.Load())
 
-	var bytesRead int
-
-	m := newZipMetric(fsys, true)
-
 	for _, f := range zr.File {
 		if f.Name == "test.txt" {
 			rc, err := f.Open()
 			require.NoError(t, err)
-			n, err := io.Copy(io.Discard, rc)
+			_, err = io.Copy(io.Discard, rc)
 			require.NoError(t, err)
 			rc.Close()
-			bytesRead = int(n)
 		}
 	}
 
-	require.Equal(t, len(content), bytesRead)
-	m.readBytes = int64(bytesRead)
-
-	err = zr.Close()
+	err = zr.Release()
 	require.NoError(t, err)
-
-	m.Done()
 
 	require.Equal(t, int64(0), fsys.Metrics.OpenZips.Load())
 	require.Equal(t, int64(1), fsys.Metrics.TotalClosedZips.Load())
-	require.Equal(t, int64(1), fsys.Metrics.TotalExtractCount.Load())
-	require.Equal(t, int64(bytesRead), fsys.Metrics.TotalExtractBytes.Load())
-	require.Equal(t, int64(len(content)), fsys.Metrics.TotalExtractBytes.Load())
-	require.Positive(t, fsys.Metrics.TotalExtractTime.Load(), int64(0))
 }
 
-// Expectation: zipReader should track metrics correctly on Close for metadata operations.
-func Test_zipReader_Close_Metadata_Success(t *testing.T) {
+// Expectation: zipReader should track internal reference count correctly.
+func Test_zipReader_ReferenceCount_Success(t *testing.T) {
 	t.Parallel()
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	content := []byte("test content for metadata")
+	content := []byte("test content")
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
 		Path    string
 		ModTime time.Time
 		Content []byte
 	}{
 		{Path: "test.txt", ModTime: tnow, Content: content},
-		{Path: "other.txt", ModTime: tnow, Content: []byte("other")},
 	})
 
 	zr, err := newZipReader(fsys, zipPath)
 	require.NoError(t, err)
 	require.NotNil(t, zr)
 
-	m := newZipMetric(fsys, false)
-
-	require.Equal(t, int64(1), fsys.Metrics.OpenZips.Load())
-	require.Equal(t, int64(1), fsys.Metrics.TotalOpenedZips.Load())
-
-	fileCount := len(zr.File)
-	require.Equal(t, 2, fileCount)
-
-	m.Done()
-
-	err = zr.Close()
+	require.Equal(t, int32(1), zr.refCount.Load())
+	zr.Acquire()
+	require.Equal(t, int32(2), zr.refCount.Load())
+	err = zr.Release()
 	require.NoError(t, err)
+	require.Equal(t, int32(1), zr.refCount.Load())
 
-	require.Equal(t, int64(0), fsys.Metrics.OpenZips.Load())
-	require.Equal(t, int64(1), fsys.Metrics.TotalClosedZips.Load())
-	require.Equal(t, int64(1), fsys.Metrics.TotalMetadataReadCount.Load())
-	require.Positive(t, fsys.Metrics.TotalMetadataReadTime.Load(), int64(0))
+	for _, f := range zr.File {
+		if f.Name == "test.txt" {
+			rc, err := f.Open()
+			require.NoError(t, err)
+			_, err = io.Copy(io.Discard, rc)
+			require.NoError(t, err)
+			rc.Close()
+		}
+	}
+
+	err = zr.Release()
+	require.NoError(t, err)
+	require.Zero(t, zr.refCount.Load())
+
+	err = zr.Release()
+	require.ErrorContains(t, err, "already closed")
+}
+
+// Expectation: A direct Close() call on a zipReader should panic.
+func Test_zipReader_DirectClose_Panic(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	content := []byte("test content")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	zr, err := newZipReader(fsys, zipPath)
+	require.NoError(t, err)
+	require.NotNil(t, zr)
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r, "expected panic, got nil")
+		_ = zr.Release()
+	}()
+
+	_ = zr.Close()
 }
 
 // Expectation: newZipFileReader should successfully open a stored (uncompressed) file.

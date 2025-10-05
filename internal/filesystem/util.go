@@ -68,15 +68,21 @@ func (zr *zipReader) Acquire() {
 // [zipReader] if the new reference count is zero or negative.
 func (zr *zipReader) Release() error {
 	if zr.refCount.Add(-1) <= 0 {
-		return zr.Close()
+		return zr.closeReader()
 	}
 
 	return nil
 }
 
-// Close instantly closes the [zip.ReadCloser].
+// Close is not supported and will always panic when being used.
 // You should use Release() instead, which internally calls Close().
 func (zr *zipReader) Close() error {
+	panic("unsupported direct close of reader")
+}
+
+// closeReader instantly closes the [zip.ReadCloser].
+// You should use Release() instead, which internally calls closeReader().
+func (zr *zipReader) closeReader() error {
 	zr.fsys.Metrics.OpenZips.Add(-1)
 	zr.fsys.Metrics.TotalClosedZips.Add(1)
 

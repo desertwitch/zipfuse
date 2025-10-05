@@ -71,8 +71,8 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 		return nil, fuse.ToErrno(err)
 	}
 	defer func() {
-		fr.Close()
-		zr.Release()
+		_ = fr.Close()
+		_ = zr.Release()
 	}()
 
 	data, err := io.ReadAll(fr)
@@ -210,7 +210,7 @@ func (h *zipDiskStreamFileHandle) Release(_ context.Context, _ *fuse.ReleaseRequ
 		h.fr = nil
 	}
 	if h.zr != nil {
-		h.zr.Release()
+		_ = h.zr.Release()
 		h.zr = nil
 	}
 
