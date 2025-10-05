@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"text/template"
 
 	"github.com/desertwitch/zipfuse/assets"
@@ -50,6 +51,7 @@ type fsDashboardData struct {
 	OpenedZips          int64    `json:"openedZips"`
 	ClosedZips          int64    `json:"closedZips"`
 	ReopenedEntries     int64    `json:"reopenedEntries"`
+	CacheEnabled        string   `json:"cacheEnabled"`
 	CacheSize           int      `json:"cacheSize"`
 	CacheTTL            string   `json:"cacheTtl"`
 	FlatMode            string   `json:"flatMode"`
@@ -91,7 +93,11 @@ func (d *FSDashboard) dashboardMux() *mux.Router {
 	mux.HandleFunc("/metrics.json", d.metricsHandler)
 	mux.HandleFunc("/gc", d.gcHandler)
 	mux.HandleFunc("/reset", d.resetMetricsHandler)
-	mux.HandleFunc("/set/checkall/{value}", d.mustCRC32Handler)
+
+	mux.HandleFunc("/set/cache/{value}",
+		d.booleanHandler("LRU cache enabled", &d.fsys.Options.CacheDisabled))
+	mux.HandleFunc("/set/checkall/{value}",
+		d.booleanHandler("Forced integrity checking", &d.fsys.Options.MustCRC32))
 	mux.HandleFunc("/set/threshold/{value}", d.thresholdHandler)
 
 	mux.HandleFunc("/zipfuse.png", func(w http.ResponseWriter, _ *http.Request) {
@@ -116,6 +122,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
 		ClosedZips:          d.fsys.Metrics.TotalClosedZips.Load(),
 		ReopenedEntries:     d.fsys.Metrics.TotalReopenedEntries.Load(),
+		CacheEnabled:        enabledOrDisabled(!d.fsys.Options.CacheDisabled.Load()),
 		CacheSize:           d.fsys.Options.CacheSize,
 		CacheTTL:            d.fsys.Options.CacheTTL.String(),
 		FlatMode:            enabledOrDisabled(d.fsys.Options.FlatMode),
@@ -175,30 +182,13 @@ func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request
 	d.fsys.Metrics.TotalExtractBytes.Store(0)
 	d.fsys.Metrics.TotalOpenedZips.Store(0)
 	d.fsys.Metrics.TotalClosedZips.Store(0)
+	d.fsys.Metrics.TotalReopenedEntries.Store(0)
 
 	d.rbuf.Println("Metrics reset via API.")
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "Metrics reset.")
-}
-
-func (d *FSDashboard) mustCRC32Handler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	val, err := strconv.ParseBool(vars["value"])
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Invalid boolean value: %v", err), http.StatusBadRequest)
-
-		return
-	}
-	d.fsys.Options.MustCRC32.Store(val)
-
-	d.rbuf.Printf("Forced integrity checking set via API: %t.\n", val)
-
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Forced integrity checking set: %t.\n", val)
 }
 
 func (d *FSDashboard) thresholdHandler(w http.ResponseWriter, r *http.Request) {
@@ -217,4 +207,24 @@ func (d *FSDashboard) thresholdHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "Streaming threshold set: %s.\n", humanize.Bytes(val))
+}
+
+func (d *FSDashboard) booleanHandler(descr string, target *atomic.Bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+
+		val, err := strconv.ParseBool(vars["value"])
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid boolean value: %v", err), http.StatusBadRequest)
+
+			return
+		}
+		target.Store(val)
+
+		d.rbuf.Printf("%s set via API: %t.\n", descr, val)
+
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "%s set: %t.\n", descr, val)
+	}
 }

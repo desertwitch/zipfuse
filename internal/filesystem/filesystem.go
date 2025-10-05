@@ -33,6 +33,10 @@ var (
 // Options contains all settings for the operation of the filesystem.
 // All non-atomic fields can no longer be modified at runtime (once mounted).
 type Options struct {
+	// CacheDisabled disables the LRU cache for ZIP file descriptors.
+	// When disabled at runtime, in-flight descriptors will close after TTL.
+	CacheDisabled atomic.Bool
+
 	// CacheSize is the size of the LRU cache for ZIP file descriptors.
 	// Beware the operating system file descriptor limit when changing this.
 	CacheSize int
@@ -62,6 +66,7 @@ func DefaultOptions() *Options {
 		CacheTTL:  defaultCacheTTL,
 		FlatMode:  defaultFlatMode,
 	}
+	opts.CacheDisabled.Store(false)
 	opts.MustCRC32.Store(defaultMustCRC32)
 	opts.StreamingThreshold.Store(defaultStreamingThreshold)
 

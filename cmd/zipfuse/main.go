@@ -55,6 +55,7 @@ type cliOptions struct {
 	dashboardAddress   string
 	dryRun             bool
 	flatMode           bool
+	lruDisable         bool
 	lruSize            int
 	lruTTL             time.Duration
 	mountDir           string
@@ -105,6 +106,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 	cmd.Flags().BoolVarP(&opts.dryRun, "dryrun", "d", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&opts.mustCRC32, "checkall", "c", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
+	cmd.Flags().BoolVar(&opts.lruDisable, "lrudisable", false, "Disable the LRU cache and re-open file descriptors on every request (beware FD limits)")
 	cmd.Flags().DurationVar(&opts.lruTTL, "lrutime", 60*time.Second, "Max time before LRU cache evicts unused file descriptors (beware FD limits)")
 	cmd.Flags().IntVar(&opts.lruSize, "lrusize", 60, "Max total number of file descriptors in the LRU cache (beware FD limits)")
 	cmd.Flags().StringVarP(&opts.dashboardAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
@@ -198,6 +200,7 @@ func run(opts cliOptions) error {
 		CacheTTL:  opts.lruTTL,
 		FlatMode:  opts.flatMode,
 	}
+	fopts.CacheDisabled.Store(opts.lruDisable)
 	fopts.MustCRC32.Store(opts.mustCRC32)
 	fopts.StreamingThreshold.Store(opts.streamThreshold)
 

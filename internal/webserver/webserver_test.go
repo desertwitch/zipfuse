@@ -9,6 +9,7 @@ import (
 
 	"github.com/desertwitch/zipfuse/internal/filesystem"
 	"github.com/desertwitch/zipfuse/internal/logging"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 )
 
@@ -186,76 +187,6 @@ func Test_resetMetricsHandler_Success(t *testing.T) {
 	require.Contains(t, strings.Join(logs, " "), "Metrics reset")
 }
 
-// Expectation: mustCRC32Handler should update MustCRC32 with valid input.
-func Test_mustCRC32Handler_Success(t *testing.T) {
-	t.Parallel()
-	dash := testDashboard(t, io.Discard)
-
-	dash.fsys.Options.StreamingThreshold.Store(0)
-
-	req := httptest.NewRequest(http.MethodGet, "/set/checkall/true", nil)
-	w := httptest.NewRecorder()
-
-	router := dash.dashboardMux()
-	router.ServeHTTP(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
-
-	body := w.Body.String()
-	require.Contains(t, body, "Forced integrity checking")
-	require.Contains(t, body, "true")
-
-	require.True(t, dash.fsys.Options.MustCRC32.Load())
-
-	logs := dash.rbuf.Lines()
-	require.NotEmpty(t, logs)
-	require.Contains(t, strings.Join(logs, " "), "Forced integrity checking")
-}
-
-// Expectation: mustCRC32Handler should return error for invalid boolean.
-func Test_mustCRC32Handler_InvalidBoolean_Error(t *testing.T) {
-	t.Parallel()
-	dash := testDashboard(t, io.Discard)
-
-	req := httptest.NewRequest(http.MethodGet, "/set/checkall/x", nil)
-	w := httptest.NewRecorder()
-
-	router := dash.dashboardMux()
-	router.ServeHTTP(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-
-	body := w.Body.String()
-	require.Contains(t, body, "Invalid")
-
-	require.False(t, dash.fsys.Options.MustCRC32.Load())
-}
-
-// Expectation: mustCRC32Handler should return error for empty value.
-func Test_mustCRC32Handler_EmptyBoolean_Error(t *testing.T) {
-	t.Parallel()
-	dash := testDashboard(t, io.Discard)
-
-	req := httptest.NewRequest(http.MethodGet, "/set/checkall", nil)
-	w := httptest.NewRecorder()
-
-	router := dash.dashboardMux()
-	router.ServeHTTP(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusNotFound, resp.StatusCode)
-	require.False(t, dash.fsys.Options.MustCRC32.Load())
-}
-
 // Expectation: thresholdHandler should update threshold with valid input.
 func Test_thresholdHandler_Success(t *testing.T) {
 	t.Parallel()
@@ -361,6 +292,80 @@ func Test_thresholdHandler_VariousFormats_Success(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, tc.expected, dash.fsys.Options.StreamingThreshold.Load())
 	}
+}
+
+// Expectation: booleanHandler should update the target atomic.Bool with valid input.
+func Test_booleanHandler_Success(t *testing.T) {
+	t.Parallel()
+	dash := testDashboard(t, io.Discard)
+
+	handler := dash.booleanHandler("Forced integrity checking", &dash.fsys.Options.MustCRC32)
+
+	req := httptest.NewRequest(http.MethodGet, "/set/checkall/true", nil)
+	req = mux.SetURLVars(req, map[string]string{"value": "true"})
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
+
+	body := w.Body.String()
+	require.Contains(t, body, "Forced integrity checking")
+	require.Contains(t, body, "true")
+
+	require.True(t, dash.fsys.Options.MustCRC32.Load())
+
+	logs := dash.rbuf.Lines()
+	require.NotEmpty(t, logs)
+	require.Contains(t, strings.Join(logs, " "), "Forced integrity checking")
+}
+
+// Expectation: booleanHandler should return error for invalid boolean.
+func Test_booleanHandler_InvalidBoolean_Error(t *testing.T) {
+	t.Parallel()
+	dash := testDashboard(t, io.Discard)
+
+	handler := dash.booleanHandler("Forced integrity checking", &dash.fsys.Options.MustCRC32)
+
+	req := httptest.NewRequest(http.MethodGet, "/set/checkall/x", nil)
+	req = mux.SetURLVars(req, map[string]string{"value": "x"})
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	body := w.Body.String()
+	require.Contains(t, body, "Invalid boolean value")
+
+	require.False(t, dash.fsys.Options.MustCRC32.Load())
+}
+
+// Expectation: booleanHandler should return error for missing value.
+func Test_booleanHandler_EmptyBoolean_Error(t *testing.T) {
+	t.Parallel()
+	dash := testDashboard(t, io.Discard)
+
+	handler := dash.booleanHandler("Forced integrity checking", &dash.fsys.Options.MustCRC32)
+
+	req := httptest.NewRequest(http.MethodGet, "/set/checkall", nil)
+	req = mux.SetURLVars(req, map[string]string{}) // no "value"
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	require.False(t, dash.fsys.Options.MustCRC32.Load())
 }
 
 // Expectation: Logo endpoint should serve PNG image.
