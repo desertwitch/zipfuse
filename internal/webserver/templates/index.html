@@ -198,22 +198,22 @@
                 <div class="metric-label">Average Extraction Speed</div>
                 <div class="metric-value" data-metric="avgExtractSpeed">{{.AvgExtractSpeed}}</div>
             </div>
+            <div class="metric-tile">
+                <div class="metric-label">LRU Cache Hits</div>
+                <div class="metric-value" data-metric="totalLruHits">{{.TotalLruHits}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">LRU Cache Misses</div>
+                <div class="metric-value" data-metric="totalLruMisses">{{.TotalLruMisses}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">LRU Cache Hit Ratio</div>
+                <div class="metric-value" data-metric="totalLruRatio">{{.TotalLruRatio}}</div>
+            </div>
         </div>
 
         <div class="section-label">Filesystem Settings</div>
         <div class="metrics-grid">
-            <div class="metric-tile">
-                <div class="metric-label">LRU Cache</div>
-                <div class="metric-value" data-metric="cacheEnabled">{{.CacheEnabled}}</div>
-            </div>
-            <div class="metric-tile">
-                <div class="metric-label">LRU Cache Size</div>
-                <div class="metric-value" data-metric="cacheSize">{{.CacheSize}}</div>
-            </div>
-            <div class="metric-tile">
-                <div class="metric-label">LRU Cache TTL</div>
-                <div class="metric-value" data-metric="cacheTtl">{{.CacheTTL}}</div>
-            </div>
             <div class="metric-tile">
                 <div class="metric-label">Streaming Threshold</div>
                 <div class="metric-value" data-metric="streamingThreshold">{{.StreamingThreshold}}</div>
@@ -225,6 +225,18 @@
             <div class="metric-tile">
                 <div class="metric-label">Forced Integrity Verification</div>
                 <div class="metric-value" data-metric="mustCrc32">{{.MustCRC32}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">LRU Cache</div>
+                <div class="metric-value" data-metric="cacheEnabled">{{.CacheEnabled}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">LRU Cache Size</div>
+                <div class="metric-value" data-metric="cacheSize">{{.CacheSize}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">LRU Cache TTL</div>
+                <div class="metric-value" data-metric="cacheTtl">{{.CacheTTL}}</div>
             </div>
         </div>
 

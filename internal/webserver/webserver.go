@@ -67,6 +67,9 @@ type fsDashboardData struct {
 	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
 	TotalExtracts       int64    `json:"totalExtracts"`
 	TotalExtractBytes   string   `json:"totalExtractBytes"`
+	TotalLruHits        int64    `json:"totalLruHits"`
+	TotalLruMisses      int64    `json:"totalLruMisses"`
+	TotalLruRatio       string   `json:"totalLruRatio"`
 	Logs                []string `json:"logs"`
 }
 
@@ -138,6 +141,9 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		AvgExtractSpeed:     d.avgExtractSpeed(),
 		TotalExtracts:       d.fsys.Metrics.TotalExtractCount.Load(),
 		TotalExtractBytes:   d.totalExtractBytes(),
+		TotalLruHits:        d.fsys.Metrics.TotalLruHits.Load(),
+		TotalLruMisses:      d.fsys.Metrics.TotalLruMisses.Load(),
+		TotalLruRatio:       d.totalLruRatio(),
 		Logs:                lines,
 	}
 }
@@ -183,6 +189,8 @@ func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request
 	d.fsys.Metrics.TotalOpenedZips.Store(0)
 	d.fsys.Metrics.TotalClosedZips.Store(0)
 	d.fsys.Metrics.TotalReopenedEntries.Store(0)
+	d.fsys.Metrics.TotalLruHits.Store(0)
+	d.fsys.Metrics.TotalLruMisses.Store(0)
 
 	d.rbuf.Println("Metrics reset via API.")
 

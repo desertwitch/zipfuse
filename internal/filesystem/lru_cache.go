@@ -38,7 +38,6 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 
 	// Cache must be enabled from here on downwards.
 	// We need locking to avoid concurrent insertion of [zipReaders].
-
 	c.Lock()
 	defer c.Unlock()
 
@@ -52,6 +51,9 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 		}
 
 		c.cache.Add(archive, zr)
+		c.fsys.Metrics.TotalLruMisses.Add(1)
+	} else {
+		c.fsys.Metrics.TotalLruHits.Add(1)
 	}
 
 	// Cache holds one reference, add another for the caller.
@@ -86,7 +88,6 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 
 	// Cache must be enabled from here on downwards.
 	// We need locking to avoid concurrent insertion of [zipReaders].
-
 	c.Lock()
 	defer c.Unlock()
 
@@ -103,6 +104,9 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 		}
 
 		c.cache.Add(archive, zr)
+		c.fsys.Metrics.TotalLruMisses.Add(1)
+	} else {
+		c.fsys.Metrics.TotalLruHits.Add(1)
 	}
 
 	for _, f := range zr.File {

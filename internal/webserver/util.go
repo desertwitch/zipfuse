@@ -1,6 +1,7 @@
 package webserver
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -43,4 +44,19 @@ func enabledOrDisabled(v bool) string {
 	}
 
 	return "Disabled"
+}
+
+//nolint:mnd
+func (d *FSDashboard) totalLruRatio() string {
+	hits := d.fsys.Metrics.TotalLruHits.Load()
+	misses := d.fsys.Metrics.TotalLruMisses.Load()
+	total := hits + misses
+
+	if total == 0 {
+		return "0.00%"
+	}
+
+	perc := (float64(hits) / float64(total)) * 100
+
+	return fmt.Sprintf("%.2f%%", perc)
 }

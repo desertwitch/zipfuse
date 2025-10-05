@@ -101,6 +101,12 @@ type Metrics struct {
 
 	// TotalExtractBytes is the amount of bytes extracted from ZIP files.
 	TotalExtractBytes atomic.Int64
+
+	// TotalLruHits is the amount of cache-hits for the LRU cache.
+	TotalLruHits atomic.Int64
+
+	// TotalLruMisses is the amount of cache-misses for the LRU cache
+	TotalLruMisses atomic.Int64
 }
 
 // FS is the core implementation of the filesystem.
