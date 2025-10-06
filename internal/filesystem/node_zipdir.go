@@ -24,7 +24,7 @@ var (
 // All structures contained in the archive are flattened (by [flatEntryName])
 // and presented as regular files (to be unpacked into memory when requested).
 type zipDirNode struct {
-	fsys   *FS
+	fsys   *FS       // Pointer to our filesystem.
 	inode  uint64    // Inode within our filesystem.
 	path   string    // Path of the underlying ZIP archive.
 	prefix string    // Prefix within the underlying ZIP archive.

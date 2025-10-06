@@ -111,7 +111,7 @@ func main() {
 	}
 }
 
-func walkFsAndExit(fsys *filesystem.FS) {
+func dryWalkFS(fsys *filesystem.FS) error {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sig := make(chan os.Signal, 1)
@@ -129,7 +129,7 @@ func walkFsAndExit(fsys *filesystem.FS) {
 		return nil
 	})
 	if err == nil {
-		os.Exit(0)
+		return nil
 	}
 
 	for {
@@ -137,7 +137,7 @@ func walkFsAndExit(fsys *filesystem.FS) {
 		if unwrapped == nil {
 			// Return the deepest error, and not the whole chain.
 			// The node-produced error messages will show the details.
-			log.Fatalf("fs walk error: %v", err)
+			return fmt.Errorf("fs walk error: %w", err)
 		}
 		err = unwrapped
 	}
@@ -194,9 +194,13 @@ func run(opts cliOptions) error {
 	fopts.MustCRC32.Store(opts.mustCRC32)
 	fopts.StreamingThreshold.Store(opts.streamThreshold)
 
-	fsys := filesystem.NewFS(opts.rootDir, fopts, rbuf)
+	fsys, err := filesystem.NewFS(opts.rootDir, fopts, rbuf)
+	if err != nil {
+		return fmt.Errorf("failed to establish fs: %w", err)
+	}
+
 	if opts.dryRun {
-		walkFsAndExit(fsys)
+		return dryWalkFS(fsys)
 	}
 
 	mountOpts := []fuse.MountOption{fuse.FSName("zipfuse"), fuse.ReadOnly()}
@@ -234,7 +238,11 @@ func run(opts cliOptions) error {
 	})
 
 	if opts.dashboardAddress != "" {
-		dash := webserver.NewFSDashboard(fsys, rbuf, Version)
+		dash, err := webserver.NewFSDashboard(fsys, rbuf, Version)
+		if err != nil {
+			return fmt.Errorf("failed to establish dashboard: %w", err)
+		}
+
 		srv := dash.Serve(opts.dashboardAddress)
 		defer srv.Close()
 	}

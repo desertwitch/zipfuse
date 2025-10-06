@@ -21,8 +21,10 @@ func testFS(t *testing.T, out io.Writer) (string, *FS) {
 
 	tmp := t.TempDir()
 	rbf := logging.NewRingBuffer(10, out)
+	fsys, err := NewFS(tmp, nil, rbf)
+	require.NoError(t, err)
 
-	return tmp, NewFS(tmp, nil, rbf)
+	return tmp, fsys
 }
 
 // Expectation: RootDir should be returned as a [realDirNode].
@@ -90,9 +92,11 @@ func Test_FS_Deterministic_Success(t *testing.T) {
 		t.Run("FlatMode="+strconv.FormatBool(mode), func(t *testing.T) {
 			t.Parallel()
 
-			fs1 := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			fs1, err := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			require.NoError(t, err)
 			fs1.Options.FlatMode = mode
-			fs2 := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			fs2, err := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			require.NoError(t, err)
 			fs2.Options.FlatMode = mode
 
 			paths1, entries1 := collect(fs1)

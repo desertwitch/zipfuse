@@ -18,8 +18,13 @@ func testDashboard(t *testing.T, out io.Writer) *FSDashboard {
 
 	tmp := t.TempDir()
 	rbf := logging.NewRingBuffer(10, out)
+	fsys, err := filesystem.NewFS(tmp, nil, rbf)
+	require.NoError(t, err)
 
-	return NewFSDashboard(filesystem.NewFS(tmp, nil, rbf), rbf, "gotests")
+	dashboard, err := NewFSDashboard(fsys, rbf, "gotests")
+	require.NoError(t, err)
+
+	return dashboard
 }
 
 // Expectation: Serve should return a valid HTTP server pointer.

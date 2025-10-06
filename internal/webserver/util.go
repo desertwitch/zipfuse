@@ -38,14 +38,6 @@ func (d *FSDashboard) totalExtractBytes() string {
 	return humanize.Bytes(uint64(bytes))
 }
 
-func enabledOrDisabled(v bool) string {
-	if v {
-		return "Enabled"
-	}
-
-	return "Disabled"
-}
-
 //nolint:mnd
 func (d *FSDashboard) totalLruRatio() string {
 	hits := d.fsys.Metrics.TotalLruHits.Load()
@@ -59,4 +51,12 @@ func (d *FSDashboard) totalLruRatio() string {
 	perc := (float64(hits) / float64(total)) * 100
 
 	return fmt.Sprintf("%.2f%%", perc)
+}
+
+func enabledOrDisabled(v bool) string {
+	if v {
+		return "Enabled"
+	}
+
+	return "Disabled"
 }

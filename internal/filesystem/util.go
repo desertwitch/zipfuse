@@ -40,6 +40,9 @@ type zipReader struct {
 // It internally increases the reference count by one upon returning the
 // pointer. Once done, you need to call Release() to close the reference.
 // When re-using the [zipReader], ensure to always Acquire() and Release().
+//
+// A new [zipReader] is always returned with a reference count of one.
+// This means that one-shot calls only need to call Release() after use.
 func newZipReader(fsys *FS, path string) (*zipReader, error) {
 	rc, err := zip.OpenReader(path)
 	if err != nil {
@@ -60,6 +63,10 @@ func newZipReader(fsys *FS, path string) (*zipReader, error) {
 
 // Acquire increases the reference count by one, it should be
 // called every time a [zipReader] is re-used more than once.
+//
+// Upon creation of a [zipReader], the reference count is one,
+// so single one-shot use does not need to Acquire(), and only
+// ensure a Release() call once [zipReader] is done with using.
 func (zr *zipReader) Acquire() {
 	zr.refCount.Add(1)
 }
@@ -77,11 +84,11 @@ func (zr *zipReader) Release() error {
 // Close is not supported and will always panic when being used.
 // You should use Release() instead, which internally calls Close().
 func (zr *zipReader) Close() error {
-	panic("unsupported direct close of reader")
+	panic("unsupported direct close of zipReader, use Release() instead")
 }
 
 // closeReader instantly closes the [zip.ReadCloser].
-// You should use Release() instead, which internally calls closeReader().
+// You must use Release() instead, which internally calls closeReader().
 func (zr *zipReader) closeReader() error {
 	zr.fsys.Metrics.OpenZips.Add(-1)
 	zr.fsys.Metrics.TotalClosedZips.Add(1)
@@ -102,7 +109,7 @@ type zipFileReader struct {
 }
 
 // newZipFileReader opens a [zip.File] and returns a new [zipFileReader].
-// You should ensure that Close will always be called after use is complete.
+// You must ensure that Close will always be called after use is complete.
 func newZipFileReader(fsys *FS, f *zip.File) (*zipFileReader, error) {
 	var r io.Reader
 	var err error
@@ -172,6 +179,8 @@ func (fr *zipFileReader) Position() int64 {
 }
 
 // Close facilitiates the closing of the reader after use.
+// In case the underlying [io.Reader] is a [io.SectionReader],
+// it is a no-op and will return nil without closing anything.
 func (fr *zipFileReader) Close() error {
 	if closer, ok := fr.r.(io.ReadCloser); ok {
 		return closer.Close() //nolint:wrapcheck

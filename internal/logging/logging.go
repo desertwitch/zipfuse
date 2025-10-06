@@ -10,6 +10,7 @@ import (
 )
 
 // RingBuffer is a simple ring-buffer implementation.
+// It is thread-safe for concurrent use.
 type RingBuffer struct {
 	mu    sync.Mutex
 	out   io.Writer

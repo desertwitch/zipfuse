@@ -3,7 +3,9 @@ package filesystem
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -13,21 +15,23 @@ import (
 )
 
 const (
-	fileBasePerm = 0o444 // RO
-	dirBasePerm  = 0o555 // RO
-
-	flattenHashDigits = 8 // [flatEntryName]
+	fileBasePerm      = 0o444 // RO
+	dirBasePerm       = 0o555 // RO
+	flattenHashDigits = 8     // [flatEntryName]
 
 	defaultCacheSize          = 60
 	defaultCacheTTL           = 60 * time.Second
 	defaultFlatMode           = false
 	defaultMustCRC32          = false
 	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MB
+
 )
 
 var (
 	_ fs.FS               = (*FS)(nil)
 	_ fs.FSInodeGenerator = (*FS)(nil)
+
+	errMissingArgument = errors.New("missing argument")
 )
 
 // Options contains all settings for the operation of the filesystem.
@@ -47,7 +51,6 @@ type Options struct {
 
 	// FlatMode controls if ZIP-contained subdirectories and files
 	// should be flattened with [flatEntryName] for shallow directories.
-	// This variable should no longer be modified when the FS is mounted.
 	FlatMode bool
 
 	// MustCRC32 controls if ZIP-contained uncompressed files must still run
@@ -59,7 +62,7 @@ type Options struct {
 	StreamingThreshold atomic.Uint64
 }
 
-// DefaultOptions returns a pointer to [Options] with the default settings.
+// DefaultOptions returns a pointer to [Options] with the default values.
 func DefaultOptions() *Options {
 	opts := &Options{
 		CacheSize: defaultCacheSize,
@@ -116,12 +119,22 @@ type FS struct {
 	Options *Options
 	Metrics *Metrics
 
-	rbuf  *logging.RingBuffer
 	cache *zipReaderCache
+	rbuf  *logging.RingBuffer
 }
 
 // NewFS returns a pointer to a new [FS].
-func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) *FS {
+func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error) {
+	if rbuf == nil {
+		return nil, fmt.Errorf("%w: need a ring buffer", errMissingArgument)
+	}
+	if rootDir == "" {
+		return nil, fmt.Errorf("%w: need a root dir", errMissingArgument)
+	}
+	if _, err := os.Stat(rootDir); err != nil {
+		return nil, fmt.Errorf("failed to stat root dir: %w", err)
+	}
+
 	if opts == nil {
 		opts = DefaultOptions()
 	}
@@ -134,10 +147,10 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) *FS {
 	}
 	fsys.cache = newZipReaderCache(fsys, opts.CacheSize, opts.CacheTTL)
 
-	return fsys
+	return fsys, nil
 }
 
-// Root returns the topmost [fs.Node] of the filesystem.
+// Root returns the entry-point [fs.Node] of the filesystem.
 func (fsys *FS) Root() (fs.Node, error) {
 	return &realDirNode{
 		fsys:  fsys,

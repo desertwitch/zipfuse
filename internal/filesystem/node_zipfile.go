@@ -18,9 +18,9 @@ var _ fs.Node = (*zipBaseFileNode)(nil)
 // It is presented as a regular file in our filesystem and unpacked on demand.
 //
 // To be embedded into either [zipInMemoryFileNode] or [zipDiskStreamFileNode],
-// depending on which [StreamingThreshold] was set by CLI argument or at runtime.
+// depending on [Options.StreamingThreshold] as set by arguments or at runtime.
 type zipBaseFileNode struct {
-	fsys    *FS
+	fsys    *FS       // Pointer to our filesystem.
 	inode   uint64    // Inode within our filesystem.
 	archive string    // Path of the underlying ZIP archive (= parent).
 	path    string    // Path of the file inside the underlying ZIP file.
@@ -48,7 +48,7 @@ var (
 )
 
 // zipInMemoryFileNode is a [zipBaseFileNode] that implements only the
-// [fs.HandleReadAller] for reading the entire file contents into memory.
+// [fs.HandleReadAller] for one-shot reading the entire file into memory.
 type zipInMemoryFileNode struct {
 	*zipBaseFileNode
 }
@@ -68,12 +68,10 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
-		return nil, fuse.ToErrno(err)
+		return nil, fuse.ToErrno(err) // returns an Errno
 	}
-	defer func() {
-		_ = fr.Close()
-		_ = zr.Release()
-	}()
+	defer zr.Release() //nolint:errcheck
+	defer fr.Close()
 
 	data, err := io.ReadAll(fr)
 	if err != nil {
@@ -103,7 +101,7 @@ func (z *zipDiskStreamFileNode) Open(_ context.Context, _ *fuse.OpenRequest, res
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->Open->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
-		return nil, fuse.ToErrno(err)
+		return nil, fuse.ToErrno(err) // returns an Errno
 	}
 
 	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
@@ -131,8 +129,7 @@ var (
 type zipDiskStreamFileHandle struct {
 	sync.Mutex
 
-	fsys *FS
-
+	fsys    *FS
 	archive string
 	path    string
 
@@ -153,7 +150,7 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 		h.offset = n
 		switch {
 		case errors.Is(err, errNonSeekableRewind):
-			f := h.fr.f      // Save the [zip.File] for re-use
+			f := h.fr.f      // Save first the [zip.File] for re-use
 			_ = h.fr.Close() // Close now the failed [zipFileReader]
 
 			// Reopening the entry will start with offset zero, so the
@@ -169,7 +166,7 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 			h.offset = 0
 			h.fsys.Metrics.TotalReopenedEntries.Add(1)
 
-			// Retry the forward... if it fails again, return an error.
+			// Retry the forward... if it fails again, return the error.
 			n, err = h.fr.ForwardTo(req.Offset)
 			h.offset = n
 			if err != nil {

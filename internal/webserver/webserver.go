@@ -26,9 +26,11 @@ var (
 	templateFS embed.FS
 
 	indexTemplate = template.Must(template.ParseFS(templateFS, "templates/index.html"))
+
+	errMissingArgument = errors.New("missing argument")
 )
 
-// FSDashboard is the principal implementation for the filesystem dashboard.
+// FSDashboard is the implementation for the filesystem dashboard.
 type FSDashboard struct {
 	version string
 	fsys    *filesystem.FS
@@ -36,41 +38,48 @@ type FSDashboard struct {
 }
 
 // NewFSDashboard returns a pointer to a new [FSDashboard].
-func NewFSDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, version string) *FSDashboard {
+func NewFSDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, version string) (*FSDashboard, error) {
+	if fsys == nil {
+		return nil, fmt.Errorf("%w: need filesystem", errMissingArgument)
+	}
+	if rbuf == nil {
+		return nil, fmt.Errorf("%w: need ring buffer", errMissingArgument)
+	}
+
 	return &FSDashboard{
 		version: version,
 		fsys:    fsys,
 		rbuf:    rbuf,
-	}
+	}, nil
 }
 
 type fsDashboardData struct {
-	Version             string   `json:"version"`
-	RingBufferSize      int      `json:"ringBufferSize"`
-	OpenZips            int64    `json:"openZips"`
-	OpenedZips          int64    `json:"openedZips"`
-	ClosedZips          int64    `json:"closedZips"`
-	ReopenedEntries     int64    `json:"reopenedEntries"`
+	AllocBytes          string   `json:"allocBytes"`
+	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
+	AvgExtractTime      string   `json:"avgExtractTime"`
+	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
 	CacheEnabled        string   `json:"cacheEnabled"`
 	CacheSize           int      `json:"cacheSize"`
 	CacheTTL            string   `json:"cacheTtl"`
+	ClosedZips          int64    `json:"closedZips"`
 	FlatMode            string   `json:"flatMode"`
+	Logs                []string `json:"logs"`
 	MustCRC32           string   `json:"mustCrc32"`
-	StreamingThreshold  string   `json:"streamingThreshold"`
-	AllocBytes          string   `json:"allocBytes"`
-	TotalAlloc          string   `json:"totalAlloc"`
-	SysBytes            string   `json:"sysBytes"`
 	NumGC               uint32   `json:"numGc"`
-	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
-	TotalMetadatas      int64    `json:"totalMetadatas"`
-	AvgExtractTime      string   `json:"avgExtractTime"`
-	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
-	TotalExtracts       int64    `json:"totalExtracts"`
+	OpenedZips          int64    `json:"openedZips"`
+	OpenZips            int64    `json:"openZips"`
+	ReopenedEntries     int64    `json:"reopenedEntries"`
+	RingBufferSize      int      `json:"ringBufferSize"`
+	StreamingThreshold  string   `json:"streamingThreshold"`
+	SysBytes            string   `json:"sysBytes"`
+	TotalAlloc          string   `json:"totalAlloc"`
 	TotalExtractBytes   string   `json:"totalExtractBytes"`
+	TotalExtracts       int64    `json:"totalExtracts"`
 	TotalLruHits        int64    `json:"totalLruHits"`
 	TotalLruMisses      int64    `json:"totalLruMisses"`
 	TotalLruRatio       string   `json:"totalLruRatio"`
-	Logs                []string `json:"logs"`
+	TotalMetadatas      int64    `json:"totalMetadatas"`
+	Version             string   `json:"version"`
 }
 
 // Serve serves the diagnostics dashboard as part of a [http.Server].
@@ -119,32 +128,32 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 	slices.Reverse(lines)
 
 	return fsDashboardData{
-		Version:             d.version,
-		RingBufferSize:      d.rbuf.Size(),
-		OpenZips:            d.fsys.Metrics.OpenZips.Load(),
-		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
-		ClosedZips:          d.fsys.Metrics.TotalClosedZips.Load(),
-		ReopenedEntries:     d.fsys.Metrics.TotalReopenedEntries.Load(),
+		AllocBytes:          humanize.Bytes(m.Alloc),
+		AvgExtractSpeed:     d.avgExtractSpeed(),
+		AvgExtractTime:      d.avgExtractTime(),
+		AvgMetadataReadTime: d.avgMetadataReadTime(),
 		CacheEnabled:        enabledOrDisabled(!d.fsys.Options.CacheDisabled.Load()),
 		CacheSize:           d.fsys.Options.CacheSize,
 		CacheTTL:            d.fsys.Options.CacheTTL.String(),
+		ClosedZips:          d.fsys.Metrics.TotalClosedZips.Load(),
 		FlatMode:            enabledOrDisabled(d.fsys.Options.FlatMode),
+		Logs:                lines,
 		MustCRC32:           enabledOrDisabled(d.fsys.Options.MustCRC32.Load()),
-		StreamingThreshold:  humanize.Bytes(d.fsys.Options.StreamingThreshold.Load()),
-		AllocBytes:          humanize.Bytes(m.Alloc),
-		TotalAlloc:          humanize.Bytes(m.TotalAlloc),
-		SysBytes:            humanize.Bytes(m.Sys),
 		NumGC:               m.NumGC,
-		AvgMetadataReadTime: d.avgMetadataReadTime(),
-		TotalMetadatas:      d.fsys.Metrics.TotalMetadataReadCount.Load(),
-		AvgExtractTime:      d.avgExtractTime(),
-		AvgExtractSpeed:     d.avgExtractSpeed(),
-		TotalExtracts:       d.fsys.Metrics.TotalExtractCount.Load(),
+		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
+		OpenZips:            d.fsys.Metrics.OpenZips.Load(),
+		ReopenedEntries:     d.fsys.Metrics.TotalReopenedEntries.Load(),
+		RingBufferSize:      d.rbuf.Size(),
+		StreamingThreshold:  humanize.Bytes(d.fsys.Options.StreamingThreshold.Load()),
+		SysBytes:            humanize.Bytes(m.Sys),
+		TotalAlloc:          humanize.Bytes(m.TotalAlloc),
 		TotalExtractBytes:   d.totalExtractBytes(),
+		TotalExtracts:       d.fsys.Metrics.TotalExtractCount.Load(),
 		TotalLruHits:        d.fsys.Metrics.TotalLruHits.Load(),
 		TotalLruMisses:      d.fsys.Metrics.TotalLruMisses.Load(),
 		TotalLruRatio:       d.totalLruRatio(),
-		Logs:                lines,
+		TotalMetadatas:      d.fsys.Metrics.TotalMetadataReadCount.Load(),
+		Version:             d.version,
 	}
 }
 
@@ -181,16 +190,16 @@ func (d *FSDashboard) gcHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
-	d.fsys.Metrics.TotalMetadataReadTime.Store(0)
-	d.fsys.Metrics.TotalMetadataReadCount.Store(0)
-	d.fsys.Metrics.TotalExtractTime.Store(0)
-	d.fsys.Metrics.TotalExtractCount.Store(0)
-	d.fsys.Metrics.TotalExtractBytes.Store(0)
-	d.fsys.Metrics.TotalOpenedZips.Store(0)
 	d.fsys.Metrics.TotalClosedZips.Store(0)
-	d.fsys.Metrics.TotalReopenedEntries.Store(0)
+	d.fsys.Metrics.TotalExtractBytes.Store(0)
+	d.fsys.Metrics.TotalExtractCount.Store(0)
+	d.fsys.Metrics.TotalExtractTime.Store(0)
 	d.fsys.Metrics.TotalLruHits.Store(0)
 	d.fsys.Metrics.TotalLruMisses.Store(0)
+	d.fsys.Metrics.TotalMetadataReadCount.Store(0)
+	d.fsys.Metrics.TotalMetadataReadTime.Store(0)
+	d.fsys.Metrics.TotalOpenedZips.Store(0)
+	d.fsys.Metrics.TotalReopenedEntries.Store(0)
 
 	d.rbuf.Println("Metrics reset via API.")
 
