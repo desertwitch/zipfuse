@@ -63,6 +63,7 @@ type cliOptions struct {
 	rootDir            string
 	streamThreshold    uint64
 	streamThresholdRaw string
+	fuseVerbose        bool
 }
 
 //nolint:mnd
@@ -70,22 +71,9 @@ func rootCmd() *cobra.Command {
 	var opts cliOptions
 
 	cmd := &cobra.Command{
-		Use:   "zipfuse <root-dir> <mountpoint>",
-		Short: "a read-only FUSE filesystem for browsing of ZIP files",
-		Long: `zipfuse is a FUSE filesystem that shows ZIP files as flattened, browseable
-directories - it unpacks, streams and serves files straight from memory (RAM).
-
-When mounted, the following OS signals are observed at runtime:
-- SIGTERM/SIGINT for gracefully unmounting the FS
-- SIGUSR1 for forcing a garbage collection run within Go
-- SIGUSR2 for printing a stack trace to standard error (stderr)
-
-When enabled, the diagnostics dashboard exposes the following routes:
-- "/" for filesystem dashboard and event ring-buffer
-- "/gc" for forcing of a garbage collection (within Go)
-- "/reset" for resetting the filesystem metrics at runtime
-- "/set/checkall/<bool>" for adapting forced integrity checking
-- "/set/threshold/<string>" for adapting of the streaming threshold`,
+		Use:     helpTextUse,
+		Short:   helpTextShort,
+		Long:    helpTextLong,
 		Version: Version,
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -93,17 +81,18 @@ When enabled, the diagnostics dashboard exposes the following routes:
 
 			opts.streamThreshold, err = humanize.ParseBytes(opts.streamThresholdRaw)
 			if err != nil {
-				return fmt.Errorf("failed to parse threshold: %w", err)
+				return fmt.Errorf("failed to parse memsize: %w", err)
 			}
-
 			opts.rootDir = args[0]
 			opts.mountDir = args[1]
 
 			return run(opts)
 		},
 	}
+	cmd.PersistentFlags().BoolP("version", "", false, "version for zipfuse") // removes -v shorthand
+
 	cmd.Flags().BoolVarP(&opts.allowOther, "allowother", "a", true, "Allow other users to access the filesystem")
-	cmd.Flags().BoolVarP(&opts.dryRun, "dryrun", "d", false, "Do not mount the filesystem, but print all would-be inodes and paths to stdout")
+	cmd.Flags().BoolVarP(&opts.dryRun, "dryrun", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&opts.mustCRC32, "checkall", "c", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
 	cmd.Flags().BoolVar(&opts.lruDisable, "lrudisable", false, "Disable the LRU cache and re-open file descriptors on every request (beware FD limits)")
@@ -111,6 +100,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 	cmd.Flags().IntVar(&opts.lruSize, "lrusize", 60, "Max total number of file descriptors in the LRU cache (beware FD limits)")
 	cmd.Flags().StringVarP(&opts.dashboardAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "memsize", "m", "10M", "Size cutoff for loading a file fully into RAM (streaming instead)")
+	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print any verbose FUSE communication and diagnostics to standard error (stderr)")
 
 	return cmd
 }
@@ -205,7 +195,6 @@ func run(opts cliOptions) error {
 	fopts.StreamingThreshold.Store(opts.streamThreshold)
 
 	fsys := filesystem.NewFS(opts.rootDir, fopts, rbuf)
-
 	if opts.dryRun {
 		walkFsAndExit(fsys)
 	}
@@ -228,7 +217,18 @@ func run(opts cliOptions) error {
 	errChan := make(chan error, 1)
 	wg.Go(func() {
 		defer close(errChan)
-		if err := fs.Serve(c, fsys); err != nil {
+
+		var config *fs.Config
+		if opts.fuseVerbose {
+			config = &fs.Config{
+				Debug: func(msg interface{}) {
+					fmt.Fprintf(os.Stderr, "%s", msg)
+				},
+			}
+		}
+
+		srv := fs.New(c, config)
+		if err := srv.Serve(fsys); err != nil {
 			errChan <- fmt.Errorf("fs serve error: %w", err)
 		}
 	})
