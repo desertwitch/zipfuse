@@ -24,6 +24,36 @@ func Test_newZipReaderCache_Success(t *testing.T) {
 	require.NotNil(t, cache.cache)
 }
 
+// Expectation: zipReaderCache.Archive should still return a new zipReader on cache disabled.
+func Test_zipReaderCache_Archive_CacheDisabled_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	fsys.Options.CacheDisabled.Store(true)
+
+	content := []byte("test content")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+
+	zr, err := cache.Archive(zipPath)
+	require.NoError(t, err)
+	require.NotNil(t, zr)
+	require.Equal(t, int32(1), zr.refCount.Load()) // caller ref
+
+	require.Zero(t, fsys.cache.cache.Len())
+
+	err = zr.Release() // caller ref
+	require.NoError(t, err)
+}
+
 // Expectation: zipReaderCache.Archive should return a new zipReader for uncached archive.
 func Test_zipReaderCache_Archive_Uncached_Success(t *testing.T) {
 	t.Parallel()
@@ -122,8 +152,43 @@ func Test_zipReaderCache_Archive_InvalidZip_Error(t *testing.T) {
 	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
 }
 
+// Expectation: zipReaderCache.Entry should still return zipReader and
+// zipFileReader for a valid entry on cache disabled.
+func Test_zipReaderCache_Entry_CacheDisabled_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	fsys.Options.CacheDisabled.Store(true)
+
+	content := []byte("test content")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: content},
+	})
+
+	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+
+	zr, fr, err := cache.Entry(zipPath, "test.txt")
+	require.NoError(t, err)
+	require.NotNil(t, zr)
+	require.NotNil(t, fr)
+	require.Equal(t, int32(1), zr.refCount.Load()) // caller ref
+
+	require.Zero(t, fsys.cache.cache.Len())
+
+	err = fr.Close()
+	require.NoError(t, err)
+
+	err = zr.Release() // caller ref
+	require.NoError(t, err)
+}
+
 // Expectation: zipReaderCache.Entry should return zipReader and zipFileReader for valid entry.
-func Test_zipReaderCache_Entry_Success(t *testing.T) {
+func Test_zipReaderCache_Entry_Uncached_Success(t *testing.T) {
 	t.Parallel()
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
