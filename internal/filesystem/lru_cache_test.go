@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -127,12 +128,19 @@ func Test_zipReaderCache_Archive_NotExist_Error(t *testing.T) {
 	t.Parallel()
 	_, fsys := testFS(t, io.Discard)
 
-	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	for _, mode := range []bool{true, false} {
+		t.Run("cache="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+			fsys.Options.CacheDisabled.Store(mode)
 
-	zr, err := cache.Archive("/nonexistent/archive.zip")
-	require.Nil(t, zr)
-	require.Error(t, err)
-	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+
+			zr, err := cache.Archive("/nonexistent/archive.zip")
+			require.Nil(t, zr)
+			require.Error(t, err)
+			require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+		})
+	}
 }
 
 // Expectation: zipReaderCache.Archive should return error for invalid archive.
@@ -144,12 +152,19 @@ func Test_zipReaderCache_Archive_InvalidZip_Error(t *testing.T) {
 	err := os.WriteFile(invalidPath, []byte("not a zip file"), 0o644)
 	require.NoError(t, err)
 
-	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	for _, mode := range []bool{true, false} {
+		t.Run("cache="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+			fsys.Options.CacheDisabled.Store(mode)
 
-	zr, err := cache.Archive(invalidPath)
-	require.Nil(t, zr)
-	require.Error(t, err)
-	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+
+			zr, err := cache.Archive(invalidPath)
+			require.Nil(t, zr)
+			require.Error(t, err)
+			require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+		})
+	}
 }
 
 // Expectation: zipReaderCache.Entry should still return zipReader and
@@ -281,13 +296,20 @@ func Test_zipReaderCache_Entry_NotExist_Error(t *testing.T) {
 		{Path: "test.txt", ModTime: tnow, Content: content},
 	})
 
-	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	for _, mode := range []bool{true, false} {
+		t.Run("cache="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+			fsys.Options.CacheDisabled.Store(mode)
 
-	zr, fr, err := cache.Entry(zipPath, "nonexistent.txt")
-	require.Nil(t, zr)
-	require.Nil(t, fr)
-	require.Error(t, err)
-	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
+			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+
+			zr, fr, err := cache.Entry(zipPath, "nonexistent.txt")
+			require.Nil(t, zr)
+			require.Nil(t, fr)
+			require.Error(t, err)
+			require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
+		})
+	}
 }
 
 // Expectation: zipReaderCache.Entry should return error for non-existent archive.
@@ -295,13 +317,20 @@ func Test_zipReaderCache_Entry_ArchiveNotExist_Error(t *testing.T) {
 	t.Parallel()
 	_, fsys := testFS(t, io.Discard)
 
-	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	for _, mode := range []bool{true, false} {
+		t.Run("cache="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+			fsys.Options.CacheDisabled.Store(mode)
 
-	zr, fr, err := cache.Entry("/nonexistent/archive.zip", "test.txt")
-	require.Nil(t, zr)
-	require.Nil(t, fr)
-	require.Error(t, err)
-	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+
+			zr, fr, err := cache.Entry("/nonexistent/archive.zip", "test.txt")
+			require.Nil(t, zr)
+			require.Nil(t, fr)
+			require.Error(t, err)
+			require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+		})
+	}
 }
 
 // Expectation: zipReaderCache.Entry should return error for invalid archive.
