@@ -12,7 +12,21 @@ import (
 	"bazil.org/fuse/fs"
 )
 
-var _ fs.Node = (*zipBaseFileNode)(nil)
+const (
+	poolBufferSize = 128 * 1024 // 128KB
+)
+
+var (
+	_ fs.Node = (*zipBaseFileNode)(nil)
+
+	bufPool = sync.Pool{
+		New: func() any {
+			b := make([]byte, poolBufferSize)
+
+			return &b
+		},
+	}
+)
 
 // zipBaseFileNode is a file within a ZIP archive of the mirrored filesystem.
 // It is presented as a regular file in our filesystem and unpacked on demand.
@@ -182,7 +196,27 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 		}
 	}
 
-	buf := make([]byte, req.Size)
+	rawBuf := bufPool.Get()
+	pBuf, ok := rawBuf.(*[]byte)
+	if !ok {
+		panic("zipDiskStreamFileHandle: received unexpected type from bufPool")
+	}
+	buf := *pBuf
+
+	if cap(buf) < req.Size {
+		// Put back the pointer first, we won't use it.
+		*pBuf = (*pBuf)[:poolBufferSize]
+		bufPool.Put(pBuf)
+
+		buf = make([]byte, req.Size) // will be GC'ed.
+	} else {
+		defer func() {
+			*pBuf = (*pBuf)[:poolBufferSize]
+			bufPool.Put(pBuf)
+		}()
+	}
+
+	buf = buf[:req.Size]
 
 	n, err := io.ReadFull(h.fr, buf)
 	h.offset += int64(n)
@@ -193,7 +227,8 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 		return fuse.ToErrno(syscall.EIO)
 	}
 
-	resp.Data = buf[:n]
+	// The kernel owns the data buffer, so we hand it a copy of ours here.
+	resp.Data = append([]byte(nil), buf[:n]...)
 
 	return nil
 }

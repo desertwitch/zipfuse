@@ -662,3 +662,332 @@ func Test_zipDiskStreamFileHandle_Read_Concurrent_Success(t *testing.T) {
 		})
 	}
 }
+
+// Expectation: Read should use buffer from pool when size is within pool capacity.
+func Test_zipDiskStreamFileHandle_Read_Pool_UseBuffer_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	content := []byte("small content that fits in pool buffer")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "small.txt", ModTime: tnow, Content: content},
+	})
+
+	node := &zipDiskStreamFileNode{
+		zipBaseFileNode: &zipBaseFileNode{
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "small.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
+		},
+	}
+
+	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, &fuse.OpenResponse{})
+	require.NoError(t, err)
+
+	fhandle, ok := handle.(*zipDiskStreamFileHandle)
+	require.True(t, ok)
+
+	defer func() {
+		err = fhandle.Release(t.Context(), &fuse.ReleaseRequest{})
+		require.NoError(t, err)
+	}()
+
+	req := &fuse.ReadRequest{
+		Offset: 0,
+		Size:   len(content),
+	}
+	resp := &fuse.ReadResponse{}
+
+	err = fhandle.Read(t.Context(), req, resp)
+	require.NoError(t, err)
+	require.Equal(t, content, resp.Data)
+}
+
+// Expectation: Read should allocate new buffer when requested size exceeds pool capacity.
+func Test_zipDiskStreamFileHandle_Read_Pool_AllocLargeBuffer_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	// Content to force allocation
+	largeSize := poolBufferSize + 1024
+	content := make([]byte, largeSize)
+	for i := range content {
+		content[i] = byte(i % 256)
+	}
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "large.txt", ModTime: tnow, Content: content},
+	})
+
+	node := &zipDiskStreamFileNode{
+		zipBaseFileNode: &zipBaseFileNode{
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "large.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
+		},
+	}
+
+	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, &fuse.OpenResponse{})
+	require.NoError(t, err)
+
+	fhandle, ok := handle.(*zipDiskStreamFileHandle)
+	require.True(t, ok)
+
+	defer func() {
+		err = fhandle.Release(t.Context(), &fuse.ReleaseRequest{})
+		require.NoError(t, err)
+	}()
+
+	req := &fuse.ReadRequest{
+		Offset: 0,
+		Size:   largeSize,
+	}
+	resp := &fuse.ReadResponse{}
+
+	err = fhandle.Read(t.Context(), req, resp)
+	require.NoError(t, err)
+	require.Equal(t, content, resp.Data)
+}
+
+// Expectation: Multiple reads with pool-sized buffers should reuse pool buffers.
+func Test_zipDiskStreamFileHandle_Read_Pool_BufferReuse_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	// Content that can be read in pool-sized chunks
+	totalSize := poolBufferSize * 3
+	content := make([]byte, totalSize)
+	for i := range content {
+		content[i] = byte(i % 256)
+	}
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "chunked.txt", ModTime: tnow, Content: content},
+	})
+
+	node := &zipDiskStreamFileNode{
+		zipBaseFileNode: &zipBaseFileNode{
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "chunked.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
+		},
+	}
+
+	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, &fuse.OpenResponse{})
+	require.NoError(t, err)
+
+	fhandle, ok := handle.(*zipDiskStreamFileHandle)
+	require.True(t, ok)
+
+	defer func() {
+		err = fhandle.Release(t.Context(), &fuse.ReleaseRequest{})
+		require.NoError(t, err)
+	}()
+
+	for i := range 3 {
+		offset := int64(i * poolBufferSize)
+		req := &fuse.ReadRequest{
+			Offset: offset,
+			Size:   poolBufferSize,
+		}
+		resp := &fuse.ReadResponse{}
+
+		err = fhandle.Read(t.Context(), req, resp)
+		require.NoError(t, err)
+		require.Equal(t, content[offset:offset+int64(poolBufferSize)], resp.Data)
+	}
+}
+
+// Expectation: Read at pool buffer size boundary should work correctly.
+func Test_zipDiskStreamFileHandle_Read_Pool_BufferBoundary_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	content := make([]byte, poolBufferSize)
+	for i := range content {
+		content[i] = byte(i % 256)
+	}
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "boundary.txt", ModTime: tnow, Content: content},
+	})
+
+	node := &zipDiskStreamFileNode{
+		zipBaseFileNode: &zipBaseFileNode{
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "boundary.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
+		},
+	}
+
+	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, &fuse.OpenResponse{})
+	require.NoError(t, err)
+
+	fhandle, ok := handle.(*zipDiskStreamFileHandle)
+	require.True(t, ok)
+
+	defer func() {
+		err = fhandle.Release(t.Context(), &fuse.ReleaseRequest{})
+		require.NoError(t, err)
+	}()
+
+	req := &fuse.ReadRequest{
+		Offset: 0,
+		Size:   poolBufferSize,
+	}
+	resp := &fuse.ReadResponse{}
+
+	err = fhandle.Read(t.Context(), req, resp)
+	require.NoError(t, err)
+	require.Equal(t, content, resp.Data)
+}
+
+// Expectation: Read with size just over pool capacity should allocate new buffer.
+func Test_zipDiskStreamFileHandle_Read_Pool_OverCapacity_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	oversize := poolBufferSize + 1
+	content := make([]byte, oversize)
+	for i := range content {
+		content[i] = byte(i % 256)
+	}
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "oversize.txt", ModTime: tnow, Content: content},
+	})
+
+	node := &zipDiskStreamFileNode{
+		zipBaseFileNode: &zipBaseFileNode{
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "oversize.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
+		},
+	}
+
+	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, &fuse.OpenResponse{})
+	require.NoError(t, err)
+
+	fhandle, ok := handle.(*zipDiskStreamFileHandle)
+	require.True(t, ok)
+
+	defer func() {
+		err = fhandle.Release(t.Context(), &fuse.ReleaseRequest{})
+		require.NoError(t, err)
+	}()
+
+	req := &fuse.ReadRequest{
+		Offset: 0,
+		Size:   oversize,
+	}
+	resp := &fuse.ReadResponse{}
+
+	err = fhandle.Read(t.Context(), req, resp)
+	require.NoError(t, err)
+	require.Equal(t, content, resp.Data)
+}
+
+// Expectation: Small read followed by large read should handle buffer allocation correctly.
+func Test_zipDiskStreamFileHandle_Read_Pool_SmallThenLarge_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	totalSize := poolBufferSize * 2
+	content := make([]byte, totalSize)
+	for i := range content {
+		content[i] = byte(i % 256)
+	}
+
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "mixed.txt", ModTime: tnow, Content: content},
+	})
+
+	node := &zipDiskStreamFileNode{
+		zipBaseFileNode: &zipBaseFileNode{
+			fsys:    fsys,
+			inode:   0,
+			archive: zipPath,
+			path:    "mixed.txt",
+			size:    uint64(len(content)),
+			mtime:   tnow,
+		},
+	}
+
+	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, &fuse.OpenResponse{})
+	require.NoError(t, err)
+
+	fhandle, ok := handle.(*zipDiskStreamFileHandle)
+	require.True(t, ok)
+
+	defer func() {
+		err = fhandle.Release(t.Context(), &fuse.ReleaseRequest{})
+		require.NoError(t, err)
+	}()
+
+	// Small read first (uses pool)
+	req1 := &fuse.ReadRequest{
+		Offset: 0,
+		Size:   1024,
+	}
+	resp1 := &fuse.ReadResponse{}
+
+	err = fhandle.Read(t.Context(), req1, resp1)
+	require.NoError(t, err)
+	require.Equal(t, content[:1024], resp1.Data)
+
+	// Large read second (allocates)
+	req2 := &fuse.ReadRequest{
+		Offset: 1024,
+		Size:   poolBufferSize + 512,
+	}
+	resp2 := &fuse.ReadResponse{}
+
+	err = fhandle.Read(t.Context(), req2, resp2)
+	require.NoError(t, err)
+	require.Equal(t, content[1024:1024+poolBufferSize+512], resp2.Data)
+}
