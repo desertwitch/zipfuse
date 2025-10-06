@@ -21,6 +21,10 @@ func testDashboard(t *testing.T, out io.Writer) *FSDashboard {
 	fsys, err := filesystem.NewFS(tmp, nil, rbf)
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		fsys.Cleanup()
+	})
+
 	dashboard, err := NewFSDashboard(fsys, rbf, "gotests")
 	require.NoError(t, err)
 

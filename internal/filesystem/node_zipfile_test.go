@@ -144,7 +144,7 @@ func Test_zipInMemoryFileNode_ReadAll_EmptyFile_Success(t *testing.T) {
 	require.Empty(t, data)
 }
 
-// Expectation: ReadAll should return ENOENT for a missing file.
+// Expectation: ReadAll should return EINVAL for a missing file.
 func Test_zipInMemoryFileNode_ReadAll_FileNotFound_Error(t *testing.T) {
 	t.Parallel()
 	tmpDir, fsys := testFS(t, io.Discard)
@@ -172,7 +172,7 @@ func Test_zipInMemoryFileNode_ReadAll_FileNotFound_Error(t *testing.T) {
 
 	data, err := node.ReadAll(t.Context())
 	require.Nil(t, data)
-	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
+	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
 }
 
 // Expectation: ReadAll should return EINVAL for an invalid archive.
@@ -239,7 +239,7 @@ func Test_zipDiskStreamFileNode_Open_Success(t *testing.T) {
 	require.NotZero(t, resp.Flags&fuse.OpenKeepCache)
 }
 
-// Expectation: Read should return ENOENT for a missing file.
+// Expectation: Read should return EINVAL for a missing file.
 func Test_zipDiskStreamFileNode_Open_FileNotFound_Error(t *testing.T) {
 	t.Parallel()
 	tmpDir, fsys := testFS(t, io.Discard)
@@ -265,7 +265,7 @@ func Test_zipDiskStreamFileNode_Open_FileNotFound_Error(t *testing.T) {
 	}
 
 	_, err := node.Open(t.Context(), &fuse.OpenRequest{}, &fuse.OpenResponse{})
-	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
+	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
 }
 
 // Expectation: Read should return EINVAL for an invalid archive.

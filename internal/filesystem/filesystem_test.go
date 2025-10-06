@@ -24,6 +24,10 @@ func testFS(t *testing.T, out io.Writer) (string, *FS) {
 	fsys, err := NewFS(tmp, nil, rbf)
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		fsys.Cleanup()
+	})
+
 	return tmp, fsys
 }
 

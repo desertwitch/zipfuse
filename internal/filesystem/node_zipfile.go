@@ -82,7 +82,7 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
-		return nil, fuse.ToErrno(err) // returns an Errno
+		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 	defer zr.Release() //nolint:errcheck
 	defer fr.Close()
@@ -115,7 +115,7 @@ func (z *zipDiskStreamFileNode) Open(_ context.Context, _ *fuse.OpenRequest, res
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->Open->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
-		return nil, fuse.ToErrno(err) // returns an Errno
+		return nil, fuse.ToErrno(syscall.EINVAL)
 	}
 
 	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.

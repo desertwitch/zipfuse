@@ -74,7 +74,7 @@ func (zr *zipReader) Acquire() {
 // Release decreases the reference count by one and closes the
 // [zipReader] if the new reference count is zero or negative.
 func (zr *zipReader) Release() error {
-	if zr.refCount.Add(-1) <= 0 {
+	if zr.refCount.Add(-1) == 0 {
 		return zr.closeReader()
 	}
 

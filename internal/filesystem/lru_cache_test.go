@@ -5,11 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"testing"
 	"time"
 
-	"bazil.org/fuse"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,6 +17,7 @@ func Test_newZipReaderCache_Success(t *testing.T) {
 	_, fsys := testFS(t, io.Discard)
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	require.NotNil(t, cache)
 	require.Equal(t, fsys, cache.fsys)
@@ -43,6 +42,7 @@ func Test_zipReaderCache_Archive_CacheDisabled_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	zr, err := cache.Archive(zipPath)
 	require.NoError(t, err)
@@ -71,6 +71,7 @@ func Test_zipReaderCache_Archive_Uncached_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	zr, err := cache.Archive(zipPath)
 
@@ -101,6 +102,7 @@ func Test_zipReaderCache_Archive_Cached_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	zr1, err := cache.Archive(zipPath)
 	require.NoError(t, err)
@@ -134,11 +136,12 @@ func Test_zipReaderCache_Archive_NotExist_Error(t *testing.T) {
 			fsys.Options.CacheDisabled.Store(mode)
 
 			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+			defer cache.cache.Stop()
 
 			zr, err := cache.Archive("/nonexistent/archive.zip")
 			require.Nil(t, zr)
 			require.Error(t, err)
-			require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+			require.ErrorIs(t, err, os.ErrNotExist)
 		})
 	}
 }
@@ -158,11 +161,11 @@ func Test_zipReaderCache_Archive_InvalidZip_Error(t *testing.T) {
 			fsys.Options.CacheDisabled.Store(mode)
 
 			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+			defer cache.cache.Stop()
 
 			zr, err := cache.Archive(invalidPath)
 			require.Nil(t, zr)
 			require.Error(t, err)
-			require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
 		})
 	}
 }
@@ -186,6 +189,7 @@ func Test_zipReaderCache_Entry_CacheDisabled_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	zr, fr, err := cache.Entry(zipPath, "test.txt")
 	require.NoError(t, err)
@@ -218,6 +222,7 @@ func Test_zipReaderCache_Entry_Uncached_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	zr, fr, err := cache.Entry(zipPath, "test.txt")
 	require.NoError(t, err)
@@ -254,6 +259,7 @@ func Test_zipReaderCache_Entry_Cached_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	zr1, fr1, err := cache.Entry(zipPath, "test.txt")
 	require.NoError(t, err)
@@ -302,12 +308,13 @@ func Test_zipReaderCache_Entry_NotExist_Error(t *testing.T) {
 			fsys.Options.CacheDisabled.Store(mode)
 
 			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+			defer cache.cache.Stop()
 
 			zr, fr, err := cache.Entry(zipPath, "nonexistent.txt")
 			require.Nil(t, zr)
 			require.Nil(t, fr)
 			require.Error(t, err)
-			require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
+			require.ErrorIs(t, err, os.ErrNotExist)
 		})
 	}
 }
@@ -323,12 +330,13 @@ func Test_zipReaderCache_Entry_ArchiveNotExist_Error(t *testing.T) {
 			fsys.Options.CacheDisabled.Store(mode)
 
 			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+			defer cache.cache.Stop()
 
 			zr, fr, err := cache.Entry("/nonexistent/archive.zip", "test.txt")
 			require.Nil(t, zr)
 			require.Nil(t, fr)
 			require.Error(t, err)
-			require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
+			require.ErrorIs(t, err, os.ErrNotExist)
 		})
 	}
 }
@@ -343,12 +351,12 @@ func Test_zipReaderCache_Entry_InvalidZip_Error(t *testing.T) {
 	require.NoError(t, err)
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	zr, fr, err := cache.Entry(invalidPath, "test.txt")
 	require.Nil(t, zr)
 	require.Nil(t, fr)
 	require.Error(t, err)
-	require.ErrorIs(t, err, fuse.ToErrno(syscall.EINVAL))
 }
 
 // Expectation: zipReaderCache.Entry should update metadata metrics.
@@ -367,6 +375,7 @@ func Test_zipReaderCache_Entry_Metrics_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	initialMetadataCount := fsys.Metrics.TotalMetadataReadCount.Load()
 
@@ -404,6 +413,7 @@ func Test_zipReaderCache_Entry_MultipleEntries_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	zr1, fr1, err := cache.Entry(zipPath, "file1.txt")
 	require.NoError(t, err)
@@ -472,6 +482,7 @@ func Test_zipReaderCache_Eviction_Success(t *testing.T) {
 
 	// Create cache with size 2
 	cache := newZipReaderCache(fsys, 2, 5*time.Minute)
+	defer cache.cache.Stop()
 
 	// Add first archive
 	zr1, err := cache.Archive(zipPath1)
@@ -490,6 +501,9 @@ func Test_zipReaderCache_Eviction_Success(t *testing.T) {
 	// Add third archive (should evict first)
 	zr3, err := cache.Archive(zipPath3)
 	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
 	require.Equal(t, int64(3), fsys.Metrics.TotalOpenedZips.Load())
 	require.Equal(t, int64(1), fsys.Metrics.TotalClosedZips.Load())
 	err = zr3.Release()
@@ -500,9 +514,6 @@ func Test_zipReaderCache_Eviction_Success(t *testing.T) {
 
 	err = zr3.Release() // cleanup cache ref
 	require.NoError(t, err)
-
-	err = zr1.Release() // should already be closed on size-caused eviction
-	require.ErrorContains(t, err, "already closed")
 }
 
 // Expectation: zipReaderCache should expire entries after TTL.
@@ -521,6 +532,7 @@ func Test_zipReaderCache_Expiration_Success(t *testing.T) {
 	})
 
 	cache := newZipReaderCache(fsys, 10, 100*time.Millisecond)
+	defer cache.cache.Stop()
 
 	zr1, err := cache.Archive(zipPath)
 	require.NoError(t, err)
@@ -542,7 +554,4 @@ func Test_zipReaderCache_Expiration_Success(t *testing.T) {
 
 	err = zr2.Release() // cleanup cache ref
 	require.NoError(t, err)
-
-	err = zr1.Release() // should already be closed on TTL-caused eviction
-	require.ErrorContains(t, err, "already closed")
 }

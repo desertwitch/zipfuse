@@ -24,7 +24,6 @@ const (
 	defaultFlatMode           = false
 	defaultMustCRC32          = false
 	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MB
-
 )
 
 var (
@@ -124,6 +123,7 @@ type FS struct {
 }
 
 // NewFS returns a pointer to a new [FS].
+// You must call Cleanup() once all work is complete.
 func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error) {
 	if rbuf == nil {
 		return nil, fmt.Errorf("%w: need a ring buffer", errMissingArgument)
@@ -148,6 +148,11 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 	fsys.cache = newZipReaderCache(fsys, opts.CacheSize, opts.CacheTTL)
 
 	return fsys, nil
+}
+
+// Cleanup does filesystem cleanup and blocks until done.
+func (fsys *FS) Cleanup() {
+	fsys.cache.cache.Stop()
 }
 
 // Root returns the entry-point [fs.Node] of the filesystem.

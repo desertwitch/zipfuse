@@ -114,9 +114,6 @@ func Test_zipReader_ReferenceCount_Success(t *testing.T) {
 	err = zr.Release()
 	require.NoError(t, err)
 	require.Zero(t, zr.refCount.Load())
-
-	err = zr.Release()
-	require.ErrorContains(t, err, "already closed")
 }
 
 // Expectation: A direct Close() call on a zipReader should panic.

@@ -198,6 +198,7 @@ func run(opts cliOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to establish fs: %w", err)
 	}
+	defer fsys.Cleanup()
 
 	if opts.dryRun {
 		return dryWalkFS(fsys)

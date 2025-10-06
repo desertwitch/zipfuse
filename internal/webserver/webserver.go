@@ -117,6 +117,8 @@ func (d *FSDashboard) dashboardMux() *mux.Router {
 		_, _ = w.Write(assets.Logo)
 	})
 
+	// mux.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
+
 	return mux
 }
 
