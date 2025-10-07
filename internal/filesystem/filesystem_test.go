@@ -25,6 +25,7 @@ func testFS(t *testing.T, out io.Writer) (string, *FS) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
+		fsys.HaltPurgeCache()
 		fsys.Cleanup()
 	})
 

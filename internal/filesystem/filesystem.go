@@ -164,9 +164,24 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 	return fsys, nil
 }
 
-// Cleanup does filesystem cleanup and blocks until done.
+// Cleanup does post-unmount FS cleanup and blocks until done.
+// It stops the goroutines associated with the file descriptor cache.
 func (fsys *FS) Cleanup() {
 	fsys.fdcache.cache.Stop()
+}
+
+// HaltPurgeCache prepares the file descriptor cache for unmount,
+// turning on FD cache bypass and deleting all items from the cache.
+// It returns then as bool the pre-call value of Options.FDCacheBypass.
+// This can be used to restore the setting in case of a failed unmount.
+// On successful unmount, Cleanup() must also be called to stop the cache.
+func (fsys *FS) HaltPurgeCache() bool {
+	v := fsys.Options.FDCacheBypass.Load()
+
+	fsys.Options.FDCacheBypass.Store(true)
+	fsys.fdcache.cache.DeleteAll()
+
+	return v
 }
 
 // Root returns the entry-point [fs.Node] of the filesystem.

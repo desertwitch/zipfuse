@@ -151,14 +151,16 @@ func dryWalkFS(fsys *filesystem.FS) error {
 	}
 }
 
-func setupSignalHandlers(unmountDir string, rbuf *logging.RingBuffer) {
+func setupSignalHandlers(fsys *filesystem.FS, unmountDir string, rbuf *logging.RingBuffer) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		for range sig {
 			rbuf.Println("Signal received, unmounting the filesystem...")
 
+			v := fsys.HaltPurgeCache()
 			if err := fuse.Unmount(unmountDir); err != nil {
+				fsys.Options.FDCacheBypass.Store(v)
 				rbuf.Printf("Unmount error: %v (try again later)\n", err)
 
 				continue
@@ -224,8 +226,9 @@ func run(opts cliOptions) error {
 	}
 	defer c.Close()
 	defer fuse.Unmount(opts.mountDir) //nolint:errcheck
+	defer fsys.HaltPurgeCache()
 
-	setupSignalHandlers(opts.mountDir, rbuf)
+	setupSignalHandlers(fsys, opts.mountDir, rbuf)
 
 	var wg sync.WaitGroup
 	errChan := make(chan error, 1)

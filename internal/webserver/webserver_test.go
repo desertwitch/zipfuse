@@ -22,6 +22,7 @@ func testDashboard(t *testing.T, out io.Writer) *FSDashboard {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
+		fsys.HaltPurgeCache()
 		fsys.Cleanup()
 	})
 
