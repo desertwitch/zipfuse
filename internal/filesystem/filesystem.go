@@ -20,8 +20,10 @@ const (
 	dirBasePerm       = 0o555 // RO
 	flattenHashDigits = 8     // [flatEntryName]
 
-	defaultCacheSize          = 60
-	defaultCacheTTL           = 60 * time.Second
+	defaultFDCacheBypass      = false
+	defaultFDCacheSize        = 350
+	defaultFDCacheTTL         = 60 * time.Second
+	defaultFDLimit            = 512
 	defaultFlatMode           = false
 	defaultMustCRC32          = false
 	defaultPoolBufferSize     = 128 * 1024       // 10KiB
@@ -38,6 +40,9 @@ var (
 // Options contains all settings for the operation of the filesystem.
 // All non-atomic fields can no longer be modified at runtime (once mounted).
 type Options struct {
+	// FDLimit is the absolute limit on open file descriptors at any time.
+	FDLimit int
+
 	// FDCacheBypass circumvents the LRU cache for ZIP file descriptors.
 	// When enabled at runtime, in-flight descriptors will close after TTL.
 	FDCacheBypass atomic.Bool
@@ -69,12 +74,13 @@ type Options struct {
 // DefaultOptions returns a pointer to [Options] with the default values.
 func DefaultOptions() *Options {
 	opts := &Options{
-		FDCacheSize:    defaultCacheSize,
-		FDCacheTTL:     defaultCacheTTL,
+		FDCacheSize:    defaultFDCacheSize,
+		FDCacheTTL:     defaultFDCacheTTL,
+		FDLimit:        defaultFDLimit,
 		FlatMode:       defaultFlatMode,
 		PoolBufferSize: defaultPoolBufferSize,
 	}
-	opts.FDCacheBypass.Store(false)
+	opts.FDCacheBypass.Store(defaultFDCacheBypass)
 	opts.MustCRC32.Store(defaultMustCRC32)
 	opts.StreamingThreshold.Store(defaultStreamingThreshold)
 
@@ -127,6 +133,7 @@ type FS struct {
 	Options *Options
 	Metrics *Metrics
 
+	fdlimit chan struct{}
 	fdcache *zipReaderCache
 	bufpool sync.Pool
 
@@ -155,7 +162,10 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 		Metrics: &Metrics{},
 		rbuf:    rbuf,
 	}
+
+	fsys.fdlimit = make(chan struct{}, opts.FDLimit)
 	fsys.fdcache = newZipReaderCache(fsys, opts.FDCacheSize, opts.FDCacheTTL)
+
 	fsys.bufpool = sync.Pool{
 		New: func() any {
 			b := make([]byte, opts.PoolBufferSize)

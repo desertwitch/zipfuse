@@ -62,6 +62,7 @@ type fsDashboardData struct {
 	FDCacheBypass       string   `json:"fdCacheBypass"`
 	FDCacheSize         int      `json:"fdCacheSize"`
 	FDCacheTTL          string   `json:"fdCacheTtl"`
+	FDLimit             int      `json:"fdLimit"`
 	FlatMode            string   `json:"flatMode"`
 	Logs                []string `json:"logs"`
 	MustCRC32           string   `json:"mustCrc32"`
@@ -140,6 +141,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		FDCacheBypass:       enabledOrDisabled(d.fsys.Options.FDCacheBypass.Load()),
 		FDCacheSize:         d.fsys.Options.FDCacheSize,
 		FDCacheTTL:          d.fsys.Options.FDCacheTTL.String(),
+		FDLimit:             d.fsys.Options.FDLimit,
 		FlatMode:            enabledOrDisabled(d.fsys.Options.FlatMode),
 		Logs:                lines,
 		MustCRC32:           enabledOrDisabled(d.fsys.Options.MustCRC32.Load()),

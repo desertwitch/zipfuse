@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -10,8 +9,6 @@ import (
 
 	"github.com/jellydator/ttlcache/v3"
 )
-
-var errItemValueWasNil = errors.New("cache returned item or value was nil")
 
 // zipReaderCache is a [expirable.LRU] cache for [zipReader] pointers.
 // It allows reusing opened ZIP files until TTL- or capacity-based eviction.
@@ -61,40 +58,39 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 		return zr, nil
 	}
 
-	// We need to lock here to prevent races with the eviction callback.
-	// In high pressure situations, entries could get capacity-evicted
-	// before reaching Acquire(), despite the thread-safe library call.
 	c.Lock()
-
-	var err error
-	item, ok := c.cache.GetOrSetFunc(archive, func() *zipReader {
-		rc, zerr := newZipReader(c.fsys, archive)
-		if zerr != nil {
-			err = zerr
-		}
-
-		return rc
-	})
-	if err != nil {
+	if item := c.cache.Get(archive); item != nil && item.Value() != nil {
+		existing := item.Value()
+		existing.Acquire() // for caller
+		c.fsys.Metrics.TotalFDCacheHits.Add(1)
 		c.Unlock()
 
-		return nil, fmt.Errorf("ZIP failure: %w", err)
+		return existing, nil
 	}
-	if item == nil || item.Value() == nil {
-		c.Unlock()
-
-		return nil, errItemValueWasNil
-	}
-	zr := item.Value()
-	zr.Acquire() // Cache holds one ref, add another for caller.
-
 	c.Unlock()
 
-	if ok {
-		c.fsys.Metrics.TotalFDCacheHits.Add(1)
-	} else {
-		c.fsys.Metrics.TotalFDCacheMisses.Add(1)
+	// Outside of the lock, as it may block on the FD semaphore.
+	zr, err := newZipReader(c.fsys, archive)
+	if err != nil {
+		return nil, fmt.Errorf("ZIP failure: %w", err)
 	}
+
+	c.Lock()
+	defer c.Unlock()
+
+	if item := c.cache.Get(archive); item != nil && item.Value() != nil {
+		// Another call beat us to inserting the item into the cache.
+		zr.Release()             // release cache ref (= closes our creation)
+		existing := item.Value() // use the existing cached reader instead
+		existing.Acquire()       // for caller
+		c.fsys.Metrics.TotalFDCacheHits.Add(1)
+
+		return existing, nil
+	}
+
+	c.cache.Set(archive, zr, ttlcache.DefaultTTL)
+	zr.Acquire() // for caller
+	c.fsys.Metrics.TotalFDCacheMisses.Add(1)
 
 	return zr, nil
 }

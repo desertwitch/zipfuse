@@ -44,8 +44,12 @@ type zipReader struct {
 // A new [zipReader] is always returned with a reference count of one.
 // This means that one-shot calls only need to call Release() after use.
 func newZipReader(fsys *FS, path string) (*zipReader, error) {
+	fsys.fdlimit <- struct{}{}
+
 	rc, err := zip.OpenReader(path)
 	if err != nil {
+		<-fsys.fdlimit
+
 		return nil, err //nolint:wrapcheck
 	}
 
@@ -90,6 +94,10 @@ func (zr *zipReader) Close() error {
 // closeReader instantly closes the [zip.ReadCloser].
 // You must use Release() instead, which internally calls closeReader().
 func (zr *zipReader) closeReader() error {
+	defer func() {
+		<-zr.fsys.fdlimit
+	}()
+
 	zr.fsys.Metrics.OpenZips.Add(-1)
 	zr.fsys.Metrics.TotalClosedZips.Add(1)
 
