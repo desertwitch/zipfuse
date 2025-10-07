@@ -124,5 +124,5 @@ func (d *realDirNode) Lookup(_ context.Context, name string) (fs.Node, error) {
 		}, nil
 	}
 
-	return nil, fuse.ToErrno(syscall.ENOENT)
+	return nil, d.fsys.fsError(toFuseErr(syscall.ENOENT))
 }

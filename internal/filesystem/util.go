@@ -247,9 +247,14 @@ func flatEntryName(normalizedPath string) (string, bool) {
 	return nameWithoutExt + "_" + hash[:flattenHashDigits] + ext, true
 }
 
-// toFuseErr converts an error into either ENOENT, EACCES or EIO.
-// When the error is not convertable, a generic EIO is chosen instead.
+// toFuseErr inspects an error chain for a [syscall.Errno] and returns it
+// when found, otherwise trying for the next best fit to return as Errno.
+// If no compatible error can be approximated, it defaults to [syscall.EIO].
 func toFuseErr(err error) error {
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return fuse.ToErrno(errno)
+	}
 	switch {
 	case os.IsNotExist(err):
 		return fuse.ToErrno(syscall.ENOENT)

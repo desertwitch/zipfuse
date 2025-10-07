@@ -68,7 +68,7 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
-		return nil, fuse.ToErrno(syscall.EINVAL)
+		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 	defer fr.Close()
@@ -77,7 +77,7 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: IO Error: %v\n", z.archive, z.path, err)
 
-		return nil, fuse.ToErrno(syscall.EIO)
+		return nil, z.fsys.fsError(toFuseErr(syscall.EIO))
 	}
 
 	m.readBytes = int64(len(data))
@@ -101,7 +101,7 @@ func (z *zipDiskStreamFileNode) Open(_ context.Context, _ *fuse.OpenRequest, res
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->Open->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
-		return nil, fuse.ToErrno(syscall.EINVAL)
+		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
 	}
 
 	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
@@ -160,7 +160,7 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 			if err != nil {
 				h.fsys.rbuf.Printf("Error: %q->Read->%q: ZIP Error: %v\n", h.archive, h.path, err)
 
-				return fuse.ToErrno(syscall.EINVAL)
+				return h.fsys.fsError(toFuseErr(syscall.EINVAL))
 			}
 			h.fr = rc
 			h.offset = 0
@@ -172,13 +172,13 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 			if err != nil {
 				h.fsys.rbuf.Printf("Error: %q->Read->%q: Seek Error: %v\n", h.archive, h.path, err)
 
-				return fuse.ToErrno(syscall.EIO)
+				return h.fsys.fsError(toFuseErr(syscall.EIO))
 			}
 
 		case err != nil:
 			h.fsys.rbuf.Printf("Error: %q->Read->%q: Seek Error: %v\n", h.archive, h.path, err)
 
-			return fuse.ToErrno(syscall.EIO)
+			return h.fsys.fsError(toFuseErr(syscall.EIO))
 		}
 	}
 
@@ -210,7 +210,7 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		h.fsys.rbuf.Printf("Error: %q->Read->%q: IO Error: %v\n", h.archive, h.path, err)
 
-		return fuse.ToErrno(syscall.EIO)
+		return h.fsys.fsError(toFuseErr(syscall.EIO))
 	}
 
 	// The kernel owns the data buffer, so we hand it a copy of ours here.

@@ -74,6 +74,7 @@ type fsDashboardData struct {
 	StreamingThreshold  string   `json:"streamingThreshold"`
 	SysBytes            string   `json:"sysBytes"`
 	TotalAlloc          string   `json:"totalAlloc"`
+	TotalErrors         int64    `json:"totalErrors"`
 	TotalExtractBytes   string   `json:"totalExtractBytes"`
 	TotalExtracts       int64    `json:"totalExtracts"`
 	TotalFDCacheHits    int64    `json:"totalFdCacheHits"`
@@ -151,6 +152,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		StreamingThreshold:  humanize.IBytes(d.fsys.Options.StreamingThreshold.Load()),
 		SysBytes:            humanize.IBytes(m.Sys),
 		TotalAlloc:          humanize.IBytes(m.TotalAlloc),
+		TotalErrors:         d.fsys.Metrics.Errors.Load(),
 		TotalExtractBytes:   d.totalExtractBytes(),
 		TotalExtracts:       d.fsys.Metrics.TotalExtractCount.Load(),
 		TotalFDCacheHits:    d.fsys.Metrics.TotalFDCacheHits.Load(),

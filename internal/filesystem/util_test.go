@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -1045,7 +1046,7 @@ func Test_toFuseErr_Permission_Success(t *testing.T) {
 func Test_toFuseErr_Other_Success(t *testing.T) {
 	t.Parallel()
 
-	customErr := syscall.EINVAL
+	customErr := errors.New("test")
 	err := toFuseErr(customErr)
 	require.ErrorIs(t, err, fuse.ToErrno(syscall.EIO))
 }

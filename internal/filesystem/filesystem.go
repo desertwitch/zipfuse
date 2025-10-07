@@ -83,6 +83,9 @@ func DefaultOptions() *Options {
 
 // Metrics contains all metrics which are collected within the filesystem.
 type Metrics struct {
+	// Errors is the amount of errors that have occurred.
+	Errors atomic.Int64
+
 	// OpenZips is the amount of currently open ZIP files.
 	OpenZips atomic.Int64
 
@@ -263,4 +266,13 @@ func (fsys *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 	}
 
 	return nil
+}
+
+// fsError tracks the error count within the filesystem.
+// It returns the received error back to the caller unchanged.
+// This allows for convenient use of the method in return calls.
+func (fsys *FS) fsError(err error) error {
+	fsys.Metrics.Errors.Add(1)
+
+	return err
 }

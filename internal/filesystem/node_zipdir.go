@@ -76,7 +76,7 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->ReadDirAll: ZIP Error: %v\n", z.path, err)
 
-		return nil, fuse.ToErrno(syscall.EINVAL)
+		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 
@@ -117,7 +117,7 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.path, name, err)
 
-		return nil, fuse.ToErrno(syscall.EINVAL)
+		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 
@@ -146,7 +146,7 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 		return &zipDiskStreamFileNode{base}, nil
 	}
 
-	return nil, fuse.ToErrno(syscall.ENOENT)
+	return nil, z.fsys.fsError(toFuseErr(syscall.ENOENT))
 }
 
 func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) {
@@ -160,7 +160,7 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->ReadDirAll: ZIP error: %v\n", z.path, err)
 
-		return nil, fuse.ToErrno(syscall.EINVAL)
+		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 
@@ -218,7 +218,7 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->Lookup->%q: ZIP error: %v\n", z.path, name, err)
 
-		return nil, fuse.ToErrno(syscall.EINVAL)
+		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 
@@ -260,5 +260,5 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 		}
 	}
 
-	return nil, fuse.ToErrno(syscall.ENOENT)
+	return nil, z.fsys.fsError(toFuseErr(syscall.ENOENT))
 }
