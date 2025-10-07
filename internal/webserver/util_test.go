@@ -60,12 +60,12 @@ func Test_avgExtractSpeed_Success(t *testing.T) {
 	t.Parallel()
 	dash := testDashboard(t, io.Discard)
 
-	dash.fsys.Metrics.TotalExtractBytes.Store(1_000_000)
+	dash.fsys.Metrics.TotalExtractBytes.Store(1 * 1024 * 1024)
 	dash.fsys.Metrics.TotalExtractTime.Store(1_000_000_000)
 
 	result := dash.avgExtractSpeed()
 	require.Contains(t, result, "/s")
-	require.Contains(t, result, "MB")
+	require.Contains(t, result, "MiB")
 }
 
 // Expectation: avgExtractSpeed should handle zero time.
@@ -85,10 +85,10 @@ func Test_totalExtractBytes_Success(t *testing.T) {
 	t.Parallel()
 	dash := testDashboard(t, io.Discard)
 
-	dash.fsys.Metrics.TotalExtractBytes.Store(500_000_000)
+	dash.fsys.Metrics.TotalExtractBytes.Store(500 * 1024 * 1024)
 
 	result := dash.totalExtractBytes()
-	require.Contains(t, result, "500 MB")
+	require.Contains(t, result, "500 MiB")
 }
 
 // Expectation: totalExtractBytes should handle negative values.

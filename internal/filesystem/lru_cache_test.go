@@ -25,12 +25,12 @@ func Test_newZipReaderCache_Success(t *testing.T) {
 }
 
 // Expectation: zipReaderCache.Archive should still return a new zipReader on cache disabled.
-func Test_zipReaderCache_Archive_CacheDisabled_Success(t *testing.T) {
+func Test_zipReaderCache_Archive_CacheBypass_Success(t *testing.T) {
 	t.Parallel()
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	fsys.Options.CacheDisabled.Store(true)
+	fsys.Options.FDCacheBypass.Store(true)
 
 	content := []byte("test content")
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -49,7 +49,7 @@ func Test_zipReaderCache_Archive_CacheDisabled_Success(t *testing.T) {
 	require.NotNil(t, zr)
 	require.Equal(t, int32(1), zr.refCount.Load()) // caller ref
 
-	require.Zero(t, fsys.cache.cache.Len())
+	require.Zero(t, fsys.fdcache.cache.Len())
 
 	err = zr.Release() // caller ref
 	require.NoError(t, err)
@@ -133,7 +133,7 @@ func Test_zipReaderCache_Archive_NotExist_Error(t *testing.T) {
 	for _, mode := range []bool{true, false} {
 		t.Run("cache="+strconv.FormatBool(mode), func(t *testing.T) {
 			t.Parallel()
-			fsys.Options.CacheDisabled.Store(mode)
+			fsys.Options.FDCacheBypass.Store(mode)
 
 			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
 			defer cache.cache.Stop()
@@ -158,7 +158,7 @@ func Test_zipReaderCache_Archive_InvalidZip_Error(t *testing.T) {
 	for _, mode := range []bool{true, false} {
 		t.Run("cache="+strconv.FormatBool(mode), func(t *testing.T) {
 			t.Parallel()
-			fsys.Options.CacheDisabled.Store(mode)
+			fsys.Options.FDCacheBypass.Store(mode)
 
 			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
 			defer cache.cache.Stop()
@@ -172,12 +172,12 @@ func Test_zipReaderCache_Archive_InvalidZip_Error(t *testing.T) {
 
 // Expectation: zipReaderCache.Entry should still return zipReader and
 // zipFileReader for a valid entry on cache disabled.
-func Test_zipReaderCache_Entry_CacheDisabled_Success(t *testing.T) {
+func Test_zipReaderCache_Entry_CacheBypass_Success(t *testing.T) {
 	t.Parallel()
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	fsys.Options.CacheDisabled.Store(true)
+	fsys.Options.FDCacheBypass.Store(true)
 
 	content := []byte("test content")
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -197,7 +197,7 @@ func Test_zipReaderCache_Entry_CacheDisabled_Success(t *testing.T) {
 	require.NotNil(t, fr)
 	require.Equal(t, int32(1), zr.refCount.Load()) // caller ref
 
-	require.Zero(t, fsys.cache.cache.Len())
+	require.Zero(t, fsys.fdcache.cache.Len())
 
 	err = fr.Close()
 	require.NoError(t, err)
@@ -305,7 +305,7 @@ func Test_zipReaderCache_Entry_NotExist_Error(t *testing.T) {
 	for _, mode := range []bool{true, false} {
 		t.Run("cache="+strconv.FormatBool(mode), func(t *testing.T) {
 			t.Parallel()
-			fsys.Options.CacheDisabled.Store(mode)
+			fsys.Options.FDCacheBypass.Store(mode)
 
 			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
 			defer cache.cache.Stop()
@@ -327,7 +327,7 @@ func Test_zipReaderCache_Entry_ArchiveNotExist_Error(t *testing.T) {
 	for _, mode := range []bool{true, false} {
 		t.Run("cache="+strconv.FormatBool(mode), func(t *testing.T) {
 			t.Parallel()
-			fsys.Options.CacheDisabled.Store(mode)
+			fsys.Options.FDCacheBypass.Store(mode)
 
 			cache := newZipReaderCache(fsys, 10, 5*time.Minute)
 			defer cache.cache.Stop()

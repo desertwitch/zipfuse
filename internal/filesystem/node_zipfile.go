@@ -12,21 +12,7 @@ import (
 	"bazil.org/fuse/fs"
 )
 
-const (
-	poolBufferSize = 128 * 1024 // 128KB
-)
-
-var (
-	_ fs.Node = (*zipBaseFileNode)(nil)
-
-	bufPool = sync.Pool{
-		New: func() any {
-			b := make([]byte, poolBufferSize)
-
-			return &b
-		},
-	}
-)
+var _ fs.Node = (*zipBaseFileNode)(nil)
 
 // zipBaseFileNode is a file within a ZIP archive of the mirrored filesystem.
 // It is presented as a regular file in our filesystem and unpacked on demand.
@@ -78,7 +64,7 @@ func (z *zipInMemoryFileNode) ReadAll(_ context.Context) ([]byte, error) {
 	m := newZipMetric(z.fsys, true)
 	defer m.Done()
 
-	zr, fr, err := z.fsys.cache.Entry(z.archive, z.path)
+	zr, fr, err := z.fsys.fdcache.Entry(z.archive, z.path)
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->ReadAll->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
@@ -111,7 +97,7 @@ type zipDiskStreamFileNode struct {
 }
 
 func (z *zipDiskStreamFileNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
-	zr, fr, err := z.fsys.cache.Entry(z.archive, z.path)
+	zr, fr, err := z.fsys.fdcache.Entry(z.archive, z.path)
 	if err != nil {
 		z.fsys.rbuf.Printf("Error: %q->Open->%q: ZIP Error: %v\n", z.archive, z.path, err)
 
@@ -196,7 +182,7 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 		}
 	}
 
-	rawBuf := bufPool.Get()
+	rawBuf := h.fsys.bufpool.Get()
 	pBuf, ok := rawBuf.(*[]byte)
 	if !ok {
 		panic("zipDiskStreamFileHandle: received unexpected type from bufPool")
@@ -205,14 +191,14 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 
 	if cap(buf) < req.Size {
 		// Put back the pointer first, we won't use it.
-		*pBuf = (*pBuf)[:poolBufferSize]
-		bufPool.Put(pBuf)
+		*pBuf = (*pBuf)[:h.fsys.Options.PoolBufferSize]
+		h.fsys.bufpool.Put(pBuf)
 
 		buf = make([]byte, req.Size) // will be GC'ed.
 	} else {
 		defer func() {
-			*pBuf = (*pBuf)[:poolBufferSize]
-			bufPool.Put(pBuf)
+			*pBuf = (*pBuf)[:h.fsys.Options.PoolBufferSize]
+			h.fsys.bufpool.Put(pBuf)
 		}()
 	}
 

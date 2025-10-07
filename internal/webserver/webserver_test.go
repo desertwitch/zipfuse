@@ -57,8 +57,9 @@ func Test_dashboardMux_Success(t *testing.T) {
 		{"/", http.MethodGet},
 		{"/gc", http.MethodGet},
 		{"/reset", http.MethodGet},
-		{"/set/checkall/false", http.MethodGet},
-		{"/set/threshold/100MB", http.MethodGet},
+		{"/set/must-crc32/false", http.MethodGet},
+		{"/set/stream-threshold/100MB", http.MethodGet},
+		{"/set/fd-cache-bypass/false", http.MethodGet},
 		{"/zipfuse.png", http.MethodGet},
 	}
 
@@ -83,7 +84,7 @@ func Test_dashboardHandler_Success(t *testing.T) {
 	dash.fsys.Metrics.OpenZips.Store(5)
 	dash.fsys.Metrics.TotalOpenedZips.Store(100)
 	dash.fsys.Metrics.TotalClosedZips.Store(95)
-	dash.fsys.Options.StreamingThreshold.Store(200_000_000)
+	dash.fsys.Options.StreamingThreshold.Store(200 * 1024 * 1024)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
@@ -98,7 +99,7 @@ func Test_dashboardHandler_Success(t *testing.T) {
 	body := w.Body.String()
 	require.Contains(t, body, "test-version")
 	require.Contains(t, body, "test log entry")
-	require.Contains(t, body, "200 MB")
+	require.Contains(t, body, "200 MiB")
 }
 
 // Expectation: metricsHandler should return JSON with current metrics.
@@ -112,7 +113,7 @@ func Test_metricsHandler_Success(t *testing.T) {
 	dash.fsys.Metrics.OpenZips.Store(7)
 	dash.fsys.Metrics.TotalOpenedZips.Store(123)
 	dash.fsys.Metrics.TotalClosedZips.Store(120)
-	dash.fsys.Options.StreamingThreshold.Store(42_000_000)
+	dash.fsys.Options.StreamingThreshold.Store(42 * 1024 * 1024)
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics.json", nil)
 	w := httptest.NewRecorder()
@@ -128,7 +129,7 @@ func Test_metricsHandler_Success(t *testing.T) {
 	body := w.Body.String()
 	require.Contains(t, body, "test-metrics-version")
 	require.Contains(t, body, "metrics test log entry")
-	require.Contains(t, body, "42 MB")
+	require.Contains(t, body, "42 MiB")
 }
 
 // Expectation: gcHandler should force GC and return success message.
@@ -201,7 +202,7 @@ func Test_thresholdHandler_Success(t *testing.T) {
 	t.Parallel()
 	dash := testDashboard(t, io.Discard)
 
-	req := httptest.NewRequest(http.MethodGet, "/set/threshold/500MB", nil)
+	req := httptest.NewRequest(http.MethodGet, "/set/stream-threshold/500MiB", nil)
 	w := httptest.NewRecorder()
 
 	router := dash.dashboardMux()
@@ -215,9 +216,9 @@ func Test_thresholdHandler_Success(t *testing.T) {
 
 	body := w.Body.String()
 	require.Contains(t, body, "Streaming threshold set")
-	require.Contains(t, body, "500 MB")
+	require.Contains(t, body, "500 MiB")
 
-	require.Equal(t, uint64(500_000_000), dash.fsys.Options.StreamingThreshold.Load())
+	require.Equal(t, uint64(500*1024*1024), dash.fsys.Options.StreamingThreshold.Load())
 
 	logs := dash.rbuf.Lines()
 	require.NotEmpty(t, logs)
@@ -231,7 +232,7 @@ func Test_thresholdHandler_InvalidThreshold_Error(t *testing.T) {
 
 	dash.fsys.Options.StreamingThreshold.Store(100)
 
-	req := httptest.NewRequest(http.MethodGet, "/set/threshold/invalid", nil)
+	req := httptest.NewRequest(http.MethodGet, "/set/stream-threshold/invalid", nil)
 	w := httptest.NewRecorder()
 
 	router := dash.dashboardMux()
@@ -289,7 +290,7 @@ func Test_thresholdHandler_VariousFormats_Success(t *testing.T) {
 
 		dash.fsys.Options.StreamingThreshold.Store(0)
 
-		req := httptest.NewRequest(http.MethodGet, "/set/threshold/"+tc.input, nil)
+		req := httptest.NewRequest(http.MethodGet, "/set/stream-threshold/"+tc.input, nil)
 		w := httptest.NewRecorder()
 
 		router := dash.dashboardMux()

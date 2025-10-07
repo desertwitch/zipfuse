@@ -25,23 +25,23 @@ func (d *FSDashboard) avgExtractSpeed() string {
 
 	bps := float64(bytes) / (float64(ns) / 1e9) //nolint:mnd
 
-	return humanize.Bytes(uint64(bps)) + "/s"
+	return humanize.IBytes(uint64(bps)) + "/s"
 }
 
 func (d *FSDashboard) totalExtractBytes() string {
 	bytes := d.fsys.Metrics.TotalExtractBytes.Load()
 
 	if bytes < 0 {
-		return humanize.Bytes(0)
+		return humanize.IBytes(0)
 	}
 
-	return humanize.Bytes(uint64(bytes))
+	return humanize.IBytes(uint64(bytes))
 }
 
 //nolint:mnd
-func (d *FSDashboard) totalLruRatio() string {
-	hits := d.fsys.Metrics.TotalLruHits.Load()
-	misses := d.fsys.Metrics.TotalLruMisses.Load()
+func (d *FSDashboard) totalFDCacheRatio() string {
+	hits := d.fsys.Metrics.TotalFDCacheHits.Load()
+	misses := d.fsys.Metrics.TotalFDCacheMisses.Load()
 	total := hits + misses
 
 	if total == 0 {

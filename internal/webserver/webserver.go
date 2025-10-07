@@ -58,16 +58,17 @@ type fsDashboardData struct {
 	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
 	AvgExtractTime      string   `json:"avgExtractTime"`
 	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
-	CacheEnabled        string   `json:"cacheEnabled"`
-	CacheSize           int      `json:"cacheSize"`
-	CacheTTL            string   `json:"cacheTtl"`
 	ClosedZips          int64    `json:"closedZips"`
+	FDCacheBypass       string   `json:"fdCacheBypass"`
+	FDCacheSize         int      `json:"fdCacheSize"`
+	FDCacheTTL          string   `json:"fdCacheTtl"`
 	FlatMode            string   `json:"flatMode"`
 	Logs                []string `json:"logs"`
 	MustCRC32           string   `json:"mustCrc32"`
 	NumGC               uint32   `json:"numGc"`
 	OpenedZips          int64    `json:"openedZips"`
 	OpenZips            int64    `json:"openZips"`
+	PoolBufferSize      string   `json:"poolBufferSize"`
 	ReopenedEntries     int64    `json:"reopenedEntries"`
 	RingBufferSize      int      `json:"ringBufferSize"`
 	StreamingThreshold  string   `json:"streamingThreshold"`
@@ -75,9 +76,9 @@ type fsDashboardData struct {
 	TotalAlloc          string   `json:"totalAlloc"`
 	TotalExtractBytes   string   `json:"totalExtractBytes"`
 	TotalExtracts       int64    `json:"totalExtracts"`
-	TotalLruHits        int64    `json:"totalLruHits"`
-	TotalLruMisses      int64    `json:"totalLruMisses"`
-	TotalLruRatio       string   `json:"totalLruRatio"`
+	TotalFDCacheHits    int64    `json:"totalFdCacheHits"`
+	TotalFDCacheMisses  int64    `json:"totalFdCacheMisses"`
+	TotalFDCacheRatio   string   `json:"totalFdCacheRatio"`
 	TotalMetadatas      int64    `json:"totalMetadatas"`
 	Version             string   `json:"version"`
 }
@@ -106,11 +107,11 @@ func (d *FSDashboard) dashboardMux() *mux.Router {
 	mux.HandleFunc("/gc", d.gcHandler)
 	mux.HandleFunc("/reset", d.resetMetricsHandler)
 
-	mux.HandleFunc("/set/cache/{value}",
-		d.booleanHandler("LRU cache enabled", &d.fsys.Options.CacheDisabled))
-	mux.HandleFunc("/set/checkall/{value}",
+	mux.HandleFunc("/set/fd-cache-bypass/{value}",
+		d.booleanHandler("FD cache bypass", &d.fsys.Options.FDCacheBypass))
+	mux.HandleFunc("/set/must-crc32/{value}",
 		d.booleanHandler("Forced integrity checking", &d.fsys.Options.MustCRC32))
-	mux.HandleFunc("/set/threshold/{value}", d.thresholdHandler)
+	mux.HandleFunc("/set/stream-threshold/{value}", d.thresholdHandler)
 
 	mux.HandleFunc("/zipfuse.png", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
@@ -130,30 +131,31 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 	slices.Reverse(lines)
 
 	return fsDashboardData{
-		AllocBytes:          humanize.Bytes(m.Alloc),
+		AllocBytes:          humanize.IBytes(m.Alloc),
 		AvgExtractSpeed:     d.avgExtractSpeed(),
 		AvgExtractTime:      d.avgExtractTime(),
 		AvgMetadataReadTime: d.avgMetadataReadTime(),
-		CacheEnabled:        enabledOrDisabled(!d.fsys.Options.CacheDisabled.Load()),
-		CacheSize:           d.fsys.Options.CacheSize,
-		CacheTTL:            d.fsys.Options.CacheTTL.String(),
 		ClosedZips:          d.fsys.Metrics.TotalClosedZips.Load(),
+		FDCacheBypass:       enabledOrDisabled(d.fsys.Options.FDCacheBypass.Load()),
+		FDCacheSize:         d.fsys.Options.FDCacheSize,
+		FDCacheTTL:          d.fsys.Options.FDCacheTTL.String(),
 		FlatMode:            enabledOrDisabled(d.fsys.Options.FlatMode),
 		Logs:                lines,
 		MustCRC32:           enabledOrDisabled(d.fsys.Options.MustCRC32.Load()),
 		NumGC:               m.NumGC,
 		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
 		OpenZips:            d.fsys.Metrics.OpenZips.Load(),
+		PoolBufferSize:      humanize.IBytes(uint64(d.fsys.Options.PoolBufferSize)),
 		ReopenedEntries:     d.fsys.Metrics.TotalReopenedEntries.Load(),
 		RingBufferSize:      d.rbuf.Size(),
-		StreamingThreshold:  humanize.Bytes(d.fsys.Options.StreamingThreshold.Load()),
-		SysBytes:            humanize.Bytes(m.Sys),
-		TotalAlloc:          humanize.Bytes(m.TotalAlloc),
+		StreamingThreshold:  humanize.IBytes(d.fsys.Options.StreamingThreshold.Load()),
+		SysBytes:            humanize.IBytes(m.Sys),
+		TotalAlloc:          humanize.IBytes(m.TotalAlloc),
 		TotalExtractBytes:   d.totalExtractBytes(),
 		TotalExtracts:       d.fsys.Metrics.TotalExtractCount.Load(),
-		TotalLruHits:        d.fsys.Metrics.TotalLruHits.Load(),
-		TotalLruMisses:      d.fsys.Metrics.TotalLruMisses.Load(),
-		TotalLruRatio:       d.totalLruRatio(),
+		TotalFDCacheHits:    d.fsys.Metrics.TotalFDCacheHits.Load(),
+		TotalFDCacheMisses:  d.fsys.Metrics.TotalFDCacheMisses.Load(),
+		TotalFDCacheRatio:   d.totalFDCacheRatio(),
 		TotalMetadatas:      d.fsys.Metrics.TotalMetadataReadCount.Load(),
 		Version:             d.version,
 	}
@@ -184,11 +186,11 @@ func (d *FSDashboard) gcHandler(w http.ResponseWriter, _ *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	d.rbuf.Printf("GC forced via API, current heap: %s.\n", humanize.Bytes(m.Alloc))
+	d.rbuf.Printf("GC forced via API, current heap: %s.\n", humanize.IBytes(m.Alloc))
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "GC forced, current heap: %s.\n", humanize.Bytes(m.Alloc))
+	fmt.Fprintf(w, "GC forced, current heap: %s.\n", humanize.IBytes(m.Alloc))
 }
 
 func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
@@ -196,8 +198,8 @@ func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request
 	d.fsys.Metrics.TotalExtractBytes.Store(0)
 	d.fsys.Metrics.TotalExtractCount.Store(0)
 	d.fsys.Metrics.TotalExtractTime.Store(0)
-	d.fsys.Metrics.TotalLruHits.Store(0)
-	d.fsys.Metrics.TotalLruMisses.Store(0)
+	d.fsys.Metrics.TotalFDCacheHits.Store(0)
+	d.fsys.Metrics.TotalFDCacheMisses.Store(0)
 	d.fsys.Metrics.TotalMetadataReadCount.Store(0)
 	d.fsys.Metrics.TotalMetadataReadTime.Store(0)
 	d.fsys.Metrics.TotalOpenedZips.Store(0)
@@ -221,11 +223,11 @@ func (d *FSDashboard) thresholdHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	d.fsys.Options.StreamingThreshold.Store(val)
 
-	d.rbuf.Printf("Streaming threshold set via API: %s.\n", humanize.Bytes(val))
+	d.rbuf.Printf("Streaming threshold set via API: %s.\n", humanize.IBytes(val))
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Streaming threshold set: %s.\n", humanize.Bytes(val))
+	fmt.Fprintf(w, "Streaming threshold set: %s.\n", humanize.IBytes(val))
 }
 
 func (d *FSDashboard) booleanHandler(descr string, target *atomic.Bool) http.HandlerFunc {

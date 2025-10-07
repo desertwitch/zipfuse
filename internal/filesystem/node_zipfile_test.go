@@ -718,7 +718,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_AllocLargeBuffer_Success(t *testing.
 	tnow := time.Now()
 
 	// Content to force allocation
-	largeSize := poolBufferSize + 1024
+	largeSize := fsys.Options.PoolBufferSize + 1024
 	content := make([]byte, largeSize)
 	for i := range content {
 		content[i] = byte(i % 256)
@@ -772,7 +772,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_BufferReuse_Success(t *testing.T) {
 	tnow := time.Now()
 
 	// Content that can be read in pool-sized chunks
-	totalSize := poolBufferSize * 3
+	totalSize := fsys.Options.PoolBufferSize * 3
 	content := make([]byte, totalSize)
 	for i := range content {
 		content[i] = byte(i % 256)
@@ -809,16 +809,16 @@ func Test_zipDiskStreamFileHandle_Read_Pool_BufferReuse_Success(t *testing.T) {
 	}()
 
 	for i := range 3 {
-		offset := int64(i * poolBufferSize)
+		offset := int64(i * fsys.Options.PoolBufferSize)
 		req := &fuse.ReadRequest{
 			Offset: offset,
-			Size:   poolBufferSize,
+			Size:   fsys.Options.PoolBufferSize,
 		}
 		resp := &fuse.ReadResponse{}
 
 		err = fhandle.Read(t.Context(), req, resp)
 		require.NoError(t, err)
-		require.Equal(t, content[offset:offset+int64(poolBufferSize)], resp.Data)
+		require.Equal(t, content[offset:offset+int64(fsys.Options.PoolBufferSize)], resp.Data)
 	}
 }
 
@@ -828,7 +828,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_BufferBoundary_Success(t *testing.T)
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	content := make([]byte, poolBufferSize)
+	content := make([]byte, fsys.Options.PoolBufferSize)
 	for i := range content {
 		content[i] = byte(i % 256)
 	}
@@ -865,7 +865,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_BufferBoundary_Success(t *testing.T)
 
 	req := &fuse.ReadRequest{
 		Offset: 0,
-		Size:   poolBufferSize,
+		Size:   fsys.Options.PoolBufferSize,
 	}
 	resp := &fuse.ReadResponse{}
 
@@ -880,7 +880,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_OverCapacity_Success(t *testing.T) {
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	oversize := poolBufferSize + 1
+	oversize := fsys.Options.PoolBufferSize + 1
 	content := make([]byte, oversize)
 	for i := range content {
 		content[i] = byte(i % 256)
@@ -933,7 +933,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_SmallThenLarge_Success(t *testing.T)
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	totalSize := poolBufferSize * 2
+	totalSize := fsys.Options.PoolBufferSize * 2
 	content := make([]byte, totalSize)
 	for i := range content {
 		content[i] = byte(i % 256)
@@ -983,11 +983,11 @@ func Test_zipDiskStreamFileHandle_Read_Pool_SmallThenLarge_Success(t *testing.T)
 	// Large read second (allocates)
 	req2 := &fuse.ReadRequest{
 		Offset: 1024,
-		Size:   poolBufferSize + 512,
+		Size:   fsys.Options.PoolBufferSize + 512,
 	}
 	resp2 := &fuse.ReadResponse{}
 
 	err = fhandle.Read(t.Context(), req2, resp2)
 	require.NoError(t, err)
-	require.Equal(t, content[1024:1024+poolBufferSize+512], resp2.Data)
+	require.Equal(t, content[1024:1024+fsys.Options.PoolBufferSize+512], resp2.Data)
 }

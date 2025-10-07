@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,7 +24,8 @@ const (
 	defaultCacheTTL           = 60 * time.Second
 	defaultFlatMode           = false
 	defaultMustCRC32          = false
-	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MB
+	defaultPoolBufferSize     = 128 * 1024       // 10KiB
+	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MiB
 )
 
 var (
@@ -36,17 +38,20 @@ var (
 // Options contains all settings for the operation of the filesystem.
 // All non-atomic fields can no longer be modified at runtime (once mounted).
 type Options struct {
-	// CacheDisabled disables the LRU cache for ZIP file descriptors.
-	// When disabled at runtime, in-flight descriptors will close after TTL.
-	CacheDisabled atomic.Bool
+	// FDCacheBypass circumvents the LRU cache for ZIP file descriptors.
+	// When enabled at runtime, in-flight descriptors will close after TTL.
+	FDCacheBypass atomic.Bool
 
-	// CacheSize is the size of the LRU cache for ZIP file descriptors.
+	// FDCacheSize is the size of the LRU cache for ZIP file descriptors.
 	// Beware the operating system file descriptor limit when changing this.
-	CacheSize int
+	FDCacheSize int
 
-	// CacheTTL is the time-to-live for each ZIP file descriptor in the LRU.
+	// FDCacheTTL is the time-to-live for each ZIP file descriptor in the LRU.
 	// If a file descriptor is no longer used, it will be evicted after TTL.
-	CacheTTL time.Duration
+	FDCacheTTL time.Duration
+
+	// PoolBufferSize is the buffer size for the file read buffer pool.
+	PoolBufferSize int
 
 	// FlatMode controls if ZIP-contained subdirectories and files
 	// should be flattened with [flatEntryName] for shallow directories.
@@ -64,11 +69,12 @@ type Options struct {
 // DefaultOptions returns a pointer to [Options] with the default values.
 func DefaultOptions() *Options {
 	opts := &Options{
-		CacheSize: defaultCacheSize,
-		CacheTTL:  defaultCacheTTL,
-		FlatMode:  defaultFlatMode,
+		FDCacheSize:    defaultCacheSize,
+		FDCacheTTL:     defaultCacheTTL,
+		FlatMode:       defaultFlatMode,
+		PoolBufferSize: defaultPoolBufferSize,
 	}
-	opts.CacheDisabled.Store(false)
+	opts.FDCacheBypass.Store(false)
 	opts.MustCRC32.Store(defaultMustCRC32)
 	opts.StreamingThreshold.Store(defaultStreamingThreshold)
 
@@ -104,11 +110,11 @@ type Metrics struct {
 	// TotalExtractBytes is the amount of bytes extracted from ZIP files.
 	TotalExtractBytes atomic.Int64
 
-	// TotalLruHits is the amount of cache-hits for the LRU cache.
-	TotalLruHits atomic.Int64
+	// TotalFDCacheHits is the amount of cache-hits for the LRU cache.
+	TotalFDCacheHits atomic.Int64
 
-	// TotalLruMisses is the amount of cache-misses for the LRU cache
-	TotalLruMisses atomic.Int64
+	// TotalFDCacheMisses is the amount of cache-misses for the LRU cache
+	TotalFDCacheMisses atomic.Int64
 }
 
 // FS is the core implementation of the filesystem.
@@ -118,8 +124,10 @@ type FS struct {
 	Options *Options
 	Metrics *Metrics
 
-	cache *zipReaderCache
-	rbuf  *logging.RingBuffer
+	fdcache *zipReaderCache
+	bufpool sync.Pool
+
+	rbuf *logging.RingBuffer
 }
 
 // NewFS returns a pointer to a new [FS].
@@ -134,7 +142,6 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 	if _, err := os.Stat(rootDir); err != nil {
 		return nil, fmt.Errorf("failed to stat root dir: %w", err)
 	}
-
 	if opts == nil {
 		opts = DefaultOptions()
 	}
@@ -145,14 +152,21 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 		Metrics: &Metrics{},
 		rbuf:    rbuf,
 	}
-	fsys.cache = newZipReaderCache(fsys, opts.CacheSize, opts.CacheTTL)
+	fsys.fdcache = newZipReaderCache(fsys, opts.FDCacheSize, opts.FDCacheTTL)
+	fsys.bufpool = sync.Pool{
+		New: func() any {
+			b := make([]byte, opts.PoolBufferSize)
+
+			return &b
+		},
+	}
 
 	return fsys, nil
 }
 
 // Cleanup does filesystem cleanup and blocks until done.
 func (fsys *FS) Cleanup() {
-	fsys.cache.cache.Stop()
+	fsys.fdcache.cache.Stop()
 }
 
 // Root returns the entry-point [fs.Node] of the filesystem.

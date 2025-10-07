@@ -49,7 +49,7 @@ func newZipReaderCache(fs *FS, size int, ttl time.Duration) *zipReaderCache {
 // Archive returns a [zipReader] from the cache (adding a new one if needed).
 // The [zipReader] needs to be Release()d after use, ensure that this is called.
 func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
-	if c.fsys.Options.CacheDisabled.Load() {
+	if c.fsys.Options.FDCacheBypass.Load() {
 		zr, err := newZipReader(c.fsys, archive)
 		if err != nil {
 			return nil, fmt.Errorf("ZIP failure: %w", err)
@@ -91,9 +91,9 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 	c.Unlock()
 
 	if ok {
-		c.fsys.Metrics.TotalLruHits.Add(1)
+		c.fsys.Metrics.TotalFDCacheHits.Add(1)
 	} else {
-		c.fsys.Metrics.TotalLruMisses.Add(1)
+		c.fsys.Metrics.TotalFDCacheMisses.Add(1)
 	}
 
 	return zr, nil
@@ -106,7 +106,7 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 	m := newZipMetric(c.fsys, false)
 	defer m.Done()
 
-	if c.fsys.Options.CacheDisabled.Load() {
+	if c.fsys.Options.FDCacheBypass.Load() {
 		zr, err := newZipReader(c.fsys, archive)
 		if err != nil {
 			return nil, nil, fmt.Errorf("ZIP failure: %w", err)

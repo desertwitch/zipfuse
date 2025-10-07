@@ -15,8 +15,9 @@ When enabled, the diagnostics server exposes the following routes over HTTP:
   - "/" for filesystem dashboard and event ring-buffer
   - "/gc" for forcing of a garbage collection (within Go)
   - "/reset" for resetting the filesystem metrics at runtime
-  - "/set/checkall/<bool>" for adapting forced integrity checking
-  - "/set/threshold/<string>" for adapting of the streaming threshold
+  - "/set/must-crc32/<bool>" for adapting forced integrity checking
+  - "/set/fd-cache-bypass/<bool>" for bypassing the file descriptor cache
+  - "/set/stream-threshold/<string>" for adapting of the streaming threshold
 */
 package main
 
@@ -52,18 +53,20 @@ var Version string
 
 type cliOptions struct {
 	allowOther         bool
-	dashboardAddress   string
 	dryRun             bool
+	fdCacheBypass      bool
+	fdCacheSize        int
+	fdCacheTTL         time.Duration
 	flatMode           bool
-	lruDisable         bool
-	lruSize            int
-	lruTTL             time.Duration
+	fuseVerbose        bool
 	mountDir           string
 	mustCRC32          bool
+	poolBufferSize     uint64
+	poolBufferSizeRaw  string
 	rootDir            string
 	streamThreshold    uint64
 	streamThresholdRaw string
-	fuseVerbose        bool
+	webserverAddr      string
 }
 
 //nolint:mnd
@@ -83,6 +86,10 @@ func rootCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to parse memsize: %w", err)
 			}
+			opts.poolBufferSize, err = humanize.ParseBytes(opts.poolBufferSizeRaw)
+			if err != nil {
+				return fmt.Errorf("failed to parse poolsize: %w", err)
+			}
 			opts.rootDir = args[0]
 			opts.mountDir = args[1]
 
@@ -91,16 +98,17 @@ func rootCmd() *cobra.Command {
 	}
 	cmd.PersistentFlags().BoolP("version", "", false, "version for zipfuse") // removes -v shorthand
 
-	cmd.Flags().BoolVarP(&opts.allowOther, "allowother", "a", true, "Allow other users to access the filesystem")
-	cmd.Flags().BoolVarP(&opts.dryRun, "dryrun", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
-	cmd.Flags().BoolVarP(&opts.flatMode, "flatten", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
-	cmd.Flags().BoolVarP(&opts.mustCRC32, "checkall", "c", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
-	cmd.Flags().BoolVar(&opts.lruDisable, "lrudisable", false, "Disable the LRU cache and re-open file descriptors on every request (beware FD limits)")
-	cmd.Flags().DurationVar(&opts.lruTTL, "lrutime", 60*time.Second, "Max time before LRU cache evicts unused file descriptors (beware FD limits)")
-	cmd.Flags().IntVar(&opts.lruSize, "lrusize", 60, "Max total number of file descriptors in the LRU cache (beware FD limits)")
-	cmd.Flags().StringVarP(&opts.dashboardAddress, "webaddr", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
-	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "memsize", "m", "10M", "Size cutoff for loading a file fully into RAM (streaming instead)")
+	cmd.Flags().BoolVar(&opts.fdCacheBypass, "fd-cache-bypass", false, "Bypass the FD cache and re-open file descriptors on every request (beware FD limits)")
+	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", true, "Allow other users to access the filesystem")
+	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
+	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print any verbose FUSE communication and diagnostics to standard error (stderr)")
+	cmd.Flags().BoolVarP(&opts.mustCRC32, "must-crc32", "m", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
+	cmd.Flags().DurationVar(&opts.fdCacheTTL, "fd-cache-ttl", 60*time.Second, "Max time before FD cache evicts unused file descriptors (beware FD limits)")
+	cmd.Flags().IntVar(&opts.fdCacheSize, "fd-cache-size", 60, "Max total number of file descriptors in the FD cache (beware FD limits)")
+	cmd.Flags().StringVar(&opts.poolBufferSizeRaw, "pool-buffer-size", "128KiB", "Buffer size for the file read buffer pool")
+	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "stream-threshold", "s", "10MiB", "Size cutoff for loading a file fully into RAM (streaming instead)")
+	cmd.Flags().StringVarP(&opts.webserverAddr, "webserver", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
 	return cmd
 }
@@ -186,11 +194,12 @@ func run(opts cliOptions) error {
 	rbuf := logging.NewRingBuffer(ringBufferSize, os.Stderr)
 
 	fopts := &filesystem.Options{
-		CacheSize: opts.lruSize,
-		CacheTTL:  opts.lruTTL,
-		FlatMode:  opts.flatMode,
+		FDCacheSize:    opts.fdCacheSize,
+		FDCacheTTL:     opts.fdCacheTTL,
+		FlatMode:       opts.flatMode,
+		PoolBufferSize: int(opts.poolBufferSize),
 	}
-	fopts.CacheDisabled.Store(opts.lruDisable)
+	fopts.FDCacheBypass.Store(opts.fdCacheBypass)
 	fopts.MustCRC32.Store(opts.mustCRC32)
 	fopts.StreamingThreshold.Store(opts.streamThreshold)
 
@@ -238,13 +247,13 @@ func run(opts cliOptions) error {
 		}
 	})
 
-	if opts.dashboardAddress != "" {
+	if opts.webserverAddr != "" {
 		dash, err := webserver.NewFSDashboard(fsys, rbuf, Version)
 		if err != nil {
 			return fmt.Errorf("failed to establish dashboard: %w", err)
 		}
 
-		srv := dash.Serve(opts.dashboardAddress)
+		srv := dash.Serve(opts.webserverAddr)
 		defer srv.Close()
 	}
 

@@ -17,6 +17,7 @@ When enabled, the diagnostics dashboard exposes the following routes:
 - "/" for filesystem dashboard and event ring-buffer
 - "/gc" for forcing of a garbage collection (within Go)
 - "/reset" for resetting the filesystem metrics at runtime
-- "/set/checkall/<bool>" for adapting forced integrity checking
-- "/set/threshold/<string>" for adapting of the streaming threshold`
+- "/set/must-crc32/<bool>" for adapting forced integrity checking
+- "/set/fd-cache-bypass/<bool>" for bypassing the file descriptor cache
+- "/set/stream-threshold/<string>" for adapting of the streaming threshold`
 )
