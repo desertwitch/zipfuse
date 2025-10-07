@@ -98,15 +98,15 @@ func rootCmd() *cobra.Command {
 	}
 	cmd.PersistentFlags().BoolP("version", "", false, "version for zipfuse") // removes -v shorthand
 
-	cmd.Flags().BoolVar(&opts.fdCacheBypass, "fd-cache-bypass", false, "Bypass the FD cache and re-open file descriptors on every request (beware FD limits)")
+	cmd.Flags().BoolVar(&opts.fdCacheBypass, "fd-cache-bypass", false, "Bypass the FD cache and allow unlimited file descriptor opening (beware FD limits)")
 	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", true, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print any verbose FUSE communication and diagnostics to standard error (stderr)")
 	cmd.Flags().BoolVarP(&opts.mustCRC32, "must-crc32", "m", false, "Force integrity verification on non-compressed ZIP files (at performance cost)")
-	cmd.Flags().DurationVar(&opts.fdCacheTTL, "fd-cache-ttl", 60*time.Second, "Max time before FD cache evicts unused file descriptors (beware FD limits)")
-	cmd.Flags().IntVar(&opts.fdCacheSize, "fd-cache-size", 60, "Max total number of file descriptors in the FD cache (beware FD limits)")
-	cmd.Flags().StringVar(&opts.poolBufferSizeRaw, "pool-buffer-size", "128KiB", "Buffer size for the file read buffer pool")
+	cmd.Flags().DurationVar(&opts.fdCacheTTL, "fd-cache-ttl", 60*time.Second, "Max time-to-live before FD cache evicts unused open file descriptors")
+	cmd.Flags().IntVar(&opts.fdCacheSize, "fd-cache-size", 60, "Max number of open file descriptors in the FD cache (beware FD limits)")
+	cmd.Flags().StringVar(&opts.poolBufferSizeRaw, "pool-buffer-size", "128KiB", "Buffer size for the file read buffer pool (beware this multiplies)")
 	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "stream-threshold", "s", "10MiB", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&opts.webserverAddr, "webserver", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
