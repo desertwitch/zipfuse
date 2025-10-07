@@ -158,48 +158,110 @@
 
         <div class="section-label">Filesystem Metrics</div>
         <div class="metrics-grid">
-            <!-- Live status -->
-            <div class="metric-tile"><div class="metric-label">Current Archives Opened</div><div class="metric-value" data-metric="openZips">{{.OpenZips}}</div></div>
-            <div class="metric-tile"><div class="metric-label">FD Cache Hit Ratio</div><div class="metric-value" data-metric="totalFdCacheRatio">{{.TotalFDCacheRatio}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Average Extraction Speed</div><div class="metric-value" data-metric="avgExtractSpeed">{{.AvgExtractSpeed}}</div></div>
-
-            <!-- Totals -->
-            <div class="metric-tile"><div class="metric-label">Total Archives Opened</div><div class="metric-value" data-metric="openedZips">{{.OpenedZips}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Total Archives Closed</div><div class="metric-value" data-metric="closedZips">{{.ClosedZips}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Total File Extractions</div><div class="metric-value" data-metric="totalExtracts">{{.TotalExtracts}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Total Extracted Bytes</div><div class="metric-value" data-metric="totalExtractBytes">{{.TotalExtractBytes}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Total Metadata Reads</div><div class="metric-value" data-metric="totalMetadatas">{{.TotalMetadatas}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Total Entries Reopened</div><div class="metric-value" data-metric="reopenedEntries">{{.ReopenedEntries}}</div></div>
-
-            <!-- Performance details -->
-            <div class="metric-tile"><div class="metric-label">Average Metadata Read Time</div><div class="metric-value" data-metric="avgMetadataReadTime">{{.AvgMetadataReadTime}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Average Extraction Time</div><div class="metric-value" data-metric="avgExtractTime">{{.AvgExtractTime}}</div></div>
-            <div class="metric-tile"><div class="metric-label">FD Cache Hits</div><div class="metric-value" data-metric="totalFdCacheHits">{{.TotalFDCacheHits}}</div></div>
-            <div class="metric-tile"><div class="metric-label">FD Cache Misses</div><div class="metric-value" data-metric="totalFdCacheMisses">{{.TotalFDCacheMisses}}</div></div>
+            <div class="metric-tile">
+                <div class="metric-label">Current Archives Opened</div>
+                <div class="metric-value" data-metric="openZips">{{.OpenZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Archives Opened</div>
+                <div class="metric-value" data-metric="openedZips">{{.OpenedZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Archives Closed</div>
+                <div class="metric-value" data-metric="closedZips">{{.ClosedZips}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Entries Reopened</div>
+                <div class="metric-value" data-metric="reopenedEntries">{{.ReopenedEntries}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Metadata Reads</div>
+                <div class="metric-value" data-metric="totalMetadatas">{{.TotalMetadatas}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total File Extractions</div>
+                <div class="metric-value" data-metric="totalExtracts">{{.TotalExtracts}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Extracted Bytes</div>
+                <div class="metric-value" data-metric="totalExtractBytes">{{.TotalExtractBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Metadata Read Time</div>
+                <div class="metric-value" data-metric="avgMetadataReadTime">{{.AvgMetadataReadTime}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Extraction Time</div>
+                <div class="metric-value" data-metric="avgExtractTime">{{.AvgExtractTime}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Average Extraction Speed</div>
+                <div class="metric-value" data-metric="avgExtractSpeed">{{.AvgExtractSpeed}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Hits</div>
+                <div class="metric-value" data-metric="totalFdCacheHits">{{.TotalFDCacheHits}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Misses</div>
+                <div class="metric-value" data-metric="totalFdCacheMisses">{{.TotalFDCacheMisses}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Hit Ratio</div>
+                <div class="metric-value" data-metric="totalFdCacheRatio">{{.TotalFDCacheRatio}}</div>
+            </div>
         </div>
 
-        <!-- Runtime Metrics -->
-        <div class="section-label">Runtime Metrics</div>
-        <div class="metrics-grid">
-            <div class="metric-tile"><div class="metric-label">Heap Allocated</div><div class="metric-value" data-metric="allocBytes">{{.AllocBytes}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Total Heap Allocations</div><div class="metric-value" data-metric="totalAlloc">{{.TotalAlloc}}</div></div>
-            <div class="metric-tile"><div class="metric-label">System Memory</div><div class="metric-value" data-metric="sysBytes">{{.SysBytes}}</div></div>
-            <div class="metric-tile"><div class="metric-label">GC Cycles</div><div class="metric-value" data-metric="numGc">{{.NumGC}}</div></div>
-        </div>
-
-        <!-- Filesystem Settings -->
         <div class="section-label">Filesystem Settings</div>
         <div class="metrics-grid">
-            <!-- Cache controls -->
-            <div class="metric-tile"><div class="metric-label">FD Cache Bypass</div><div class="metric-value" data-metric="fdCacheBypass">{{.FDCacheBypass}}</div></div>
-            <div class="metric-tile"><div class="metric-label">FD Cache Size</div><div class="metric-value" data-metric="fdCacheSize">{{.FDCacheSize}}</div></div>
-            <div class="metric-tile"><div class="metric-label">FD Cache TTL</div><div class="metric-value" data-metric="fdCacheTtl">{{.FDCacheTTL}}</div></div>
+            <div class="metric-tile">
+                <div class="metric-label">Forced Archive Flattening</div>
+                <div class="metric-value" data-metric="flatMode">{{.FlatMode}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Forced Integrity Verification</div>
+                <div class="metric-value" data-metric="mustCrc32">{{.MustCRC32}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Bypass</div>
+                <div class="metric-value" data-metric="fdCacheBypass">{{.FDCacheBypass}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Size</div>
+                <div class="metric-value" data-metric="fdCacheSize">{{.FDCacheSize}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache TTL</div>
+                <div class="metric-value" data-metric="fdCacheTtl">{{.FDCacheTTL}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Read Pool Buffer Size</div>
+                <div class="metric-value" data-metric="poolBufferSize">{{.PoolBufferSize}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Streaming Threshold</div>
+                <div class="metric-value" data-metric="streamingThreshold">{{.StreamingThreshold}}</div>
+            </div>
+        </div>
 
-            <!-- Extraction/streaming controls -->
-            <div class="metric-tile"><div class="metric-label">Forced Archive Flattening</div><div class="metric-value" data-metric="flatMode">{{.FlatMode}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Forced Integrity Verification</div><div class="metric-value" data-metric="mustCrc32">{{.MustCRC32}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Streaming Threshold</div><div class="metric-value" data-metric="streamingThreshold">{{.StreamingThreshold}}</div></div>
-            <div class="metric-tile"><div class="metric-label">Read Pool Buffer Size</div><div class="metric-value" data-metric="poolBufferSize">{{.PoolBufferSize}}</div></div>
+        <div class="section-label">Runtime Metrics</div>
+        <div class="metrics-grid">
+            <div class="metric-tile">
+                <div class="metric-label">Heap Allocated</div>
+                <div class="metric-value" data-metric="allocBytes">{{.AllocBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Heap Allocations</div>
+                <div class="metric-value" data-metric="totalAlloc">{{.TotalAlloc}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">System Memory</div>
+                <div class="metric-value" data-metric="sysBytes">{{.SysBytes}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">GC Cycles</div>
+                <div class="metric-value" data-metric="numGc">{{.NumGC}}</div>
+            </div>
         </div>
 
         <div class="logs-section">
