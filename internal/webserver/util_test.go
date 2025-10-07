@@ -105,7 +105,6 @@ func Test_totalExtractBytes_Negative_Success(t *testing.T) {
 // Expectation: totalFDCacheRatio should return correct percentage string.
 func Test_totalFDCacheRatio_Success(t *testing.T) {
 	t.Parallel()
-	dash := testDashboard(t, io.Discard)
 
 	tests := []struct {
 		name    string
@@ -154,6 +153,8 @@ func Test_totalFDCacheRatio_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			dash := testDashboard(t, io.Discard)
 
 			dash.fsys.Metrics.TotalFDCacheHits.Store(tt.hits)
 			dash.fsys.Metrics.TotalFDCacheMisses.Store(tt.misses)
