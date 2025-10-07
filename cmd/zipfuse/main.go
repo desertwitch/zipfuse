@@ -46,7 +46,6 @@ import (
 
 const (
 	stackTraceBufferSize = 1 << 24
-	ringBufferSize       = 500
 )
 
 var (
@@ -70,6 +69,7 @@ type cliOptions struct {
 	mustCRC32          bool
 	poolBufferSize     uint64
 	poolBufferSizeRaw  string
+	ringBufferSize     int
 	rootDir            string
 	streamThreshold    uint64
 	streamThresholdRaw string
@@ -137,15 +137,16 @@ func rootCmd() *cobra.Command {
 	}
 	cmd.PersistentFlags().BoolP("version", "", false, "version for zipfuse") // removes -v shorthand
 
-	cmd.Flags().BoolVarP(&opts.fdCacheBypass, "fd-cache-bypass", "b", false, "Bypass the FD cache; (re-)opens and closes file descriptors on every request")
 	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", true, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
+	cmd.Flags().BoolVarP(&opts.fdCacheBypass, "fd-cache-bypass", "b", false, "Bypass the FD cache; (re-)opens and closes file descriptors on every request")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print all verbose FUSE communication and diagnostics to standard error (stderr)")
 	cmd.Flags().BoolVarP(&opts.mustCRC32, "must-crc32", "m", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
 	cmd.Flags().DurationVarP(&opts.fdCacheTTL, "fd-cache-ttl", "t", 60*time.Second, "Time-to-live before FD cache evicts unused open file descriptors")
 	cmd.Flags().IntVarP(&opts.fdCacheSize, "fd-cache-size", "c", cacheLimit, "Max number of open file descriptors in the FD cache (must be < fd-limit)")
 	cmd.Flags().IntVarP(&opts.fdLimit, "fd-limit", "l", fsLimit, "Limit of total open file descriptors (> fd-cache-size; beware OS limits)")
+	cmd.Flags().IntVarP(&opts.ringBufferSize, "ring-buffer-size", "r", 500, "Buffer size for the event ring-buffer (displayed in diagnostics dashboard)")
 	cmd.Flags().StringVarP(&opts.poolBufferSizeRaw, "pool-buffer-size", "p", "128KiB", "Buffer size for the file read buffer pool (beware this multiplies)")
 	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "stream-threshold", "s", "10MiB", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&opts.webserverAddr, "webserver", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
@@ -233,7 +234,7 @@ func setupSignalHandlers(fsys *filesystem.FS, unmountDir string, rbuf *logging.R
 }
 
 func run(opts cliOptions) error {
-	rbuf := logging.NewRingBuffer(ringBufferSize, os.Stderr)
+	rbuf := logging.NewRingBuffer(opts.ringBufferSize, os.Stderr)
 
 	fopts := &filesystem.Options{
 		FDCacheSize:    opts.fdCacheSize,

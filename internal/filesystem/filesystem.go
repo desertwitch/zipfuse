@@ -26,7 +26,7 @@ const (
 	defaultFDLimit            = 512
 	defaultFlatMode           = false
 	defaultMustCRC32          = false
-	defaultPoolBufferSize     = 128 * 1024       // 10KiB
+	defaultPoolBufferSize     = 128 * 1024       // 128KiB
 	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MiB
 )
 
