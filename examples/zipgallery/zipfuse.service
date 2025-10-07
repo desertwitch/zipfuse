@@ -9,7 +9,7 @@ Conflicts=shutdown.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/zipfuse /mnt/media-adx2 /mnt/zipgallery --memsize 10M --webaddr :8000
+ExecStart=/usr/local/bin/zipfuse /mnt/media-adx2 /mnt/zipgallery --webserver :8000
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=60
