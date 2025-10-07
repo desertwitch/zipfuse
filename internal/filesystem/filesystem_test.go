@@ -166,6 +166,33 @@ func Test_FS_Deterministic_Success(t *testing.T) {
 				}
 			}
 		})
+		t.Run("CacheBypass="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+
+			fs1, err := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			require.NoError(t, err)
+			fs1.Options.FDCacheBypass.Store(mode)
+			fs2, err := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			require.NoError(t, err)
+			fs1.Options.FDCacheBypass.Store(mode)
+
+			paths1, entries1 := collect(fs1)
+			paths2, entries2 := collect(fs2)
+
+			require.Equal(t, paths1, paths2)
+
+			for _, p := range paths1 {
+				e1 := entries1[p]
+				e2 := entries2[p]
+
+				require.Equal(t, e1.attrInode, e2.attrInode, "attr inode mismatch at %q", p)
+
+				if e1.hasDirent || e2.hasDirent {
+					require.True(t, e1.hasDirent && e2.hasDirent, "dirent presence mismatch at %q", p)
+					require.Equal(t, e1.dirInode, e2.dirInode, "dirent inode mismatch at %q", p)
+				}
+			}
+		})
 	}
 }
 
