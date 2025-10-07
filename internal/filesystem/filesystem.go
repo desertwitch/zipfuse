@@ -3,46 +3,63 @@ package filesystem
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/desertwitch/zipfuse/internal/logging"
 )
 
 const (
-	fileBasePerm = 0o444 // RO
-	dirBasePerm  = 0o555 // RO
-	hashDigits   = 8     // [flatEntryName]
+	fileBasePerm      = 0o444 // RO
+	dirBasePerm       = 0o555 // RO
+	flattenHashDigits = 8     // [flatEntryName]
+
+	defaultFDCacheBypass      = false
+	defaultFDCacheSize        = 350
+	defaultFDCacheTTL         = 60 * time.Second
+	defaultFDLimit            = 512
+	defaultFlatMode           = false
+	defaultMustCRC32          = false
+	defaultPoolBufferSize     = 128 * 1024       // 128KiB
+	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MiB
 )
 
 var (
 	_ fs.FS               = (*FS)(nil)
 	_ fs.FSInodeGenerator = (*FS)(nil)
 
-	// Options is a pointer to the filesystem [FSOptions].
-	// As there is ever only one filesystem per program, keeping it as global
-	// variable is an acceptable trade-off over passing around [FS] pointers.
-	//
-	// Beware that any contained non-atomic variables should not be modified
-	// after the filesystem was mounted and are also not considered thread-safe.
-	Options = &FSOptions{}
-
-	// Metrics is a pointer to the filesystem [FSMetrics].
-	// As there is ever only one filesystem per program, keeping it as global
-	// variable is an acceptable trade-off over passing around [FS] pointers.
-	//
-	// Beware that any contained non-atomic variables should not be modified
-	// after the filesystem was mounted and are also not considered thread-safe.
-	Metrics = &FSMetrics{}
+	errMissingArgument = errors.New("missing argument")
 )
 
-// FSOptions contains all settings for the operation of the filesystem.
-type FSOptions struct {
+// Options contains all settings for the operation of the filesystem.
+// All non-atomic fields can no longer be modified at runtime (once mounted).
+type Options struct {
+	// FDLimit is the absolute limit on open file descriptors at any time.
+	FDLimit int
+
+	// FDCacheBypass circumvents the LRU cache for ZIP file descriptors.
+	// When enabled at runtime, in-flight descriptors will close after TTL.
+	FDCacheBypass atomic.Bool
+
+	// FDCacheSize is the size of the LRU cache for ZIP file descriptors.
+	// Beware the operating system file descriptor limit when changing this.
+	FDCacheSize int
+
+	// FDCacheTTL is the time-to-live for each ZIP file descriptor in the LRU.
+	// If a file descriptor is no longer used, it will be evicted after TTL.
+	FDCacheTTL time.Duration
+
+	// PoolBufferSize is the buffer size for the file read buffer pool.
+	PoolBufferSize int
+
 	// FlatMode controls if ZIP-contained subdirectories and files
 	// should be flattened with [flatEntryName] for shallow directories.
-	// This variable should no longer be modified when the FS is mounted.
 	FlatMode bool
 
 	// MustCRC32 controls if ZIP-contained uncompressed files must still run
@@ -54,8 +71,27 @@ type FSOptions struct {
 	StreamingThreshold atomic.Uint64
 }
 
-// FSMetrics contains all metrics which are collected within the filesystem.
-type FSMetrics struct {
+// DefaultOptions returns a pointer to [Options] with the default values.
+func DefaultOptions() *Options {
+	opts := &Options{
+		FDCacheSize:    defaultFDCacheSize,
+		FDCacheTTL:     defaultFDCacheTTL,
+		FDLimit:        defaultFDLimit,
+		FlatMode:       defaultFlatMode,
+		PoolBufferSize: defaultPoolBufferSize,
+	}
+	opts.FDCacheBypass.Store(defaultFDCacheBypass)
+	opts.MustCRC32.Store(defaultMustCRC32)
+	opts.StreamingThreshold.Store(defaultStreamingThreshold)
+
+	return opts
+}
+
+// Metrics contains all metrics which are collected within the filesystem.
+type Metrics struct {
+	// Errors is the amount of errors that have occurred.
+	Errors atomic.Int64
+
 	// OpenZips is the amount of currently open ZIP files.
 	OpenZips atomic.Int64
 
@@ -64,6 +100,9 @@ type FSMetrics struct {
 
 	// TotalClosedZips is the amount of closed ZIP files.
 	TotalClosedZips atomic.Int64
+
+	// TotalReopenedEntries is the amount of reopened ZIP entries (rewinds).
+	TotalReopenedEntries atomic.Int64
 
 	// TotalMetadataReadTime is time spent reading metadata from ZIP files.
 	TotalMetadataReadTime atomic.Int64
@@ -79,19 +118,92 @@ type FSMetrics struct {
 
 	// TotalExtractBytes is the amount of bytes extracted from ZIP files.
 	TotalExtractBytes atomic.Int64
+
+	// TotalFDCacheHits is the amount of cache-hits for the LRU cache.
+	TotalFDCacheHits atomic.Int64
+
+	// TotalFDCacheMisses is the amount of cache-misses for the LRU cache
+	TotalFDCacheMisses atomic.Int64
 }
 
 // FS is the core implementation of the filesystem.
 type FS struct {
 	RootDir string
+
+	Options *Options
+	Metrics *Metrics
+
+	fdlimit chan struct{}
+	fdcache *zipReaderCache
+	bufpool sync.Pool
+
+	rbuf *logging.RingBuffer
 }
 
-// Root returns the topmost [fs.Node] of the filesystem.
-func (zpfs *FS) Root() (fs.Node, error) {
+// NewFS returns a pointer to a new [FS].
+// You must call Cleanup() once all work is complete.
+func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error) {
+	if rbuf == nil {
+		return nil, fmt.Errorf("%w: need a ring buffer", errMissingArgument)
+	}
+	if rootDir == "" {
+		return nil, fmt.Errorf("%w: need a root dir", errMissingArgument)
+	}
+	if _, err := os.Stat(rootDir); err != nil {
+		return nil, fmt.Errorf("failed to stat root dir: %w", err)
+	}
+	if opts == nil {
+		opts = DefaultOptions()
+	}
+
+	fsys := &FS{
+		RootDir: rootDir,
+		Options: opts,
+		Metrics: &Metrics{},
+		rbuf:    rbuf,
+	}
+
+	fsys.fdlimit = make(chan struct{}, opts.FDLimit)
+	fsys.fdcache = newZipReaderCache(fsys, opts.FDCacheSize, opts.FDCacheTTL)
+
+	fsys.bufpool = sync.Pool{
+		New: func() any {
+			b := make([]byte, opts.PoolBufferSize)
+
+			return &b
+		},
+	}
+
+	return fsys, nil
+}
+
+// Cleanup does post-unmount FS cleanup and blocks until done.
+// It stops the goroutines associated with the file descriptor cache.
+func (fsys *FS) Cleanup() {
+	fsys.fdcache.cache.Stop()
+}
+
+// HaltPurgeCache prepares the file descriptor cache for unmount,
+// turning on FD cache bypass and deleting all items from the cache.
+// It returns then as bool the pre-call value of Options.FDCacheBypass.
+// This can be used to restore the setting in case of a failed unmount.
+// On successful unmount, Cleanup() must also be called to stop the cache.
+func (fsys *FS) HaltPurgeCache() bool {
+	v := fsys.Options.FDCacheBypass.Load()
+
+	fsys.Options.FDCacheBypass.Store(true)
+	fsys.fdcache.cache.DeleteAll()
+
+	return v
+}
+
+// Root returns the entry-point [fs.Node] of the filesystem.
+func (fsys *FS) Root() (fs.Node, error) {
 	return &realDirNode{
-		Inode:    1,
-		Path:     zpfs.RootDir,
-		Modified: time.Now(),
+		fsys:  fsys,
+		inode: 1,
+		path:  fsys.RootDir,
+		mtime: time.Now(),
 	}, nil
 }
 
@@ -102,7 +214,7 @@ func (zpfs *FS) Root() (fs.Node, error) {
 // FUSE library (being the fallback on encountering zero inodes) is a core
 // violation of this very design principle. Calls to this method will panic,
 // revealing where internal inode handling does not produce the valid inode.
-func (zpfs *FS) GenerateInode(_ uint64, _ string) uint64 {
+func (fsys *FS) GenerateInode(_ uint64, _ string) uint64 {
 	panic("unhandled zero inode triggered an illegal dynamic generation")
 }
 
@@ -112,17 +224,17 @@ func (zpfs *FS) GenerateInode(_ uint64, _ string) uint64 {
 type WalkFunc func(path string, dirent *fuse.Dirent, node fs.Node, attr fuse.Attr) error
 
 // Walk constructs and walks the [FS] in-memory, calling walkFn on each visited [fs.Node].
-func (zpfs *FS) Walk(ctx context.Context, walkFn WalkFunc) error {
-	root, err := zpfs.Root()
+func (fsys *FS) Walk(ctx context.Context, walkFn WalkFunc) error {
+	root, err := fsys.Root()
 	if err != nil {
 		return fmt.Errorf("failed to get fs root: %w", err)
 	}
 
-	return zpfs.walkNode(ctx, "/", nil, root, walkFn)
+	return fsys.walkNode(ctx, "/", nil, root, walkFn)
 }
 
 // walkNode handles walking of a [fs.Node] within the [FS].
-func (zpfs *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, node fs.Node, walkFn WalkFunc) error {
+func (fsys *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, node fs.Node, walkFn WalkFunc) error {
 	var attr fuse.Attr
 
 	if err := ctx.Err(); err != nil {
@@ -134,7 +246,7 @@ func (zpfs *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 	}
 
 	if err := walkFn(path, dirent, node, attr); err != nil {
-		return fmt.Errorf("walkFn error at %q: %w", path, err)
+		return fmt.Errorf("walkfn error at %q: %w", path, err)
 	}
 
 	if readDirNode, ok := node.(fs.HandleReadDirAller); ok {
@@ -156,12 +268,21 @@ func (zpfs *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 					return fmt.Errorf("lookup error for %q at %q: %w", de.Name, path, err)
 				}
 
-				if err := zpfs.walkNode(ctx, childPath, &de, childNode, walkFn); err != nil {
-					return fmt.Errorf("walkFn error at %q: %w", childPath, err)
+				if err := fsys.walkNode(ctx, childPath, &de, childNode, walkFn); err != nil {
+					return fmt.Errorf("walkfn error at %q: %w", childPath, err)
 				}
 			}
 		}
 	}
 
 	return nil
+}
+
+// fsError tracks the error count within the filesystem.
+// It returns the received error back to the caller unchanged.
+// This allows for convenient use of the method in return calls.
+func (fsys *FS) fsError(err error) error {
+	fsys.Metrics.Errors.Add(1)
+
+	return err
 }

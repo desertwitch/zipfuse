@@ -171,6 +171,14 @@
                 <div class="metric-value" data-metric="closedZips">{{.ClosedZips}}</div>
             </div>
             <div class="metric-tile">
+                <div class="metric-label">Total Entries Reopened</div>
+                <div class="metric-value" data-metric="reopenedEntries">{{.ReopenedEntries}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Errors Returned</div>
+                <div class="metric-value" data-metric="totalErrors">{{.TotalErrors}}</div>
+            </div>
+            <div class="metric-tile">
                 <div class="metric-label">Total Metadata Reads</div>
                 <div class="metric-value" data-metric="totalMetadatas">{{.TotalMetadatas}}</div>
             </div>
@@ -194,14 +202,22 @@
                 <div class="metric-label">Average Extraction Speed</div>
                 <div class="metric-value" data-metric="avgExtractSpeed">{{.AvgExtractSpeed}}</div>
             </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Hits</div>
+                <div class="metric-value" data-metric="totalFdCacheHits">{{.TotalFDCacheHits}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Misses</div>
+                <div class="metric-value" data-metric="totalFdCacheMisses">{{.TotalFDCacheMisses}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Hit Ratio</div>
+                <div class="metric-value" data-metric="totalFdCacheRatio">{{.TotalFDCacheRatio}}</div>
+            </div>
         </div>
 
         <div class="section-label">Filesystem Settings</div>
         <div class="metrics-grid">
-            <div class="metric-tile">
-                <div class="metric-label">Streaming Threshold</div>
-                <div class="metric-value" data-metric="streamingThreshold">{{.StreamingThreshold}}</div>
-            </div>
             <div class="metric-tile">
                 <div class="metric-label">Forced Archive Flattening</div>
                 <div class="metric-value" data-metric="flatMode">{{.FlatMode}}</div>
@@ -209,6 +225,30 @@
             <div class="metric-tile">
                 <div class="metric-label">Forced Integrity Verification</div>
                 <div class="metric-value" data-metric="mustCrc32">{{.MustCRC32}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Bypass</div>
+                <div class="metric-value" data-metric="fdCacheBypass">{{.FDCacheBypass}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache Size</div>
+                <div class="metric-value" data-metric="fdCacheSize">{{.FDCacheSize}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">FD Cache TTL</div>
+                <div class="metric-value" data-metric="fdCacheTtl">{{.FDCacheTTL}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total FD Limit</div>
+                <div class="metric-value" data-metric="fdLimit">{{.FDLimit}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Read Pool Buffer Size</div>
+                <div class="metric-value" data-metric="poolBufferSize">{{.PoolBufferSize}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Streaming Threshold</div>
+                <div class="metric-value" data-metric="streamingThreshold">{{.StreamingThreshold}}</div>
             </div>
         </div>
 
@@ -233,7 +273,7 @@
         </div>
 
         <div class="logs-section">
-            <h2>Filesystem Ring-Buffer ({{.RingBufferSize}} lines)</h2>
+            <h2>Event Ring-Buffer ({{.RingBufferSize}} lines)</h2>
             <ul class="log-list" id="logs">
                 {{range .Logs}}
                     <li class="log-item">{{.}}</li>

@@ -11,7 +11,6 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"github.com/desertwitch/zipfuse/internal/logging"
 )
 
 var (
@@ -24,18 +23,19 @@ var (
 // It is presented also as a regular directory within our filesystem, however
 // only contained regular directories and ZIP archives are processed further.
 type realDirNode struct {
-	Inode    uint64    // Inode within our filesystem.
-	Path     string    // Path of the underlying regular directory.
-	Modified time.Time // Modified time of the underlying regular directory.
+	fsys  *FS       // Pointer to our filesystem.
+	inode uint64    // Inode within our filesystem.
+	path  string    // Path of the underlying regular directory.
+	mtime time.Time // Modified time of the underlying regular directory.
 }
 
 func (d *realDirNode) Attr(_ context.Context, a *fuse.Attr) error {
 	a.Mode = os.ModeDir | dirBasePerm
-	a.Inode = d.Inode
+	a.Inode = d.inode
 
-	a.Atime = d.Modified
-	a.Ctime = d.Modified
-	a.Mtime = d.Modified
+	a.Atime = d.mtime
+	a.Ctime = d.mtime
+	a.Mtime = d.mtime
 
 	return nil
 }
@@ -44,9 +44,9 @@ func (d *realDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 	seen := make(map[string]bool)
 	resp := make([]fuse.Dirent, 0)
 
-	entries, err := os.ReadDir(d.Path)
+	entries, err := os.ReadDir(d.path)
 	if err != nil {
-		logging.Printf("Error: %q->ReadDirAll: %v\n", d.Path, err)
+		d.fsys.rbuf.Printf("Error: %q->ReadDirAll: %v\n", d.path, err)
 
 		return nil, toFuseErr(err)
 	}
@@ -76,7 +76,7 @@ func (d *realDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 		resp = append(resp, fuse.Dirent{
 			Name:  name,
 			Type:  fuse.DT_Dir,
-			Inode: fs.GenerateDynamicInode(d.Inode, name),
+			Inode: fs.GenerateDynamicInode(d.inode, name),
 		})
 	}
 
@@ -91,7 +91,7 @@ func (d *realDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 		resp = append(resp, fuse.Dirent{
 			Name:  name,
 			Type:  fuse.DT_Dir,
-			Inode: fs.GenerateDynamicInode(d.Inode, name),
+			Inode: fs.GenerateDynamicInode(d.inode, name),
 		})
 	}
 
@@ -103,24 +103,26 @@ func (d *realDirNode) ReadDirAll(_ context.Context) ([]fuse.Dirent, error) {
 }
 
 func (d *realDirNode) Lookup(_ context.Context, name string) (fs.Node, error) {
-	path := filepath.Join(d.Path, name)
+	path := filepath.Join(d.path, name)
 
 	if info, err := os.Stat(path); err == nil && info.IsDir() {
 		return &realDirNode{
-			Path:     path,
-			Modified: info.ModTime(),
-			Inode:    fs.GenerateDynamicInode(d.Inode, name),
+			fsys:  d.fsys,
+			path:  path,
+			mtime: info.ModTime(),
+			inode: fs.GenerateDynamicInode(d.inode, name),
 		}, nil
 	}
 
 	zipPath := path + ".zip"
 	if info, err := os.Stat(zipPath); err == nil && !info.IsDir() {
 		return &zipDirNode{
-			Path:     zipPath,
-			Modified: info.ModTime(),
-			Inode:    fs.GenerateDynamicInode(d.Inode, name),
+			fsys:  d.fsys,
+			path:  zipPath,
+			mtime: info.ModTime(),
+			inode: fs.GenerateDynamicInode(d.inode, name),
 		}, nil
 	}
 
-	return nil, fuse.ToErrno(syscall.ENOENT)
+	return nil, d.fsys.fsError(toFuseErr(syscall.ENOENT))
 }

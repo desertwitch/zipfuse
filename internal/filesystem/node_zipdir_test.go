@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ import (
 // createTestZip creates a zip file for testing with the given paths and modification times.
 // Each path can be a file (no trailing slash) or directory (with trailing slash).
 // Returns the path to the created zip file.
-func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct { //nolint:unparam
+func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct {
 	Path    string
 	ModTime time.Time
 	Content []byte // optional, only for files (can be nil)
@@ -65,12 +66,15 @@ func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct
 
 // Expectation: Attr should fill in the [fuse.Attr] with the correct values.
 func Test_zipDirNode_Attr_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     "",
-		Modified: tnow,
+		fsys:  fsys,
+		inode: fs.GenerateDynamicInode(1, "test"),
+		path:  "",
+		mtime: tnow,
 	}
 
 	attr := fuse.Attr{}
@@ -84,9 +88,46 @@ func Test_zipDirNode_Attr_Success(t *testing.T) {
 	require.Equal(t, tnow, attr.Mtime)
 }
 
+// Expectation: Open should set the caching flags and return the node itself as the handle.
+func Test_zipDirNode_Open_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	content := []byte("test content in directory")
+	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "dir/", ModTime: tnow, Content: nil},
+		{Path: "dir/file.txt", ModTime: tnow, Content: content},
+	})
+
+	node := &zipDirNode{
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test.zip"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
+	}
+
+	resp := &fuse.OpenResponse{}
+	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
+	require.NoError(t, err)
+
+	require.NotZero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should be set")
+	require.NotZero(t, resp.Flags&fuse.OpenCacheDir, "OpenCacheDir flag should be set")
+
+	dirHandle, ok := handle.(*zipDirNode)
+	require.True(t, ok, "handle should be a *zipDirNode")
+	require.Equal(t, node, dirHandle, "handle should be the same as the original node")
+}
+
 // Expectation: The returned [fuse.Dirent] slice should meet the expectations (flat mode).
 func Test_zipDirNode_readDirAllFlat_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -101,10 +142,11 @@ func Test_zipDirNode_readDirAllFlat_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllFlat(t.Context())
@@ -113,20 +155,21 @@ func Test_zipDirNode_readDirAllFlat_Success(t *testing.T) {
 
 	name, ok := flatEntryName("dir/a.txt")
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, name), ent[0].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[0].Inode)
 	require.Equal(t, name, ent[0].Name)
 	require.Equal(t, fuse.DT_File, ent[0].Type)
 
 	name, ok = flatEntryName("dir/b.txt")
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, name), ent[1].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[1].Inode)
 	require.Equal(t, name, ent[1].Name)
 	require.Equal(t, fuse.DT_File, ent[1].Type)
 }
 
 // Expectation: Leading slashes in ZIP entries should be handled in flat mode.
 func Test_zipDirNode_readDirAllFlat_LeadingSlash_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -139,10 +182,11 @@ func Test_zipDirNode_readDirAllFlat_LeadingSlash_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllFlat(t.Context())
@@ -164,13 +208,15 @@ func Test_zipDirNode_readDirAllFlat_LeadingSlash_Success(t *testing.T) {
 
 // Expectation: EINVAL should be returned upon accessing an invalid ZIP file (flat mode).
 func Test_zipDirNode_readDirAllFlat_InvalidArchive_Error(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     tmpDir + "_notexist.zip", // missing
-		Modified: tnow,
+		fsys:  fsys,
+		inode: fs.GenerateDynamicInode(1, "test"),
+		path:  tmpDir + "_notexist.zip", // missing
+		mtime: tnow,
 	}
 
 	ent, err := node.readDirAllFlat(t.Context())
@@ -180,7 +226,8 @@ func Test_zipDirNode_readDirAllFlat_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: The returned [fuse.Dirent] slice should meet the expectations (nested mode - root).
 func Test_zipDirNode_readDirAllNested_Root_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -196,10 +243,11 @@ func Test_zipDirNode_readDirAllNested_Root_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -218,7 +266,8 @@ func Test_zipDirNode_readDirAllNested_Root_Success(t *testing.T) {
 
 // Expectation: The returned [fuse.Dirent] slice should meet the expectations (nested mode - subdir).
 func Test_zipDirNode_readDirAllNested_Subdir_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -235,10 +284,11 @@ func Test_zipDirNode_readDirAllNested_Subdir_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "docs/",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "docs/",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -257,7 +307,8 @@ func Test_zipDirNode_readDirAllNested_Subdir_Success(t *testing.T) {
 
 // Expectation: Empty names should be skipped in nested mode.
 func Test_zipDirNode_readDirAllNested_EmptyName_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -270,10 +321,11 @@ func Test_zipDirNode_readDirAllNested_EmptyName_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "docs/",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "docs/",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -287,7 +339,8 @@ func Test_zipDirNode_readDirAllNested_EmptyName_Success(t *testing.T) {
 
 // Expectation: Implicit directories should be detected in nested mode.
 func Test_zipDirNode_readDirAllNested_ImplicitDirectory_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -300,10 +353,11 @@ func Test_zipDirNode_readDirAllNested_ImplicitDirectory_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -316,7 +370,8 @@ func Test_zipDirNode_readDirAllNested_ImplicitDirectory_Success(t *testing.T) {
 
 // Expectation: Mixed explicit and implicit should work in nested mode.
 func Test_zipDirNode_readDirAllNested_MixedDirectories_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -330,10 +385,11 @@ func Test_zipDirNode_readDirAllNested_MixedDirectories_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -348,7 +404,8 @@ func Test_zipDirNode_readDirAllNested_MixedDirectories_Success(t *testing.T) {
 }
 
 func Test_zipDirNode_readDirAllNested_PrefixFiltering_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -363,10 +420,11 @@ func Test_zipDirNode_readDirAllNested_PrefixFiltering_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "docs/",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "docs/",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -382,7 +440,8 @@ func Test_zipDirNode_readDirAllNested_PrefixFiltering_Success(t *testing.T) {
 
 // Expectation: Leading slashes in ZIP entries should be handled in nested mode.
 func Test_zipDirNode_readDirAllNested_LeadingSlash_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -395,10 +454,11 @@ func Test_zipDirNode_readDirAllNested_LeadingSlash_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -414,7 +474,8 @@ func Test_zipDirNode_readDirAllNested_LeadingSlash_Success(t *testing.T) {
 
 // Expectation: Double slashes in ZIP entries should be handled in nested mode.
 func Test_zipDirNode_readDirAllNested_DoubleSlash_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -427,10 +488,11 @@ func Test_zipDirNode_readDirAllNested_DoubleSlash_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "dir/",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "dir/",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -444,7 +506,8 @@ func Test_zipDirNode_readDirAllNested_DoubleSlash_Success(t *testing.T) {
 
 // Expectation: Duplicate prefixed entries in ReadDirAll should be deduplicated in nested mode.
 func Test_zipDirNode_readDirAllNested_Deduplication_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -458,10 +521,11 @@ func Test_zipDirNode_readDirAllNested_Deduplication_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -475,7 +539,8 @@ func Test_zipDirNode_readDirAllNested_Deduplication_Success(t *testing.T) {
 
 // Expectation: Files and directories with similar names should not conflict in nested mode.
 func Test_zipDirNode_readDirAllNested_SimilarNames_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -489,10 +554,11 @@ func Test_zipDirNode_readDirAllNested_SimilarNames_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -511,14 +577,16 @@ func Test_zipDirNode_readDirAllNested_SimilarNames_Success(t *testing.T) {
 
 // Expectation: EINVAL should be returned upon accessing an invalid ZIP file (nested mode).
 func Test_zipDirNode_readDirAllNested_InvalidArchive_Error(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     tmpDir + "_notexist.zip", // missing
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   tmpDir + "_notexist.zip", // missing
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -528,8 +596,10 @@ func Test_zipDirNode_readDirAllNested_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: The returned lookup nodes should meet the expectations (flat mode).
 func Test_zipDirNode_lookupFlat_Success(t *testing.T) {
-	Options.StreamingThreshold.Store(1)
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.StreamingThreshold.Store(1)
+
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -543,9 +613,10 @@ func Test_zipDirNode_lookupFlat_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Modified: tnow,
+		fsys:  fsys,
+		inode: fs.GenerateDynamicInode(1, "test"),
+		path:  zipPath,
+		mtime: tnow,
 	}
 
 	name, ok := flatEntryName("dir/a.txt")
@@ -554,9 +625,9 @@ func Test_zipDirNode_lookupFlat_Success(t *testing.T) {
 	require.NoError(t, err)
 	mn, ok := lk.(*zipInMemoryFileNode)
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, name), mn.Inode)
-	require.Equal(t, "dir/a.txt", mn.Path)
-	require.WithinDuration(t, tnow, mn.Modified, time.Second)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), mn.inode)
+	require.Equal(t, "dir/a.txt", mn.path)
+	require.WithinDuration(t, tnow, mn.mtime, time.Second)
 
 	name, ok = flatEntryName("dir/b.txt")
 	require.True(t, ok)
@@ -564,15 +635,17 @@ func Test_zipDirNode_lookupFlat_Success(t *testing.T) {
 	require.NoError(t, err)
 	dn, ok := lk.(*zipDiskStreamFileNode)
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, name), dn.Inode)
-	require.Equal(t, "dir/b.txt", dn.Path)
-	require.WithinDuration(t, tnow, dn.Modified, time.Second)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), dn.inode)
+	require.Equal(t, "dir/b.txt", dn.path)
+	require.WithinDuration(t, tnow, dn.mtime, time.Second)
 }
 
 // Expectation: A lookup on a non-existing entry should return ENOENT (flat mode).
 func Test_zipDirNode_lookupFlat_EntryNotExist_Error(t *testing.T) {
-	Options.StreamingThreshold.Store(1)
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.StreamingThreshold.Store(1)
+
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -586,9 +659,10 @@ func Test_zipDirNode_lookupFlat_EntryNotExist_Error(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Modified: tnow,
+		fsys:  fsys,
+		inode: fs.GenerateDynamicInode(1, "test"),
+		path:  zipPath,
+		mtime: tnow,
 	}
 
 	name, ok := flatEntryName("dir/c.txt") // missing
@@ -600,14 +674,17 @@ func Test_zipDirNode_lookupFlat_EntryNotExist_Error(t *testing.T) {
 
 // Expectation: A lookup on an invalid backing archive should return EINVAL (flat mode).
 func Test_zipDirNode_lookupFlat_InvalidArchive_Error(t *testing.T) {
-	Options.StreamingThreshold.Store(1)
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.StreamingThreshold.Store(1)
+
 	tnow := time.Now()
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     tmpDir + "_noexist.zip", // missing
-		Modified: tnow,
+		fsys:  fsys,
+		inode: fs.GenerateDynamicInode(1, "test"),
+		path:  tmpDir + "_noexist.zip", // missing
+		mtime: tnow,
 	}
 
 	name, ok := flatEntryName("dir/c.txt")
@@ -619,8 +696,10 @@ func Test_zipDirNode_lookupFlat_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: The returned lookup nodes should meet the expectations (nested mode - file).
 func Test_zipDirNode_lookupNested_File_Success(t *testing.T) {
-	Options.StreamingThreshold.Store(1)
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.StreamingThreshold.Store(1)
+
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -633,19 +712,20 @@ func Test_zipDirNode_lookupNested_File_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	lk, err := node.lookupNested(t.Context(), "readme.txt")
 	require.NoError(t, err)
 	mn, ok := lk.(*zipInMemoryFileNode)
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "readme.txt"), mn.Inode)
-	require.Equal(t, "readme.txt", mn.Path)
-	require.WithinDuration(t, tnow, mn.Modified, time.Second)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "readme.txt"), mn.inode)
+	require.Equal(t, "readme.txt", mn.path)
+	require.WithinDuration(t, tnow, mn.mtime, time.Second)
 
 	_, err = node.lookupNested(t.Context(), "a.txt")
 	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
@@ -653,7 +733,8 @@ func Test_zipDirNode_lookupNested_File_Success(t *testing.T) {
 
 // Expectation: The returned lookup nodes should meet the expectations (nested mode - directory).
 func Test_zipDirNode_lookupNested_Directory_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -666,20 +747,21 @@ func Test_zipDirNode_lookupNested_Directory_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	lk, err := node.lookupNested(t.Context(), "docs")
 	require.NoError(t, err)
 	dn, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, zipPath, dn.Path)
-	require.Equal(t, "docs/", dn.Prefix)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "docs"), dn.Inode)
-	require.Equal(t, tnow, dn.Modified) // Should use archive's timestamp
+	require.Equal(t, zipPath, dn.path)
+	require.Equal(t, "docs/", dn.prefix)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "docs"), dn.inode)
+	require.Equal(t, tnow, dn.mtime) // Should use archive's timestamp
 
 	_, err = node.lookupNested(t.Context(), "a.txt")
 	require.ErrorIs(t, err, fuse.ToErrno(syscall.ENOENT))
@@ -687,7 +769,8 @@ func Test_zipDirNode_lookupNested_Directory_Success(t *testing.T) {
 
 // Expectation: Directory timestamp should use archive time, not file time in nested mode.
 func Test_zipDirNode_lookupNested_Timestamps_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	archiveTime := time.Now()
 
 	fileTime := archiveTime.Add(-24 * time.Hour)
@@ -700,10 +783,11 @@ func Test_zipDirNode_lookupNested_Timestamps_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: archiveTime,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  archiveTime,
 	}
 
 	lk, err := node.lookupNested(t.Context(), "docs")
@@ -712,13 +796,15 @@ func Test_zipDirNode_lookupNested_Timestamps_Success(t *testing.T) {
 	require.True(t, ok)
 
 	// Directory should use archive time, not file time
-	require.Equal(t, archiveTime, dn.Modified)
+	require.Equal(t, archiveTime, dn.mtime)
 }
 
 // Expectation: Directory and file lookup should work at multiple nesting levels.
 func Test_zipDirNode_lookupNested_DeepStructure_Success(t *testing.T) {
-	Options.StreamingThreshold.Store(1)
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.StreamingThreshold.Store(1)
+
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -731,51 +817,53 @@ func Test_zipDirNode_lookupNested_DeepStructure_Success(t *testing.T) {
 	})
 
 	rootNode := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	lk, err := rootNode.lookupNested(t.Context(), "docs")
 	require.NoError(t, err)
 	docsNode, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, "docs/", docsNode.Prefix)
-	require.Equal(t, fs.GenerateDynamicInode(rootNode.Inode, "docs"), docsNode.Inode)
+	require.Equal(t, "docs/", docsNode.prefix)
+	require.Equal(t, fs.GenerateDynamicInode(rootNode.inode, "docs"), docsNode.inode)
 
 	lk, err = docsNode.lookupNested(t.Context(), "images")
 	require.NoError(t, err)
 	imagesNode, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, "docs/images/", imagesNode.Prefix)
-	require.Equal(t, fs.GenerateDynamicInode(docsNode.Inode, "images"), imagesNode.Inode)
+	require.Equal(t, "docs/images/", imagesNode.prefix)
+	require.Equal(t, fs.GenerateDynamicInode(docsNode.inode, "images"), imagesNode.inode)
 
 	lk, err = imagesNode.lookupNested(t.Context(), "icons")
 	require.NoError(t, err)
 	iconsNode, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, "docs/images/icons/", iconsNode.Prefix)
-	require.Equal(t, fs.GenerateDynamicInode(imagesNode.Inode, "icons"), iconsNode.Inode)
+	require.Equal(t, "docs/images/icons/", iconsNode.prefix)
+	require.Equal(t, fs.GenerateDynamicInode(imagesNode.inode, "icons"), iconsNode.inode)
 
 	lk, err = iconsNode.lookupNested(t.Context(), "favicon.ico")
 	require.NoError(t, err)
 	faviconNode, ok := lk.(*zipInMemoryFileNode)
 	require.True(t, ok)
-	require.Equal(t, "docs/images/icons/favicon.ico", faviconNode.Path)
-	require.Equal(t, fs.GenerateDynamicInode(iconsNode.Inode, "favicon.ico"), faviconNode.Inode)
+	require.Equal(t, "docs/images/icons/favicon.ico", faviconNode.path)
+	require.Equal(t, fs.GenerateDynamicInode(iconsNode.inode, "favicon.ico"), faviconNode.inode)
 
 	lk, err = iconsNode.lookupNested(t.Context(), "favicon-large.ico")
 	require.NoError(t, err)
 	faviconLargeNode, ok := lk.(*zipDiskStreamFileNode)
 	require.True(t, ok)
-	require.Equal(t, "docs/images/icons/favicon-large.ico", faviconLargeNode.Path)
-	require.Equal(t, fs.GenerateDynamicInode(iconsNode.Inode, "favicon-large.ico"), faviconLargeNode.Inode)
+	require.Equal(t, "docs/images/icons/favicon-large.ico", faviconLargeNode.path)
+	require.Equal(t, fs.GenerateDynamicInode(iconsNode.inode, "favicon-large.ico"), faviconLargeNode.inode)
 }
 
 // Expectation: Looking up implicit directories should work in nested mode.
 func Test_zipDirNode_lookupNested_ImplicitDirectory_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -787,23 +875,26 @@ func Test_zipDirNode_lookupNested_ImplicitDirectory_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	lk, err := node.lookupNested(t.Context(), "docs")
 	require.NoError(t, err)
 	dn, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, "docs/", dn.Prefix)
+	require.Equal(t, "docs/", dn.prefix)
 }
 
 // Expectation: Prefix matching should be exact (not substring) in nested mode.
 func Test_zipDirNode_lookupNested_ExactPrefixMatch_Success(t *testing.T) {
-	Options.StreamingThreshold.Store(1)
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.StreamingThreshold.Store(1)
+
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -817,10 +908,11 @@ func Test_zipDirNode_lookupNested_ExactPrefixMatch_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	_, err := node.lookupNested(t.Context(), "do")
@@ -835,18 +927,19 @@ func Test_zipDirNode_lookupNested_ExactPrefixMatch_Success(t *testing.T) {
 	require.NoError(t, err)
 	dn, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, "docs/", dn.Prefix)
+	require.Equal(t, "docs/", dn.prefix)
 
 	lk, err = node.lookupNested(t.Context(), "documentation")
 	require.NoError(t, err)
 	dn, ok = lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, "documentation/", dn.Prefix)
+	require.Equal(t, "documentation/", dn.prefix)
 }
 
 // Expectation: A lookup on a non-existing entry should return ENOENT (nested mode).
 func Test_zipDirNode_lookupNested_EntryNotExist_Error(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -858,10 +951,11 @@ func Test_zipDirNode_lookupNested_EntryNotExist_Error(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	lk, err := node.lookupNested(t.Context(), "a.txt")
@@ -871,14 +965,16 @@ func Test_zipDirNode_lookupNested_EntryNotExist_Error(t *testing.T) {
 
 // Expectation: A lookup on an invalid backing archive should return EINVAL (nested mode).
 func Test_zipDirNode_lookupNested_InvalidArchive_Error(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     tmpDir + "_noexist.zip", // missing
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   tmpDir + "_noexist.zip", // missing
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	lk, err := node.lookupNested(t.Context(), "docs")
@@ -888,8 +984,10 @@ func Test_zipDirNode_lookupNested_InvalidArchive_Error(t *testing.T) {
 
 // Expectation: Inodes should remain deterministic and equal across calls (flat mode).
 func Test_zipDirNode_DeterministicInodes_Flat_Success(t *testing.T) {
-	Options.StreamingThreshold.Store(1)
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.StreamingThreshold.Store(1)
+
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -903,9 +1001,10 @@ func Test_zipDirNode_DeterministicInodes_Flat_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Modified: tnow,
+		fsys:  fsys,
+		inode: fs.GenerateDynamicInode(1, "test"),
+		path:  zipPath,
+		mtime: tnow,
 	}
 
 	ent, err := node.readDirAllFlat(t.Context())
@@ -914,39 +1013,41 @@ func Test_zipDirNode_DeterministicInodes_Flat_Success(t *testing.T) {
 
 	name, ok := flatEntryName("dir/a.txt")
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, name), ent[0].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[0].Inode)
 	require.Equal(t, name, ent[0].Name)
 	require.Equal(t, fuse.DT_File, ent[0].Type)
 	lk, err := node.lookupFlat(t.Context(), name)
 	require.NoError(t, err)
 	mn, ok := lk.(*zipInMemoryFileNode)
 	require.True(t, ok)
-	require.Equal(t, ent[0].Inode, mn.Inode)
+	require.Equal(t, ent[0].Inode, mn.inode)
 	attr := fuse.Attr{}
 	err = mn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
-	require.Equal(t, mn.Inode, attr.Inode)
+	require.Equal(t, mn.inode, attr.Inode)
 
 	name, ok = flatEntryName("dir/b.txt")
 	require.True(t, ok)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, name), ent[1].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[1].Inode)
 	require.Equal(t, name, ent[1].Name)
 	require.Equal(t, fuse.DT_File, ent[1].Type)
 	lk, err = node.lookupFlat(t.Context(), name)
 	require.NoError(t, err)
 	dn, ok := lk.(*zipDiskStreamFileNode)
 	require.True(t, ok)
-	require.Equal(t, ent[1].Inode, dn.Inode)
+	require.Equal(t, ent[1].Inode, dn.inode)
 	attr = fuse.Attr{}
 	err = dn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
-	require.Equal(t, dn.Inode, attr.Inode)
+	require.Equal(t, dn.inode, attr.Inode)
 }
 
 // Expectation: Inodes should remain deterministic and equal across calls (nested mode).
 func Test_zipDirNode_DeterministicInodes_Nested_Success(t *testing.T) {
-	Options.StreamingThreshold.Store(1)
-	tmpDir := t.TempDir()
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	fsys.Options.StreamingThreshold.Store(1)
+
 	tnow := time.Now()
 
 	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
@@ -960,10 +1061,11 @@ func Test_zipDirNode_DeterministicInodes_Nested_Success(t *testing.T) {
 	})
 
 	node := &zipDirNode{
-		Inode:    fs.GenerateDynamicInode(1, "test"),
-		Path:     zipPath,
-		Prefix:   "",
-		Modified: tnow,
+		fsys:   fsys,
+		inode:  fs.GenerateDynamicInode(1, "test"),
+		path:   zipPath,
+		prefix: "",
+		mtime:  tnow,
 	}
 
 	ent, err := node.readDirAllNested(t.Context())
@@ -972,29 +1074,29 @@ func Test_zipDirNode_DeterministicInodes_Nested_Success(t *testing.T) {
 
 	require.Equal(t, "docs", ent[0].Name)
 	require.Equal(t, fuse.DT_Dir, ent[0].Type)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "docs"), ent[0].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "docs"), ent[0].Inode)
 
 	lk, err := node.lookupNested(t.Context(), "docs")
 	require.NoError(t, err)
 	dn, ok := lk.(*zipDirNode)
 	require.True(t, ok)
-	require.Equal(t, ent[0].Inode, dn.Inode)
+	require.Equal(t, ent[0].Inode, dn.inode)
 	attr := fuse.Attr{}
 	err = dn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
-	require.Equal(t, dn.Inode, attr.Inode)
+	require.Equal(t, dn.inode, attr.Inode)
 
 	require.Equal(t, "readme.txt", ent[1].Name)
 	require.Equal(t, fuse.DT_File, ent[1].Type)
-	require.Equal(t, fs.GenerateDynamicInode(node.Inode, "readme.txt"), ent[1].Inode)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, "readme.txt"), ent[1].Inode)
 
 	lk, err = node.lookupNested(t.Context(), "readme.txt")
 	require.NoError(t, err)
 	mn, ok := lk.(*zipInMemoryFileNode)
 	require.True(t, ok)
-	require.Equal(t, ent[1].Inode, mn.Inode)
+	require.Equal(t, ent[1].Inode, mn.inode)
 	attr = fuse.Attr{}
 	err = mn.Attr(t.Context(), &attr)
 	require.NoError(t, err)
-	require.Equal(t, mn.Inode, attr.Inode)
+	require.Equal(t, mn.inode, attr.Inode)
 }

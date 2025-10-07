@@ -38,12 +38,11 @@ linters:
       - std-error-handling
     rules:
       - linters:
+          - dupl
           - err113
           - funlen
           - ireturn
           - revive
-          - tparallel
-          - paralleltest
           - testpackage
         path: _test\.go
     paths:

@@ -3,6 +3,7 @@ package filesystem
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,29 +12,91 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/desertwitch/zipfuse/internal/logging"
 	"github.com/stretchr/testify/require"
 )
 
-// Expectation: RootDir should be returned as a [realDirNode].
-func Test_FS_Root_Success(t *testing.T) {
-	zpfs := &FS{
-		RootDir: t.TempDir(),
+func testFS(t *testing.T, out io.Writer) (string, *FS) {
+	t.Helper()
+
+	tmp := t.TempDir()
+	rbf := logging.NewRingBuffer(10, out)
+	fsys, err := NewFS(tmp, nil, rbf)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		fsys.HaltPurgeCache()
+		fsys.Cleanup()
+	})
+
+	return tmp, fsys
+}
+
+// Expectation: NewFS should return errors for invalid arguments.
+func Test_NewFS_Errors(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		name    string
+		rootDir string
+		opts    *Options
+		rbuf    *logging.RingBuffer
+		wantErr string
+	}{
+		{
+			name:    "NilRingBuffer",
+			rootDir: tmp,
+			rbuf:    nil,
+			wantErr: "need a ring buffer",
+		},
+		{
+			name:    "EmptyRootDir",
+			rootDir: "",
+			rbuf:    logging.NewRingBuffer(10, io.Discard),
+			wantErr: "need a root dir",
+		},
+		{
+			name:    "MissingRootDir",
+			rootDir: filepath.Join(tmp, "does-not-exist"),
+			rbuf:    logging.NewRingBuffer(10, io.Discard),
+			wantErr: "failed to stat root dir",
+		},
 	}
 
-	node, err := zpfs.Root()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs, err := NewFS(tt.rootDir, tt.opts, tt.rbuf)
+			require.Nil(t, fs)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+// Expectation: RootDir should be returned as a [realDirNode].
+func Test_FS_Root_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	node, err := fsys.Root()
 	require.NoError(t, err)
 
 	dn, ok := node.(*realDirNode)
 	require.True(t, ok)
 
-	require.Equal(t, uint64(1), dn.Inode)
-	require.Equal(t, dn.Path, zpfs.RootDir)
-	require.NotZero(t, dn.Modified)
+	require.Equal(t, uint64(1), dn.inode)
+	require.Equal(t, dn.path, fsys.RootDir)
+	require.NotZero(t, dn.mtime)
 }
 
 // Expectation: Two FS over the same root should produce identical results,
 // for both FlatMode = false and FlatMode = true.
 func Test_FS_Deterministic_Success(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	tnow := time.Now()
 
@@ -75,15 +138,43 @@ func Test_FS_Deterministic_Success(t *testing.T) {
 		return paths, entries
 	}
 
-	defer func() {
-		Options.FlatMode = false
-	}()
-
 	for _, mode := range []bool{false, true} {
-		Options.FlatMode = mode
 		t.Run("FlatMode="+strconv.FormatBool(mode), func(t *testing.T) {
-			fs1 := &FS{RootDir: tmpDir}
-			fs2 := &FS{RootDir: tmpDir}
+			t.Parallel()
+
+			fs1, err := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			require.NoError(t, err)
+			fs1.Options.FlatMode = mode
+			fs2, err := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			require.NoError(t, err)
+			fs2.Options.FlatMode = mode
+
+			paths1, entries1 := collect(fs1)
+			paths2, entries2 := collect(fs2)
+
+			require.Equal(t, paths1, paths2)
+
+			for _, p := range paths1 {
+				e1 := entries1[p]
+				e2 := entries2[p]
+
+				require.Equal(t, e1.attrInode, e2.attrInode, "attr inode mismatch at %q", p)
+
+				if e1.hasDirent || e2.hasDirent {
+					require.True(t, e1.hasDirent && e2.hasDirent, "dirent presence mismatch at %q", p)
+					require.Equal(t, e1.dirInode, e2.dirInode, "dirent inode mismatch at %q", p)
+				}
+			}
+		})
+		t.Run("CacheBypass="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+
+			fs1, err := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			require.NoError(t, err)
+			fs1.Options.FDCacheBypass.Store(mode)
+			fs2, err := NewFS(tmpDir, nil, logging.NewRingBuffer(10, io.Discard))
+			require.NoError(t, err)
+			fs1.Options.FDCacheBypass.Store(mode)
 
 			paths1, entries1 := collect(fs1)
 			paths2, entries2 := collect(fs2)
@@ -107,21 +198,23 @@ func Test_FS_Deterministic_Success(t *testing.T) {
 
 // Expectation: A panic should occur when GenerateInode is called.
 func Test_FS_GenerateInode_Panic(t *testing.T) {
+	t.Parallel()
+
 	defer func() {
 		r := recover()
 		require.NotNil(t, r, "GenerateInode must panic")
 	}()
 
-	zpfs := &FS{
-		RootDir: t.TempDir(),
-	}
+	_, fsys := testFS(t, io.Discard)
 
-	zpfs.GenerateInode(0, "")
+	fsys.GenerateInode(0, "")
 }
 
 // Expectation: Walk should visit all file and directory nodes in the tree.
 func Test_FS_Walk_Success(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
+
+	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
 	dir1 := filepath.Join(tmpDir, "dir1", "dir")
@@ -161,11 +254,9 @@ func Test_FS_Walk_Success(t *testing.T) {
 	})
 	require.FileExists(t, zipPath2)
 
-	zpfs := &FS{RootDir: tmpDir}
-
 	visited := make(map[string]bool)
 
-	err := zpfs.Walk(t.Context(), func(path string, d *fuse.Dirent, n fs.Node, a fuse.Attr) error {
+	err := fsys.Walk(t.Context(), func(path string, d *fuse.Dirent, n fs.Node, a fuse.Attr) error {
 		require.NotEmpty(t, path)
 		require.NotNil(t, n)
 		require.NotNil(t, a)
@@ -211,14 +302,15 @@ func Test_FS_Walk_Success(t *testing.T) {
 
 // Expectation: Walk should propagate errors returned by the callback.
 func Test_FS_Walk_CallbackError_Error(t *testing.T) {
-	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("x"), 0o644))
+	t.Parallel()
 
-	zpfs := &FS{RootDir: tmpDir}
+	tmpDir, fsys := testFS(t, io.Discard)
+
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("x"), 0o644))
 
 	testErr := errors.New("simulated error")
 
-	err := zpfs.Walk(t.Context(), func(_ string, _ *fuse.Dirent, _ fs.Node, _ fuse.Attr) error {
+	err := fsys.Walk(t.Context(), func(_ string, _ *fuse.Dirent, _ fs.Node, _ fuse.Attr) error {
 		return testErr
 	})
 	require.ErrorIs(t, err, testErr)
@@ -226,18 +318,30 @@ func Test_FS_Walk_CallbackError_Error(t *testing.T) {
 
 // Expectation: Walk should respect a context cancellation and report the correct error.
 func Test_FS_Walk_ContextError_Error(t *testing.T) {
-	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("x"), 0o644))
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
 
-	zpfs := &FS{RootDir: tmpDir}
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("x"), 0o644))
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	err := zpfs.Walk(ctx, func(_ string, _ *fuse.Dirent, _ fs.Node, _ fuse.Attr) error {
+	err := fsys.Walk(ctx, func(_ string, _ *fuse.Dirent, _ fs.Node, _ fuse.Attr) error {
 		t.Fatal("walk should not begin when context is cancelled")
 
 		return nil
 	})
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+// Expectation: An error should be returned as-is and counted in the metrics.
+func Test_FS_fsError_Success(t *testing.T) {
+	t.Parallel()
+	_, fsys := testFS(t, io.Discard)
+
+	customErr := errors.New("test error")
+	err := fsys.fsError(customErr)
+
+	require.ErrorIs(t, err, customErr)
+	require.Equal(t, int64(1), fsys.Metrics.Errors.Load())
 }

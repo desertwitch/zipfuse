@@ -2,8 +2,6 @@ package logging
 
 import (
 	"bytes"
-	"io"
-	"log"
 	"os"
 	"strings"
 	"testing"
@@ -11,33 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// captureStderr captures stderr output during a function call.
-func captureStderr(t *testing.T, f func()) string {
-	t.Helper()
-
-	old := os.Stderr
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-
-	os.Stderr = w
-	log.SetOutput(w)
-
-	f()
-
-	w.Close()
-	os.Stderr = old
-	log.SetOutput(old)
-
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, r)
-	require.NoError(t, err)
-
-	return buf.String()
-}
-
 // Expectation: newRingBuffer should create a buffer with the correct size.
 func Test_newRingBuffer_Success(t *testing.T) {
-	buf := newRingBuffer(10)
+	t.Parallel()
+
+	buf := NewRingBuffer(10, os.Stderr)
 
 	require.NotNil(t, buf)
 	require.Equal(t, 10, buf.Size())
@@ -47,7 +23,9 @@ func Test_newRingBuffer_Success(t *testing.T) {
 
 // Expectation: add should append messages to the buffer.
 func Test_ringBuffer_add_Success(t *testing.T) {
-	buf := newRingBuffer(3)
+	t.Parallel()
+
+	buf := NewRingBuffer(3, os.Stderr)
 
 	buf.add("first")
 	buf.add("second")
@@ -63,7 +41,9 @@ func Test_ringBuffer_add_Success(t *testing.T) {
 
 // Expectation: add should wrap around when the buffer is full.
 func Test_ringBuffer_add_WrapAround_Success(t *testing.T) {
-	buf := newRingBuffer(3)
+	t.Parallel()
+
+	buf := NewRingBuffer(3, os.Stderr)
 
 	buf.add("first")
 	buf.add("second")
@@ -81,7 +61,9 @@ func Test_ringBuffer_add_WrapAround_Success(t *testing.T) {
 
 // Expectation: add should trim trailing newlines.
 func Test_ringBuffer_add_TrimNewline_Success(t *testing.T) {
-	buf := newRingBuffer(2)
+	t.Parallel()
+
+	buf := NewRingBuffer(2, os.Stderr)
 
 	buf.add("message with newline\n")
 	buf.add("another\n\n")
@@ -95,7 +77,9 @@ func Test_ringBuffer_add_TrimNewline_Success(t *testing.T) {
 
 // Expectation: Lines should return the partial buffer when not full.
 func Test_ringBuffer_Lines_PartialBuffer_Success(t *testing.T) {
-	buf := newRingBuffer(5)
+	t.Parallel()
+
+	buf := NewRingBuffer(5, os.Stderr)
 
 	buf.add("one")
 	buf.add("two")
@@ -109,7 +93,9 @@ func Test_ringBuffer_Lines_PartialBuffer_Success(t *testing.T) {
 
 // Expectation: Lines should always return a copy, not the internal slice.
 func Test_ringBuffer_Lines_ReturnsCopy_Success(t *testing.T) {
-	buf := newRingBuffer(3)
+	t.Parallel()
+
+	buf := NewRingBuffer(3, os.Stderr)
 	buf.add("a")
 	buf.add("b")
 
@@ -121,7 +107,7 @@ func Test_ringBuffer_Lines_ReturnsCopy_Success(t *testing.T) {
 	lines2 := buf.Lines()
 	require.Equal(t, []string{"a", "b"}, lines2)
 
-	buf = newRingBuffer(3)
+	buf = NewRingBuffer(3, os.Stderr)
 	buf.add("x")
 	buf.add("y")
 	buf.add("z")
@@ -138,7 +124,9 @@ func Test_ringBuffer_Lines_ReturnsCopy_Success(t *testing.T) {
 
 // Expectation: Reset should return the buffer to empty, pre-allocated state.
 func Test_ringBuffer_Reset_Success(t *testing.T) {
-	buf := newRingBuffer(5)
+	t.Parallel()
+
+	buf := NewRingBuffer(5, os.Stderr)
 
 	buf.add("one")
 	buf.add("two")
@@ -154,7 +142,9 @@ func Test_ringBuffer_Reset_Success(t *testing.T) {
 
 // Expectation: Concurrent access should be thread-safe.
 func Test_ringBuffer_Concurrency_Success(t *testing.T) {
-	buf := newRingBuffer(100)
+	t.Parallel()
+
+	buf := NewRingBuffer(100, os.Stderr)
 	done := make(chan bool)
 
 	for i := range 10 {
@@ -176,28 +166,30 @@ func Test_ringBuffer_Concurrency_Success(t *testing.T) {
 
 // Expectation: Printf should add to buffer and also write to stderr.
 func Test_Printf_Success(t *testing.T) {
-	Buffer.Reset()
+	t.Parallel()
 
-	stderr := captureStderr(t, func() {
-		Printf("test %s %d", "message", 42)
-	})
+	var out bytes.Buffer
+	buf := NewRingBuffer(100, &out)
 
-	lines := Buffer.Lines()
+	buf.Printf("test %s %d", "message", 42)
+
+	lines := buf.Lines()
 	require.Len(t, lines, 1)
 	require.Contains(t, lines[0], "test message 42")
-	require.Contains(t, stderr, "test message 42")
+	require.Contains(t, out.String(), "test message 42")
 }
 
 // Expectation: Println should add to buffer and also write to stderr.
 func Test_Println_Success(t *testing.T) {
-	Buffer.Reset()
+	t.Parallel()
 
-	stderr := captureStderr(t, func() {
-		Println("test", "message")
-	})
+	var out bytes.Buffer
+	buf := NewRingBuffer(100, &out)
 
-	lines := Buffer.Lines()
+	buf.Println("test", "message")
+
+	lines := buf.Lines()
 	require.Len(t, lines, 1)
 	require.Contains(t, lines[0], "test message")
-	require.Contains(t, stderr, "test message")
+	require.Contains(t, out.String(), "test message")
 }
