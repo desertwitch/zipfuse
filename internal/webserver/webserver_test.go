@@ -32,6 +32,47 @@ func testDashboard(t *testing.T, out io.Writer) *FSDashboard {
 	return dashboard
 }
 
+// Expectation: NewFSDashboard should return errors for invalid arguments.
+func Test_NewFSDashboard_Errors(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	rbf := logging.NewRingBuffer(10, io.Discard)
+	fsys, err := filesystem.NewFS(tmp, nil, rbf)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		fsys    *filesystem.FS
+		rbuf    *logging.RingBuffer
+		wantErr string
+	}{
+		{
+			name:    "NilFilesystem",
+			fsys:    nil,
+			rbuf:    rbf,
+			wantErr: "need filesystem",
+		},
+		{
+			name:    "NilRingBuffer",
+			fsys:    fsys,
+			rbuf:    nil,
+			wantErr: "need ring buffer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dash, err := NewFSDashboard(tt.fsys, tt.rbuf, "test-version")
+			require.Nil(t, dash)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
 // Expectation: Serve should return a valid HTTP server pointer.
 func Test_Serve_Success(t *testing.T) {
 	t.Parallel()

@@ -102,6 +102,68 @@ func Test_totalExtractBytes_Negative_Success(t *testing.T) {
 	require.Equal(t, "0 B", result)
 }
 
+// Expectation: totalFDCacheRatio should return correct percentage string.
+func Test_totalFDCacheRatio_Success(t *testing.T) {
+	t.Parallel()
+	dash := testDashboard(t, io.Discard)
+
+	tests := []struct {
+		name    string
+		hits    int64
+		misses  int64
+		wantStr string
+	}{
+		{
+			name:    "NoHitsNoMisses",
+			hits:    0,
+			misses:  0,
+			wantStr: "0.00%",
+		},
+		{
+			name:    "OnlyHits",
+			hits:    10,
+			misses:  0,
+			wantStr: "100.00%",
+		},
+		{
+			name:    "OnlyMisses",
+			hits:    0,
+			misses:  5,
+			wantStr: "0.00%",
+		},
+		{
+			name:    "EqualHitsAndMisses",
+			hits:    5,
+			misses:  5,
+			wantStr: "50.00%",
+		},
+		{
+			name:    "MoreHits",
+			hits:    8,
+			misses:  2,
+			wantStr: "80.00%",
+		},
+		{
+			name:    "MoreMisses",
+			hits:    2,
+			misses:  8,
+			wantStr: "20.00%",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dash.fsys.Metrics.TotalFDCacheHits.Store(tt.hits)
+			dash.fsys.Metrics.TotalFDCacheMisses.Store(tt.misses)
+
+			got := dash.totalFDCacheRatio()
+			require.Equal(t, tt.wantStr, got)
+		})
+	}
+}
+
 // Expectation: enabledOrDisabled should produce the correct string.
 func Test_enabledOrDisabled_Success(t *testing.T) {
 	t.Parallel()

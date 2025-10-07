@@ -32,6 +32,51 @@ func testFS(t *testing.T, out io.Writer) (string, *FS) {
 	return tmp, fsys
 }
 
+// Expectation: NewFS should return errors for invalid arguments.
+func Test_NewFS_Errors(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		name    string
+		rootDir string
+		opts    *Options
+		rbuf    *logging.RingBuffer
+		wantErr string
+	}{
+		{
+			name:    "NilRingBuffer",
+			rootDir: tmp,
+			rbuf:    nil,
+			wantErr: "need a ring buffer",
+		},
+		{
+			name:    "EmptyRootDir",
+			rootDir: "",
+			rbuf:    logging.NewRingBuffer(10, io.Discard),
+			wantErr: "need a root dir",
+		},
+		{
+			name:    "MissingRootDir",
+			rootDir: filepath.Join(tmp, "does-not-exist"),
+			rbuf:    logging.NewRingBuffer(10, io.Discard),
+			wantErr: "failed to stat root dir",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs, err := NewFS(tt.rootDir, tt.opts, tt.rbuf)
+			require.Nil(t, fs)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
 // Expectation: RootDir should be returned as a [realDirNode].
 func Test_FS_Root_Success(t *testing.T) {
 	t.Parallel()

@@ -76,7 +76,7 @@ type cliOptions struct {
 	webserverAddr      string
 }
 
-//nolint:mnd
+//nolint:mnd,err113,nonamedreturns
 func fdLimit() (fsLimit int, cacheLimit int, e error) {
 	var rlim unix.Rlimit
 	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim); err != nil {

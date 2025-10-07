@@ -198,6 +198,7 @@ func (d *FSDashboard) gcHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
+	d.fsys.Metrics.Errors.Store(0)
 	d.fsys.Metrics.TotalClosedZips.Store(0)
 	d.fsys.Metrics.TotalExtractBytes.Store(0)
 	d.fsys.Metrics.TotalExtractCount.Store(0)

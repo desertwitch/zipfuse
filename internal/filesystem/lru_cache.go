@@ -80,7 +80,7 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 
 	if item := c.cache.Get(archive); item != nil && item.Value() != nil {
 		// Another call beat us to inserting the item into the cache.
-		zr.Release()             // release cache ref (= closes our creation)
+		_ = zr.Release()         // release cache ref (= closes our creation)
 		existing := item.Value() // use the existing cached reader instead
 		existing.Acquire()       // for caller
 		c.fsys.Metrics.TotalFDCacheHits.Add(1)
