@@ -10,8 +10,9 @@ import (
 	"github.com/jellydator/ttlcache/v3"
 )
 
-// zipReaderCache is a [expirable.LRU] cache for [zipReader] pointers.
+// zipReaderCache implements a [ttlcache.Cache] for [zipReader] pointers.
 // It allows reusing opened ZIP files until TTL- or capacity-based eviction.
+// With Options.FDCacheBypass enabled, it facilitates direct FD pass-through.
 type zipReaderCache struct {
 	sync.Mutex
 
