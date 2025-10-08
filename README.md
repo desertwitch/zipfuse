@@ -62,7 +62,7 @@ _Pre-compiled static binaries are planned to be offered starting v1.0.0._
 | Flag | Shorthand | Default | Description |
 |------|-----------|---------|-------------|
 | --allow-other `<bool>` | -a | true | Allow other system users to access the mounted filesystem. |
-| --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to stdout. |
+| --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to `stdout`. |
 | --flatten-zips `<bool>` | -f | false | Flatten ZIP-contained subdirectories into one directory per ZIP. |
 | --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed ZIP files (slower). |
 | --stream-threshold `<size>` | -s | 10MiB | Files larger than this are streamed instead of fully loaded into RAM. |
@@ -73,7 +73,7 @@ _Pre-compiled static binaries are planned to be offered starting v1.0.0._
 | --pool-buffer-size `<size>` | -p | 128KiB | Buffer size for read pool (multiplies with concurrency). |
 | --ring-buffer-size `<int>` | -r | 500 | Size of the in-memory event ring-buffer (shown in dashboard). |
 | --webserver `<addr>` | -w | (empty) | Address for diagnostics dashboard (e.g. `:8000`). Disabled if unset. |
-| --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to stderr. |
+| --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to `stderr`. |
 | --version | (none) | false | Print the program version. |
 
 Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`, `10MB`, or `10MiB`.  
