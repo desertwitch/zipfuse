@@ -62,7 +62,7 @@ func (b *RingBuffer) Reset() {
 	b.full = false
 }
 
-// Printf adds a message to the ring-buffer and also prints it to stderr.
+// Printf adds a message to the ring-buffer and also prints it to output.
 func (b *RingBuffer) Printf(format string, args ...any) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
@@ -73,7 +73,7 @@ func (b *RingBuffer) Printf(format string, args ...any) {
 	fmt.Fprintf(b.out, "%s", full) // also goes to stream
 }
 
-// Println adds a message to the ring-buffer and also prints it to stderr.
+// Println adds a message to the ring-buffer and also prints it to output.
 func (b *RingBuffer) Println(args ...any) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
@@ -84,7 +84,6 @@ func (b *RingBuffer) Println(args ...any) {
 	fmt.Fprintf(b.out, "%s", full) // also goes to stream
 }
 
-// add adds a new message to the ring-buffer.
 func (b *RingBuffer) add(msg string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

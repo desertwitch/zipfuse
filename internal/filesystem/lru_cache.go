@@ -21,6 +21,7 @@ type zipReaderCache struct {
 }
 
 // newZipReaderCache establishes a new [zipReaderCache] for a [FS].
+// Once done with the cache, ensure calling HaltAndPurge() and Destroy().
 func newZipReaderCache(fs *FS, size int, ttl time.Duration) *zipReaderCache {
 	c := &zipReaderCache{fsys: fs}
 
@@ -44,7 +45,7 @@ func newZipReaderCache(fs *FS, size int, ttl time.Duration) *zipReaderCache {
 	return c
 }
 
-// Archive returns a [zipReader] from the cache (adding a new one if needed).
+// Archive returns a [zipReader] from cache or direct (when uncached/on bypass).
 // The [zipReader] needs to be Release()d after use, ensure that this is called.
 func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 	if c.fsys.Options.FDCacheBypass.Load() {
@@ -81,7 +82,7 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 
 	if item := c.cache.Get(archive); item != nil && item.Value() != nil {
 		// Another call beat us to inserting the item into the cache.
-		_ = zr.Release()         // release cache ref (= closes our creation)
+		_ = zr.Release()         // release our ref (= closes our creation)
 		existing := item.Value() // use the existing cached reader instead
 		existing.Acquire()       // for caller
 		c.fsys.Metrics.TotalFDCacheHits.Add(1)
@@ -97,7 +98,7 @@ func (c *zipReaderCache) Archive(archive string) (*zipReader, error) {
 }
 
 // Entry returns a [zipFileReader] for a specific "path" within a ZIP "archive",
-// fetching from the cache the [zipReader] (or adding a new one if needed). The
+// fetching from cache or direct (when uncached/on bypass) the [zipReader]. The
 // underlying [zipReader] is also returned and needs to be Release()d after use.
 func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader, error) {
 	m := newZipMetric(c.fsys, false)

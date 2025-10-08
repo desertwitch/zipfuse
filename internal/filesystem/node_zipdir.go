@@ -21,8 +21,8 @@ var (
 
 // zipDirNode is a ZIP archive file of the mirrored filesystem.
 // It is now presented as a regular directory within our filesystem.
-// All structures contained in the archive are flattened (by [flatEntryName])
-// and presented as regular files (to be unpacked into memory when requested).
+// When enabled, contained structures are flattened (by [flatEntryName]).
+// Archive contents are presented as regular entries and unpacked on-the-fly.
 type zipDirNode struct {
 	fsys   *FS       // Pointer to our filesystem.
 	inode  uint64    // Inode within our filesystem.
