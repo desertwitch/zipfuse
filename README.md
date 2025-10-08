@@ -74,7 +74,7 @@ _Pre-compiled static binaries are planned to be offered starting v1.0.0._
 | --ring-buffer-size `<int>` | -r | 500 | Size of the in-memory event ring-buffer (shown in dashboard). |
 | --webserver `<addr>` | -w | (empty) | Address for diagnostics dashboard (e.g. `:8000`). Disabled if unset. |
 | --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to standard error. |
-| --version | (none) | false | Print the program version. |
+| --version | (none) | false | Print the program version to standard output. |
 
 Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`, `10MB`, or `10MiB`.  
 Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or combined values like `1h30m`.
