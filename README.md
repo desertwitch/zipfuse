@@ -67,12 +67,12 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 | --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed ZIP archives (slower). |
 | --stream-threshold `<size>` | -s | 10MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
 | --fd-limit `<int>` | -l | (50% of OS soft limit) | Maximum total open file descriptors at any given time (must be > `fd-cache-size`). |
-| --fd-cache-size `<int>` | -c | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant reaccess). |
+| --fd-cache-size `<int>` | -c | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
 | --fd-cache-ttl `<duration>` | -t | 60s | Time-to-live before evicting cached file descriptors (that are not in use). |
-| --fd-cache-bypass `<bool>` | -b | false | Disable file descriptor caching; open/close a new file descriptor on every request. |
+| --fd-cache-bypass `<bool>` | -b | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
 | --pool-buffer-size `<size>` | -p | 128KiB | Buffer size for read pool (multiplies with concurrency). |
-| --ring-buffer-size `<int>` | -r | 500 | Lines of the in-memory event ring-buffer (shown in dashboard). |
-| --webserver `<addr>` | -w | (empty) | Address for the diagnostics dashboard (e.g. `:8000`). Disabled if unset. |
+| --ring-buffer-size `<int>` | -r | 500 | Lines of the in-memory event ring-buffer (as served in the diagnostics dashboard). |
+| --webserver `<addr>` | -w | (empty) | Address for the diagnostics dashboard (e.g. `:8000`). If unset, the webserver is disabled. |
 | --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to standard error. |
 | --version | (none) | false | Print the program version to standard output. |
 
