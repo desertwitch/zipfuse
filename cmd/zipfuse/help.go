@@ -1,7 +1,7 @@
 package main
 
 const (
-	helpTextUse = "zipfuse <root-dir> <mountpoint>"
+	helpTextUse = "zipfuse <root-dir> <mount-dir>"
 
 	helpTextShort = "a read-only FUSE filesystem for browsing of ZIP files"
 

@@ -54,7 +54,7 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 
 ### Program usage and advanced configurables:
 
-    zipfuse <root-dir> <mountpoint> [flags]
+    zipfuse <root-dir> <mount-dir> [flags]
 
 `<root-dir>` is the underlying filesystem root to expose.  
 `<mount-dir>` is the mountpoint where the FUSE filesystem will appear.
