@@ -12,7 +12,7 @@ import (
 
 // zipReaderCache implements a [ttlcache.Cache] for [zipReader] pointers.
 // It allows reusing opened ZIP files until TTL- or capacity-based eviction.
-// With Options.FDCacheBypass enabled, it facilitates direct FD pass-through.
+// With [Options.FDCacheBypass] enabled, it facilitates direct FD pass-through.
 type zipReaderCache struct {
 	sync.Mutex
 
@@ -151,4 +151,28 @@ func (c *zipReaderCache) Entry(archive, path string) (*zipReader, *zipFileReader
 	_ = zr.Release() // release our ref
 
 	return nil, nil, fmt.Errorf("%w: %s", os.ErrNotExist, path)
+}
+
+// HaltAndPurge prepares the file descriptor cache for unmount,
+// turning on FD cache bypass and deleting all items from the cache.
+// It takes an error channel for checking if the upstream unmounting
+// has failed, in which case it will restore the previous FD cache bypass
+// setting and resume the cache to its normal operation (as user-configured).
+func (c *zipReaderCache) HaltAndPurge(errs <-chan error) {
+	v := c.fsys.Options.FDCacheBypass.Load()
+
+	c.fsys.Options.FDCacheBypass.Store(true)
+	c.cache.DeleteAll()
+
+	go func() {
+		if err := <-errs; err != nil {
+			c.fsys.Options.FDCacheBypass.Store(v)
+		}
+	}()
+}
+
+// Destroy stops the goroutines associated with the file descriptor cache.
+// The cache cannot be re-used after the calling of this no-return function.
+func (c *zipReaderCache) Destroy() {
+	c.cache.Stop()
 }

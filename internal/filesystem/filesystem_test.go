@@ -25,8 +25,10 @@ func testFS(t *testing.T, out io.Writer) (string, *FS) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		fsys.HaltPurgeCache()
-		fsys.Cleanup()
+		noErr := make(chan error, 1)
+		fsys.PreUnmount(noErr)
+		close(noErr)
+		fsys.PostUnmount()
 	})
 
 	return tmp, fsys
@@ -49,19 +51,26 @@ func Test_NewFS_Errors(t *testing.T) {
 			name:    "NilRingBuffer",
 			rootDir: tmp,
 			rbuf:    nil,
-			wantErr: "need a ring buffer",
+			wantErr: "need a non-nil rbuf",
 		},
 		{
 			name:    "EmptyRootDir",
 			rootDir: "",
 			rbuf:    logging.NewRingBuffer(10, io.Discard),
-			wantErr: "need a root dir",
+			wantErr: "need a non-empty rootDir",
 		},
 		{
 			name:    "MissingRootDir",
 			rootDir: filepath.Join(tmp, "does-not-exist"),
 			rbuf:    logging.NewRingBuffer(10, io.Discard),
-			wantErr: "failed to stat root dir",
+			wantErr: "failed to stat rootDir",
+		},
+		{
+			name:    "InvalidFileDescriptorLimits",
+			rootDir: tmp,
+			rbuf:    logging.NewRingBuffer(10, io.Discard),
+			opts:    &Options{FDLimit: 10, FDCacheSize: 20},
+			wantErr: "fd limit cannot be <= fd cache size",
 		},
 	}
 
