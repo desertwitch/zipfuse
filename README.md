@@ -59,22 +59,25 @@ _Pre-compiled static binaries are planned to be offered starting v1.0.0._
 `<root-dir>` is the underlying filesystem root to expose.  
 `<mount-dir>` is the mountpoint where the FUSE filesystem will appear.
 
-| Flag | Shorthand | Default | Description |
-|------|-----------|---------|-------------|
-| --allow-other | -a | true | Allow other system users to access the mounted filesystem. |
-| --dry-run | -d | false | Do not mount; instead print all would-be inodes and paths to stdout. |
-| --flatten-zips | -f | false | Flatten ZIP-contained subdirectories into one directory per ZIP. |
-| --verbose | -v | false | Print all FUSE communication and diagnostics to stderr. |
-| --must-crc32 | -m | false | Force integrity verification for non-compressed ZIP files (slower). |
-| --webserver <addr> | -w | (empty) | Address for diagnostics dashboard (e.g. `:8000`). Disabled if unset. |
-| --fd-limit <int> | -l | (50% of OS soft limit) | Maximum total open file descriptors (must be > `fd-cache-size`). |
-| --fd-cache-size <int> | -c | (70% of `fd-limit`) | Max open FDs to retain in cache. |
-| --fd-cache-ttl <duration> | -t | 60s | Time-to-live before evicting cached FDs. |
-| --fd-cache-bypass | -b | false | Disable FD caching; open/close a file descriptor on every request. |
-| --pool-buffer-size <size> | -p | 128KiB | Buffer size for read pool (multiplies with concurrency). |
-| --stream-threshold <size> | -s | 10MiB | Files larger than this are streamed instead of fully loaded into RAM. |
-| --ring-buffer-size <int> | -r | 500 | Size of the in-memory event ring-buffer (shown in dashboard). |
-| --version | (none) | false | Print the program version. |
+| Flag | Default | Description |
+|------|---------|-------------|
+| --allow-other | true | Allow other system users to access the mounted filesystem. |
+| --dry-run | false | Do not mount; instead print all would-be inodes and paths to stdout. |
+| --flatten-zips | false | Flatten ZIP-contained subdirectories into one directory per ZIP. |
+| --verbose | false | Print all FUSE communication and diagnostics to stderr. |
+| --must-crc32 | false | Force integrity verification for non-compressed ZIP files (slower). |
+| --webserver <addr> | (empty) | Address for diagnostics dashboard (e.g. `:8000`). Disabled if unset. |
+| --fd-limit <int> | (50% of OS soft limit) | Maximum total open file descriptors (must be > `fd-cache-size`). |
+| --fd-cache-size <int> | (70% of `fd-limit`) | Max open FDs to retain in cache. |
+| --fd-cache-ttl <duration> | 60s | Time-to-live before evicting cached FDs. |
+| --fd-cache-bypass | false | Disable FD caching; open/close a file descriptor on every request. |
+| --pool-buffer-size <size> | 128KiB | Buffer size for read pool (multiplies with concurrency). |
+| --stream-threshold <size> | 10MiB | Files larger than this are streamed instead of fully loaded into RAM. |
+| --ring-buffer-size <int> | 500 | Size of the in-memory event ring-buffer (shown in dashboard). |
+| --version | false | Print the program version. |
+
+Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`, `10MB`, or `10MiB`.  
+Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or combined values like `1h30m`.
 
 **Usage examples:**
 
