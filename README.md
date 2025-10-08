@@ -50,7 +50,44 @@ make all
 ```
 
 The [examples](./examples) folder contains possible integration examples.  
-**Pre-compiled static binaries are planned to be offered starting v1.0.0.**
+Pre-compiled static binaries are planned to be offered starting v1.0.0.
+
+### Program usage and advanced configurables:
+
+    zipfuse <root-dir> <mountpoint> [flags]
+
+`<root-dir>` is the underlying filesystem root to expose.  
+`<mount-dir>` is the mountpoint where the FUSE filesystem will appear.
+
+| Flag | Shorthand | Default | Description |
+|------|-----------|---------|-------------|
+| --allow-other `<bool>` | -a | true | Allow other system users to access the mounted filesystem. |
+| --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to standard output. |
+| --flatten-zips `<bool>` | -f | false | Flatten ZIP-contained subdirectories into one directory per ZIP. |
+| --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed ZIP files (slower). |
+| --stream-threshold `<size>` | -s | 10MiB | Files larger than this are streamed instead of fully loaded into RAM. |
+| --fd-limit `<int>` | -l | (50% of OS soft limit) | Maximum total open file descriptors (must be > `fd-cache-size`). |
+| --fd-cache-size `<int>` | -c | (70% of `fd-limit`) | Max open FDs to retain in cache. |
+| --fd-cache-ttl `<duration>` | -t | 60s | Time-to-live before evicting cached FDs. |
+| --fd-cache-bypass `<bool>` | -b | false | Disable FD caching; open/close a file descriptor on every request. |
+| --pool-buffer-size `<size>` | -p | 128KiB | Buffer size for read pool (multiplies with concurrency). |
+| --ring-buffer-size `<int>` | -r | 500 | Size of the in-memory event ring-buffer (shown in dashboard). |
+| --webserver `<addr>` | -w | (empty) | Address for diagnostics dashboard (e.g. `:8000`). Disabled if unset. |
+| --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to standard error. |
+| --version | (none) | false | Print the program version to standard output. |
+
+Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`, `10MB`, or `10MiB`.  
+Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or combined values like `1h30m`.
+
+**Examples:**
+
+Mount `/data` onto `/mnt/zipfuse` and enable dashboard on port 8080:
+
+    zipfuse /data /mnt/zipfuse --webserver :8080
+
+Dry-run to inspect would-be files and inodes without actual mounting:
+
+    zipfuse /data /mnt/zipfuse --dry-run
 
 ### Runtime routes and signals handling:
 

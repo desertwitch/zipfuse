@@ -555,3 +555,117 @@ func Test_zipReaderCache_Expiration_Success(t *testing.T) {
 	err = zr2.Release() // cleanup cache ref
 	require.NoError(t, err)
 }
+
+// Expectation: HaltAndPurge should set FDCacheBypass to true and purge
+// the cache. It should remain true if no error is received on the channel.
+func Test_zipReaderCache_HaltAndPurge_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	fsys.Options.FDCacheBypass.Store(false)
+
+	zipPath1 := createTestZip(t, tmpDir, "test1.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: []byte("test")},
+	})
+
+	zipPath2 := createTestZip(t, tmpDir, "test2.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: []byte("test")},
+	})
+
+	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
+
+	// Add first archive
+	zr1, err := cache.Archive(zipPath1)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), fsys.Metrics.TotalOpenedZips.Load())
+	err = zr1.Release()
+	require.NoError(t, err)
+
+	// Add second archive
+	zr2, err := cache.Archive(zipPath2)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), fsys.Metrics.TotalOpenedZips.Load())
+	err = zr2.Release()
+	require.NoError(t, err)
+
+	require.Equal(t, 2, cache.cache.Len())
+
+	errs := make(chan error, 1)
+	defer close(errs)
+
+	cache.HaltAndPurge(errs)
+
+	require.True(t, fsys.Options.FDCacheBypass.Load())
+	require.Zero(t, cache.cache.Len())
+
+	time.Sleep(10 * time.Millisecond)
+	require.True(t, fsys.Options.FDCacheBypass.Load())
+}
+
+// Expectation: HaltAndPurge should restore the previous FDCacheBypass setting
+// if an error is received on the channel.
+func Test_zipReaderCache_HaltAndPurge_RestoreOnError_Success(t *testing.T) {
+	t.Parallel()
+	tmpDir, fsys := testFS(t, io.Discard)
+	tnow := time.Now()
+
+	fsys.Options.FDCacheBypass.Store(false)
+
+	zipPath1 := createTestZip(t, tmpDir, "test1.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: []byte("test")},
+	})
+
+	zipPath2 := createTestZip(t, tmpDir, "test2.zip", []struct {
+		Path    string
+		ModTime time.Time
+		Content []byte
+	}{
+		{Path: "test.txt", ModTime: tnow, Content: []byte("test")},
+	})
+
+	cache := newZipReaderCache(fsys, 10, 5*time.Minute)
+	defer cache.cache.Stop()
+
+	// Add first archive
+	zr1, err := cache.Archive(zipPath1)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), fsys.Metrics.TotalOpenedZips.Load())
+	err = zr1.Release()
+	require.NoError(t, err)
+
+	// Add second archive
+	zr2, err := cache.Archive(zipPath2)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), fsys.Metrics.TotalOpenedZips.Load())
+	err = zr2.Release()
+	require.NoError(t, err)
+
+	require.Equal(t, 2, cache.cache.Len())
+
+	errs := make(chan error, 1)
+	defer close(errs)
+
+	cache.HaltAndPurge(errs)
+
+	require.True(t, fsys.Options.FDCacheBypass.Load())
+	require.Zero(t, cache.cache.Len())
+
+	errs <- io.EOF
+	time.Sleep(10 * time.Millisecond)
+
+	require.False(t, fsys.Options.FDCacheBypass.Load())
+}

@@ -25,8 +25,10 @@ func testFS(t *testing.T, out io.Writer) (string, *FS) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		fsys.HaltPurgeCache()
-		fsys.Cleanup()
+		noErr := make(chan error, 1)
+		fsys.PreUnmount(noErr)
+		close(noErr)
+		fsys.PostUnmount()
 	})
 
 	return tmp, fsys
@@ -49,19 +51,26 @@ func Test_NewFS_Errors(t *testing.T) {
 			name:    "NilRingBuffer",
 			rootDir: tmp,
 			rbuf:    nil,
-			wantErr: "need a ring buffer",
+			wantErr: "need a non-nil rbuf",
 		},
 		{
 			name:    "EmptyRootDir",
 			rootDir: "",
 			rbuf:    logging.NewRingBuffer(10, io.Discard),
-			wantErr: "need a root dir",
+			wantErr: "need a non-empty rootDir",
 		},
 		{
 			name:    "MissingRootDir",
 			rootDir: filepath.Join(tmp, "does-not-exist"),
 			rbuf:    logging.NewRingBuffer(10, io.Discard),
-			wantErr: "failed to stat root dir",
+			wantErr: "failed to stat rootDir",
+		},
+		{
+			name:    "InvalidFileDescriptorLimits",
+			rootDir: tmp,
+			rbuf:    logging.NewRingBuffer(10, io.Discard),
+			opts:    &Options{FDLimit: 10, FDCacheSize: 20},
+			wantErr: "fd limit cannot be <= fd cache size",
 		},
 	}
 
@@ -335,12 +344,12 @@ func Test_FS_Walk_ContextError_Error(t *testing.T) {
 }
 
 // Expectation: An error should be returned as-is and counted in the metrics.
-func Test_FS_fsError_Success(t *testing.T) {
+func Test_FS_countError_Success(t *testing.T) {
 	t.Parallel()
 	_, fsys := testFS(t, io.Discard)
 
 	customErr := errors.New("test error")
-	err := fsys.fsError(customErr)
+	err := fsys.countError(customErr)
 
 	require.ErrorIs(t, err, customErr)
 	require.Equal(t, int64(1), fsys.Metrics.Errors.Load())

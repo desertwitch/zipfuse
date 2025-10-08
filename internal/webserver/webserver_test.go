@@ -22,8 +22,10 @@ func testDashboard(t *testing.T, out io.Writer) *FSDashboard {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		fsys.HaltPurgeCache()
-		fsys.Cleanup()
+		noErr := make(chan error, 1)
+		fsys.PreUnmount(noErr)
+		close(noErr)
+		fsys.PostUnmount()
 	})
 
 	dashboard, err := NewFSDashboard(fsys, rbf, "gotests")

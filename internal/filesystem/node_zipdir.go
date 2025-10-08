@@ -21,8 +21,8 @@ var (
 
 // zipDirNode is a ZIP archive file of the mirrored filesystem.
 // It is now presented as a regular directory within our filesystem.
-// All structures contained in the archive are flattened (by [flatEntryName])
-// and presented as regular files (to be unpacked into memory when requested).
+// When enabled, contained structures are flattened (by [flatEntryName]).
+// Archive contents are presented as regular entries and unpacked on-the-fly.
 type zipDirNode struct {
 	fsys   *FS       // Pointer to our filesystem.
 	inode  uint64    // Inode within our filesystem.
@@ -76,7 +76,7 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->ReadDirAll: ZIP Error: %v\n", z.path, err)
 
-		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
+		return nil, z.fsys.countError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 
@@ -117,7 +117,7 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->Lookup->%q: ZIP Error: %v\n", z.path, name, err)
 
-		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
+		return nil, z.fsys.countError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 
@@ -146,7 +146,7 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 		return &zipDiskStreamFileNode{base}, nil
 	}
 
-	return nil, z.fsys.fsError(toFuseErr(syscall.ENOENT))
+	return nil, toFuseErr(syscall.ENOENT)
 }
 
 func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) {
@@ -160,7 +160,7 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->ReadDirAll: ZIP error: %v\n", z.path, err)
 
-		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
+		return nil, z.fsys.countError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 
@@ -218,7 +218,7 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 	if err != nil {
 		z.fsys.rbuf.Printf("%q->Lookup->%q: ZIP error: %v\n", z.path, name, err)
 
-		return nil, z.fsys.fsError(toFuseErr(syscall.EINVAL))
+		return nil, z.fsys.countError(toFuseErr(syscall.EINVAL))
 	}
 	defer zr.Release() //nolint:errcheck
 
@@ -260,5 +260,5 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 		}
 	}
 
-	return nil, z.fsys.fsError(toFuseErr(syscall.ENOENT))
+	return nil, toFuseErr(syscall.ENOENT)
 }

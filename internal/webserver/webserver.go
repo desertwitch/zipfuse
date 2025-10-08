@@ -30,29 +30,7 @@ var (
 	errMissingArgument = errors.New("missing argument")
 )
 
-// FSDashboard is the implementation for the filesystem dashboard.
-type FSDashboard struct {
-	version string
-	fsys    *filesystem.FS
-	rbuf    *logging.RingBuffer
-}
-
-// NewFSDashboard returns a pointer to a new [FSDashboard].
-func NewFSDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, version string) (*FSDashboard, error) {
-	if fsys == nil {
-		return nil, fmt.Errorf("%w: need filesystem", errMissingArgument)
-	}
-	if rbuf == nil {
-		return nil, fmt.Errorf("%w: need ring buffer", errMissingArgument)
-	}
-
-	return &FSDashboard{
-		version: version,
-		fsys:    fsys,
-		rbuf:    rbuf,
-	}, nil
-}
-
+// fsDashboardData describes data served on the filesystem dashboard.
 type fsDashboardData struct {
 	AllocBytes          string   `json:"allocBytes"`
 	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
@@ -85,6 +63,29 @@ type fsDashboardData struct {
 	Version             string   `json:"version"`
 }
 
+// FSDashboard is the implementation for the filesystem dashboard.
+type FSDashboard struct {
+	version string
+	fsys    *filesystem.FS
+	rbuf    *logging.RingBuffer
+}
+
+// NewFSDashboard returns a pointer to a new [FSDashboard].
+func NewFSDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, version string) (*FSDashboard, error) {
+	if fsys == nil {
+		return nil, fmt.Errorf("%w: need filesystem", errMissingArgument)
+	}
+	if rbuf == nil {
+		return nil, fmt.Errorf("%w: need ring buffer", errMissingArgument)
+	}
+
+	return &FSDashboard{
+		version: version,
+		fsys:    fsys,
+		rbuf:    rbuf,
+	}, nil
+}
+
 // Serve serves the diagnostics dashboard as part of a [http.Server].
 func (d *FSDashboard) Serve(addr string) *http.Server {
 	srv := &http.Server{Addr: addr, Handler: d.dashboardMux()}
@@ -100,7 +101,6 @@ func (d *FSDashboard) Serve(addr string) *http.Server {
 	return srv
 }
 
-// dashboardMux describes the routes served by the diagnostics dashboard.
 func (d *FSDashboard) dashboardMux() *mux.Router {
 	mux := mux.NewRouter()
 

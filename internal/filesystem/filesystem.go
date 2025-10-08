@@ -34,13 +34,15 @@ var (
 	_ fs.FS               = (*FS)(nil)
 	_ fs.FSInodeGenerator = (*FS)(nil)
 
-	errMissingArgument = errors.New("missing argument")
+	// errInvalidArgument is for an invalid constructor argument.
+	errInvalidArgument = errors.New("invalid argument")
 )
 
 // Options contains all settings for the operation of the filesystem.
 // All non-atomic fields can no longer be modified at runtime (once mounted).
 type Options struct {
 	// FDLimit is the absolute limit on open file descriptors at any time.
+	// It must be larger than [Options.FDCacheSize], but beware the OS limits.
 	FDLimit int
 
 	// FDCacheBypass circumvents the LRU cache for ZIP file descriptors.
@@ -48,18 +50,19 @@ type Options struct {
 	FDCacheBypass atomic.Bool
 
 	// FDCacheSize is the size of the LRU cache for ZIP file descriptors.
-	// Beware the operating system file descriptor limit when changing this.
+	// It must be smaller than [Options.FDLimit], otherwise may cause deadlock.
 	FDCacheSize int
 
 	// FDCacheTTL is the time-to-live for each ZIP file descriptor in the LRU.
-	// If a file descriptor is no longer used, it will be evicted after TTL.
+	// If a file descriptor is no longer in use, it will be evicted after TTL.
 	FDCacheTTL time.Duration
 
 	// PoolBufferSize is the buffer size for the file read buffer pool.
+	// This value multiplies with concurrency, a common read size makes sense.
 	PoolBufferSize int
 
 	// FlatMode controls if ZIP-contained subdirectories and files
-	// should be flattened with [flatEntryName] for shallow directories.
+	// should be flattened with [flatEntryName] into shallow directories.
 	FlatMode bool
 
 	// MustCRC32 controls if ZIP-contained uncompressed files must still run
@@ -141,19 +144,23 @@ type FS struct {
 }
 
 // NewFS returns a pointer to a new [FS].
-// You must call Cleanup() once all work is complete.
+// You must call PreUnmount() before unmount, PostUnmount() after unmount.
 func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error) {
 	if rbuf == nil {
-		return nil, fmt.Errorf("%w: need a ring buffer", errMissingArgument)
+		return nil, fmt.Errorf("%w: need a non-nil rbuf", errInvalidArgument)
 	}
 	if rootDir == "" {
-		return nil, fmt.Errorf("%w: need a root dir", errMissingArgument)
+		return nil, fmt.Errorf("%w: need a non-empty rootDir", errInvalidArgument)
 	}
 	if _, err := os.Stat(rootDir); err != nil {
-		return nil, fmt.Errorf("failed to stat root dir: %w", err)
+		return nil, fmt.Errorf("%w: failed to stat rootDir: %w", errInvalidArgument, err)
 	}
 	if opts == nil {
 		opts = DefaultOptions()
+	}
+	if opts.FDLimit <= opts.FDCacheSize {
+		return nil, fmt.Errorf("%w: fd limit cannot be <= fd cache size (%d/%d)",
+			errInvalidArgument, opts.FDLimit, opts.FDCacheSize)
 	}
 
 	fsys := &FS{
@@ -177,24 +184,16 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 	return fsys, nil
 }
 
-// Cleanup does post-unmount FS cleanup and blocks until done.
-// It stops the goroutines associated with the file descriptor cache.
-func (fsys *FS) Cleanup() {
-	fsys.fdcache.cache.Stop()
+// PreUnmount does pre-unmount FS cleanup.
+// It takes an error channel for checking if unmount was successful.
+// In case of an unmount failure, it restores the FS to working state.
+func (fsys *FS) PreUnmount(unmountErr <-chan error) {
+	fsys.fdcache.HaltAndPurge(unmountErr)
 }
 
-// HaltPurgeCache prepares the file descriptor cache for unmount,
-// turning on FD cache bypass and deleting all items from the cache.
-// It returns then as bool the pre-call value of Options.FDCacheBypass.
-// This can be used to restore the setting in case of a failed unmount.
-// On successful unmount, Cleanup() must also be called to stop the cache.
-func (fsys *FS) HaltPurgeCache() bool {
-	v := fsys.Options.FDCacheBypass.Load()
-
-	fsys.Options.FDCacheBypass.Store(true)
-	fsys.fdcache.cache.DeleteAll()
-
-	return v
+// PostUnmount does post-unmount FS cleanup and blocks until done.
+func (fsys *FS) PostUnmount() {
+	fsys.fdcache.Destroy()
 }
 
 // Root returns the entry-point [fs.Node] of the filesystem.
@@ -220,7 +219,7 @@ func (fsys *FS) GenerateInode(_ uint64, _ string) uint64 {
 
 // WalkFunc gets called on each visited [fs.Node] as part of a [FS.Walk].
 // Do note that as the root directory is synthetic, the [fuse.Dirent] will be nil.
-// All paths provided to the callback will be relative to the filesystem root dir.
+// All paths provided to the callback will be relative to the filesystem Root() node.
 type WalkFunc func(path string, dirent *fuse.Dirent, node fs.Node, attr fuse.Attr) error
 
 // Walk constructs and walks the [FS] in-memory, calling walkFn on each visited [fs.Node].
@@ -278,10 +277,10 @@ func (fsys *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 	return nil
 }
 
-// fsError tracks the error count within the filesystem.
+// countError adds to the error count within the filesystem.
 // It returns the received error back to the caller unchanged.
 // This allows for convenient use of the method in return calls.
-func (fsys *FS) fsError(err error) error {
+func (fsys *FS) countError(err error) error {
 	fsys.Metrics.Errors.Add(1)
 
 	return err

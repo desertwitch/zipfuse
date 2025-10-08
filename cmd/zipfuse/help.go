@@ -5,8 +5,11 @@ const (
 
 	helpTextShort = "a read-only FUSE filesystem for browsing of ZIP files"
 
-	helpTextLong = `zipfuse is a FUSE filesystem that shows ZIP files as flattened, browseable
-directories - it unpacks, streams and serves files straight from memory (RAM).
+	helpTextLong = `zipfuse is a read-only FUSE filesystem that mirrors another filesystem, but
+exposing only its contained .zip archives as files and folders. It handles
+in-memory enumeration, chunked streaming and on-the-fly extraction - so that
+consumers remain entirely unaware of an archive being involved. It includes a
+HTTP webserver for a responsive diagnostics dashboard and runtime configurables.
 
 When mounted, the following OS signals are observed at runtime:
 - SIGTERM/SIGINT for gracefully unmounting the FS

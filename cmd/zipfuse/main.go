@@ -1,10 +1,9 @@
 /*
-zipfuse is a tailored, read-only FUSE filesystem that exposes any directories
-and .zip archives of an underlying filesystem as both regular directories and
-files. This means it internally handles in-memory unpacking, streaming and
-serving .zip archives and all their contained files, so that consumers need
-not know or care about .zip archive mechanics. It includes a HTTP dashboard
-for basic filesystem metrics and controlling operations and runtime behavior.
+zipfuse is a read-only FUSE filesystem that mirrors another filesystem, but
+exposing only its contained .zip archives as files and folders. It handles
+in-memory enumeration, chunked streaming and on-the-fly extraction - so that
+consumers remain entirely unaware of an archive being involved. It includes a
+HTTP webserver for a responsive diagnostics dashboard and runtime configurables.
 
 The following signals are observed and handled by the filesystem:
   - SIGTERM or SIGINT (CTRL+C) gracefully unmounts the filesystem
@@ -52,7 +51,7 @@ var (
 	// Version is the program version (filled in from the Makefile).
 	Version string
 
-	// errInvalidArgument for an invalid CLI argument/value provided.
+	// errInvalidArgument is for an invalid CLI argument/value provided.
 	errInvalidArgument = errors.New("invalid argument")
 )
 
@@ -123,11 +122,11 @@ func rootCmd() *cobra.Command {
 			}
 			opts.streamThreshold, err = humanize.ParseBytes(opts.streamThresholdRaw)
 			if err != nil {
-				return fmt.Errorf("%w: failed to parse memsize: %w", errInvalidArgument, err)
+				return fmt.Errorf("%w: failed to parse --stream-threshold: %w", errInvalidArgument, err)
 			}
 			opts.poolBufferSize, err = humanize.ParseBytes(opts.poolBufferSizeRaw)
 			if err != nil {
-				return fmt.Errorf("%w: failed to parse poolsize: %w", errInvalidArgument, err)
+				return fmt.Errorf("%w: failed to parse --pool-buffer-size: %w", errInvalidArgument, err)
 			}
 			opts.rootDir = args[0]
 			opts.mountDir = args[1]
@@ -199,13 +198,17 @@ func setupSignalHandlers(fsys *filesystem.FS, unmountDir string, rbuf *logging.R
 		for range sig {
 			rbuf.Println("Signal received, unmounting the filesystem...")
 
-			v := fsys.HaltPurgeCache()
+			errs := make(chan error, 1)
+			fsys.PreUnmount(errs)
 			if err := fuse.Unmount(unmountDir); err != nil {
-				fsys.Options.FDCacheBypass.Store(v)
+				errs <- err
+				close(errs)
+
 				rbuf.Printf("Unmount error: %v (try again later)\n", err)
 
 				continue
 			}
+			close(errs)
 
 			return
 		}
@@ -225,7 +228,7 @@ func setupSignalHandlers(fsys *filesystem.FS, unmountDir string, rbuf *logging.R
 	signal.Notify(sig2, syscall.SIGUSR2)
 	go func() {
 		for range sig2 {
-			rbuf.Println("Signal received, printing stacktrace (to stderr)...")
+			rbuf.Println("Signal received, printing stacktrace to standard error...")
 			buf := make([]byte, stackTraceBufferSize)
 			stacklen := runtime.Stack(buf, true)
 			os.Stderr.Write(buf[:stacklen])
@@ -251,7 +254,7 @@ func run(opts cliOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to establish fs: %w", err)
 	}
-	defer fsys.Cleanup()
+	defer fsys.PostUnmount()
 
 	if opts.dryRun {
 		return dryWalkFS(fsys)
@@ -268,7 +271,11 @@ func run(opts cliOptions) error {
 	}
 	defer c.Close()
 	defer fuse.Unmount(opts.mountDir) //nolint:errcheck
-	defer fsys.HaltPurgeCache()
+	defer func() {
+		noErr := make(chan error, 1)
+		fsys.PreUnmount(noErr)
+		close(noErr)
+	}()
 
 	setupSignalHandlers(fsys, opts.mountDir, rbuf)
 
