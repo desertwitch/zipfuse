@@ -335,12 +335,12 @@ func Test_FS_Walk_ContextError_Error(t *testing.T) {
 }
 
 // Expectation: An error should be returned as-is and counted in the metrics.
-func Test_FS_fsError_Success(t *testing.T) {
+func Test_FS_countError_Success(t *testing.T) {
 	t.Parallel()
 	_, fsys := testFS(t, io.Discard)
 
 	customErr := errors.New("test error")
-	err := fsys.fsError(customErr)
+	err := fsys.countError(customErr)
 
 	require.ErrorIs(t, err, customErr)
 	require.Equal(t, int64(1), fsys.Metrics.Errors.Load())

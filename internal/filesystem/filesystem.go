@@ -278,10 +278,10 @@ func (fsys *FS) walkNode(ctx context.Context, path string, dirent *fuse.Dirent, 
 	return nil
 }
 
-// fsError tracks the error count within the filesystem.
+// countError adds to the error count within the filesystem.
 // It returns the received error back to the caller unchanged.
 // This allows for convenient use of the method in return calls.
-func (fsys *FS) fsError(err error) error {
+func (fsys *FS) countError(err error) error {
 	fsys.Metrics.Errors.Add(1)
 
 	return err
