@@ -63,8 +63,8 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 |------|-----------|---------|-------------|
 | --allow-other `<bool>` | -a | true | Allow other system users to access the mounted filesystem. |
 | --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to standard output. |
-| --flatten-zips `<bool>` | -f | false | Flatten ZIP-contained subdirectories into one directory per ZIP archive. |
-| --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed ZIP archives (slower). |
+| --flatten-zips `<bool>` | -f | false | Flatten `.zip`-contained subdirectories into one directory per `.zip` archive. |
+| --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed `.zip` archives (slower). |
 | --stream-threshold `<size>` | -s | 10MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
 | --fd-limit `<int>` | -l | (50% of OS soft limit) | Maximum total open file descriptors at any given time (must be > `fd-cache-size`). |
 | --fd-cache-size `<int>` | -c | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
