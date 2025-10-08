@@ -33,11 +33,11 @@ In the example above the target is started immediately and also at system boot.
 
 ### Path Flattening Mode
 
-Some users may specifically want the `--flatten` argument when mounting their
-filesystem, so it does not waste resources in recreating structures from within
-`.zip` archives, but rather flattens any such structures so that only files
-remain within one shallow virtual directory per `.zip` archive. In order to
-avoid filename collisions, a deterministic portion of an `SHA-1` hash is then
+Some users may specifically want the `--flatten-zips` argument when mounting
+their filesystem, so it does not waste resources in recreating structures from
+within `.zip` archives, but rather flattens any such structures so that only
+files remain within one shallow virtual directory per `.zip` archive. In order
+to avoid filename collisions, a deterministic portion of an `SHA-1` hash is then
 appended to every one of these files (8 digits to also avoid hash collisions):
 
 ```
