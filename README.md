@@ -50,7 +50,7 @@ make all
 ```
 
 The [examples](./examples) folder contains possible integration examples.  
-_Pre-compiled static binaries are planned to be offered starting v1.0.0._
+Pre-compiled static binaries are planned to be offered starting v1.0.0.
 
 ### Program usage and advanced configurables:
 
