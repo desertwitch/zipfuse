@@ -72,7 +72,7 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 | --fd-cache-bypass `<bool>` | -b | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
 | --pool-buffer-size `<size>` | -p | 128KiB | Buffer size for read pool (multiplies with concurrency). |
 | --ring-buffer-size `<int>` | -r | 500 | Lines of the in-memory event ring-buffer (as served in the diagnostics dashboard). |
-| --force-unicode `<bool>` | -u | true | Unicode (or fallback to generated) paths for ZIPs; disabling garbles non-compliant ZIPs when trying to be interpreted as Unicode. |
+| --force-unicode `<bool>` | -u | true | Unicode (or fallback to generated) paths for ZIPs; disabling garbles non-compliant ZIPs when trying to be interpreted as unicode. |
 | --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to standard error. |
 | --webserver `<addr>` | -w | (empty) | Address for the diagnostics dashboard (e.g. `:8000`). If unset, the webserver is disabled. |
 | --version | (none) | false | Print the program version to standard output. |
