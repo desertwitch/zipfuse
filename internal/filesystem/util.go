@@ -161,8 +161,6 @@ func zipUnicodePathFromExtra(f *zip.File) (string, bool) {
 			if utf8.Valid(ubuf) {
 				return string(ubuf), true // UTF8
 			}
-
-			return string(ubuf), false // malformed
 		}
 	}
 
