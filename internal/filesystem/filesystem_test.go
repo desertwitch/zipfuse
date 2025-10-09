@@ -85,8 +85,8 @@ func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct
 	return tmpFile.Name()
 }
 
-// createZipFilePtr returns a [zip.File] pointer without an underlying archive.
-func createZipFilePtr(t *testing.T, name string) *zip.File {
+// createTestZipFilePtr returns a [zip.File] pointer without an underlying archive.
+func createTestZipFilePtr(t *testing.T, name string) *zip.File {
 	t.Helper()
 
 	return &zip.File{

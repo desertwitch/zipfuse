@@ -231,7 +231,7 @@ func Test_isDir_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := createZipFilePtr(t, tt.fileName)
+			f := createTestZipFilePtr(t, tt.fileName)
 			if tt.isDirAttr {
 				f.SetMode(0o755 | os.ModeDir)
 			}
@@ -384,7 +384,7 @@ func Test_normalizeZipPath_ValidUTF8_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
 			t.Parallel()
-			f := createZipFilePtr(t, tt.in)
+			f := createTestZipFilePtr(t, tt.in)
 			got := normalizeZipPath(0, f, true)
 			require.Equal(t, tt.want, got)
 		})
@@ -412,7 +412,7 @@ func Test_normalizeZipPath_Separators_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := createZipFilePtr(t, tt.in)
+			f := createTestZipFilePtr(t, tt.in)
 			got := normalizeZipPath(0, f, true)
 			require.Equal(t, tt.want, got)
 		})
@@ -459,7 +459,7 @@ func Test_normalizeZipPath_Fallback_Success(t *testing.T) {
 	t.Parallel()
 
 	invalidUTF8 := []byte{0xFF, 0xFE, 0xFD}
-	f := createZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
+	f := createTestZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
 
 	got := normalizeZipPath(42, f, true)
 	require.Contains(t, got, "dir/file(42)")
@@ -471,7 +471,7 @@ func Test_normalizeZipPath_NoFallback_Success(t *testing.T) {
 	t.Parallel()
 
 	invalidUTF8 := []byte{0xFF, 0xFE, 0xFD}
-	f := createZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
+	f := createTestZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
 
 	got := normalizeZipPath(42, f, false)
 	require.Contains(t, got, "dir/\xff\xfe\xfd")
