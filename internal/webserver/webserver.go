@@ -42,6 +42,7 @@ type fsDashboardData struct {
 	FDCacheTTL          string   `json:"fdCacheTtl"`
 	FDLimit             int      `json:"fdLimit"`
 	FlatMode            string   `json:"flatMode"`
+	ForceUnicode        string   `json:"forceUnicode"`
 	Logs                []string `json:"logs"`
 	MustCRC32           string   `json:"mustCrc32"`
 	NumGC               uint32   `json:"numGc"`
@@ -143,6 +144,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		FDCacheTTL:          d.fsys.Options.FDCacheTTL.String(),
 		FDLimit:             d.fsys.Options.FDLimit,
 		FlatMode:            enabledOrDisabled(d.fsys.Options.FlatMode),
+		ForceUnicode:        enabledOrDisabled(d.fsys.Options.ForceUnicode),
 		Logs:                lines,
 		MustCRC32:           enabledOrDisabled(d.fsys.Options.MustCRC32.Load()),
 		NumGC:               m.NumGC,

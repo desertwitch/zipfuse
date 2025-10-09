@@ -80,14 +80,14 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 	}
 	defer zr.Release() //nolint:errcheck
 
-	for _, f := range zr.File {
-		normalizedPath := normalizeZipPath(f.Name)
+	for i, f := range zr.File {
+		normalizedPath := normalizeZipPath(i, f, m.fsys.Options.ForceUnicode)
 
 		if isDir(f, normalizedPath) {
 			continue
 		}
 
-		name, ok := flatEntryName(normalizedPath)
+		name, ok := flatEntryName(i, normalizedPath)
 		if !ok || name == "" || seen[name] {
 			z.fsys.rbuf.Printf("Skipped: %q->ReadDirAll: %q -> %q (duplicate or invalid sanitized name)\n", z.path, f.Name, name)
 
@@ -121,11 +121,11 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 	}
 	defer zr.Release() //nolint:errcheck
 
-	for _, f := range zr.File {
-		normalizedPath := normalizeZipPath(f.Name)
+	for i, f := range zr.File {
+		normalizedPath := normalizeZipPath(i, f, m.fsys.Options.ForceUnicode)
 
 		// Dirent is already normalized and flat, needs checking against that:
-		flatName, ok := flatEntryName(normalizedPath)
+		flatName, ok := flatEntryName(i, normalizedPath)
 		if !ok || flatName != name {
 			continue
 		}
@@ -164,8 +164,8 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 	}
 	defer zr.Release() //nolint:errcheck
 
-	for _, f := range zr.File {
-		normalizedPath := normalizeZipPath(f.Name)
+	for i, f := range zr.File {
+		normalizedPath := normalizeZipPath(i, f, m.fsys.Options.ForceUnicode)
 
 		// Prefix is already normalized, needs checking against that:
 		if !strings.HasPrefix(normalizedPath, z.prefix) {
@@ -224,8 +224,8 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 
 	fullPath := z.prefix + name
 
-	for _, f := range zr.File {
-		normalizedPath := normalizeZipPath(f.Name)
+	for i, f := range zr.File {
+		normalizedPath := normalizeZipPath(i, f, m.fsys.Options.ForceUnicode)
 
 		// Dirent is already normalized, needs checking against that:
 		if normalizedPath == fullPath && !isDir(f, normalizedPath) {

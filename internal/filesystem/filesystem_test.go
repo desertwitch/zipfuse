@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"github.com/desertwitch/zipfuse/internal/logging"
+	"github.com/klauspost/compress/zip"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,6 +34,66 @@ func testFS(t *testing.T, out io.Writer) (string, *FS) {
 	})
 
 	return tmp, fsys
+}
+
+// createTestZip creates a zip file for testing with the given paths and modification times.
+// Each path can be a file (no trailing slash) or directory (with trailing slash).
+// Returns the path to the created zip file.
+func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct {
+	Path    string
+	ModTime time.Time
+	Content []byte // optional, only for files (can be nil)
+},
+) string {
+	t.Helper()
+
+	tmpFile, err := os.Create(filepath.Join(tmpDir, tmpName))
+	require.NoError(t, err)
+	defer tmpFile.Close()
+
+	zw := zip.NewWriter(tmpFile)
+	defer zw.Close()
+
+	for _, entry := range entries {
+		header := &zip.FileHeader{
+			Name:     entry.Path,
+			Method:   zip.Store,
+			Modified: entry.ModTime,
+		}
+
+		if strings.HasSuffix(entry.Path, "/") {
+			header.SetMode(os.ModeDir | 0o755)
+		} else {
+			header.SetMode(0o644)
+		}
+
+		w, err := zw.CreateHeader(header)
+		require.NoError(t, err)
+
+		if len(entry.Content) > 0 && !strings.HasSuffix(entry.Path, "/") {
+			_, err = w.Write(entry.Content)
+			require.NoError(t, err)
+		}
+	}
+
+	err = zw.Close()
+	require.NoError(t, err)
+
+	err = tmpFile.Close()
+	require.NoError(t, err)
+
+	return tmpFile.Name()
+}
+
+// createTestZipFilePtr returns a [zip.File] pointer without an underlying archive.
+func createTestZipFilePtr(t *testing.T, name string) *zip.File {
+	t.Helper()
+
+	return &zip.File{
+		FileHeader: zip.FileHeader{
+			Name: name,
+		},
+	}
 }
 
 // Expectation: NewFS should return errors for invalid arguments.

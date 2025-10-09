@@ -1,6 +1,6 @@
 /*
 zipfuse is a read-only FUSE filesystem that mirrors another filesystem, but
-exposing only its contained .zip archives as files and folders. It handles
+exposing only its contained ZIP archives as files and folders. It handles
 in-memory enumeration, chunked streaming and on-the-fly extraction - so that
 consumers remain entirely unaware of an archive being involved. It includes a
 HTTP webserver for a responsive diagnostics dashboard and runtime configurables.
@@ -63,6 +63,7 @@ type cliOptions struct {
 	fdCacheTTL         time.Duration
 	fdLimit            int
 	flatMode           bool
+	forceUnicode       bool
 	fuseVerbose        bool
 	mountDir           string
 	mustCRC32          bool
@@ -140,6 +141,7 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
 	cmd.Flags().BoolVarP(&opts.fdCacheBypass, "fd-cache-bypass", "b", false, "Bypass the FD cache; (re-)opens and closes file descriptors on every request")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
+	cmd.Flags().BoolVarP(&opts.forceUnicode, "force-unicode", "u", true, "Unicode (or generated) paths for ZIPs; disabling garbles non-compliant ZIPs")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print all verbose FUSE communication and diagnostics to standard error (stderr)")
 	cmd.Flags().BoolVarP(&opts.mustCRC32, "must-crc32", "m", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
 	cmd.Flags().DurationVarP(&opts.fdCacheTTL, "fd-cache-ttl", "t", 60*time.Second, "Time-to-live before FD cache evicts unused open file descriptors")
@@ -244,6 +246,7 @@ func run(opts cliOptions) error {
 		FDCacheTTL:     opts.fdCacheTTL,
 		FDLimit:        opts.fdLimit,
 		FlatMode:       opts.flatMode,
+		ForceUnicode:   opts.forceUnicode,
 		PoolBufferSize: int(opts.poolBufferSize),
 	}
 	fopts.FDCacheBypass.Store(opts.fdCacheBypass)
