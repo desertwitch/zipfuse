@@ -20,15 +20,15 @@ CLI arguments and documentation may change until a stable (v1.0.0) release.
 ## ZipFUSE Filesystem
 
 `zipfuse` is a read-only FUSE filesystem that mirrors another filesystem, but
-exposing only its contained `.zip` archives as files and folders. It handles
+exposing only its contained ZIP archives as files and folders. It handles
 in-memory enumeration, chunked streaming and on-the-fly extraction - so that
 consumers remain entirely unaware of an archive being involved. It includes a
 HTTP webserver for a responsive diagnostics dashboard and runtime configurables.
 
 The filesystem strives to remain simple and purpose-driven, while also utilizing
 caching both in userspace and on the kernel side for improved performance. In
-contrast to similar filesystems, it does not mount single `.zip` archives, but
-handles any `.zip` archives contained within a filesystem without re-mounting.
+contrast to similar filesystems, it does not mount single ZIP archives, but
+handles any ZIP archives contained within a filesystem without re-mounting.
 
 While initially developed entirely for a personal need and being [used with
 photo albums](./examples/zipgallery), it is organically growing into a far more
@@ -63,8 +63,8 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 |------|-----------|---------|-------------|
 | --allow-other `<bool>` | -a | true | Allow other system users to access the mounted filesystem. |
 | --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to standard output. |
-| --flatten-zips `<bool>` | -f | false | Flatten `.zip`-contained subdirectories into one directory per `.zip` archive. |
-| --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed `.zip` archives (slower). |
+| --flatten-zips `<bool>` | -f | false | Flatten ZIP-contained subdirectories into one directory per ZIP archive. |
+| --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed ZIP archives (slower). |
 | --stream-threshold `<size>` | -s | 10MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
 | --fd-limit `<int>` | -l | (50% of OS soft limit) | Maximum total open file descriptors at any given time (must be > `fd-cache-size`). |
 | --fd-cache-size `<int>` | -c | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
@@ -72,8 +72,9 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 | --fd-cache-bypass `<bool>` | -b | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
 | --pool-buffer-size `<size>` | -p | 128KiB | Buffer size for read pool (multiplies with concurrency). |
 | --ring-buffer-size `<int>` | -r | 500 | Lines of the in-memory event ring-buffer (as served in the diagnostics dashboard). |
-| --webserver `<addr>` | -w | (empty) | Address for the diagnostics dashboard (e.g. `:8000`). If unset, the webserver is disabled. |
+| --force-unicode `<bool>` | -u | true | Unicode (or fallback to generated) paths for ZIPs; disabling garbles non-compliant ZIPs when trying to be interpreted as Unicode. |
 | --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to standard error. |
+| --webserver `<addr>` | -w | (empty) | Address for the diagnostics dashboard (e.g. `:8000`). If unset, the webserver is disabled. |
 | --version | (none) | false | Print the program version to standard output. |
 
 Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`, `10MB`, or `10MiB`.  

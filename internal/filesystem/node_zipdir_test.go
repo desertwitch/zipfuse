@@ -3,66 +3,14 @@ package filesystem
 import (
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"github.com/klauspost/compress/zip"
 	"github.com/stretchr/testify/require"
 )
-
-// createTestZip creates a zip file for testing with the given paths and modification times.
-// Each path can be a file (no trailing slash) or directory (with trailing slash).
-// Returns the path to the created zip file.
-func createTestZip(t *testing.T, tmpDir string, tmpName string, entries []struct {
-	Path    string
-	ModTime time.Time
-	Content []byte // optional, only for files (can be nil)
-},
-) string {
-	t.Helper()
-
-	tmpFile, err := os.Create(filepath.Join(tmpDir, tmpName))
-	require.NoError(t, err)
-	defer tmpFile.Close()
-
-	zw := zip.NewWriter(tmpFile)
-	defer zw.Close()
-
-	for _, entry := range entries {
-		header := &zip.FileHeader{
-			Name:     entry.Path,
-			Method:   zip.Store,
-			Modified: entry.ModTime,
-		}
-
-		if strings.HasSuffix(entry.Path, "/") {
-			header.SetMode(os.ModeDir | 0o755)
-		} else {
-			header.SetMode(0o644)
-		}
-
-		w, err := zw.CreateHeader(header)
-		require.NoError(t, err)
-
-		if len(entry.Content) > 0 && !strings.HasSuffix(entry.Path, "/") {
-			_, err = w.Write(entry.Content)
-			require.NoError(t, err)
-		}
-	}
-
-	err = zw.Close()
-	require.NoError(t, err)
-
-	err = tmpFile.Close()
-	require.NoError(t, err)
-
-	return tmpFile.Name()
-}
 
 // Expectation: Attr should fill in the [fuse.Attr] with the correct values.
 func Test_zipDirNode_Attr_Success(t *testing.T) {
@@ -151,19 +99,25 @@ func Test_zipDirNode_readDirAllFlat_Success(t *testing.T) {
 
 	ent, err := node.readDirAllFlat(t.Context())
 	require.NoError(t, err)
-	require.Len(t, ent, 2)
+	require.Len(t, ent, 3)
 
-	name, ok := flatEntryName("dir/a.txt")
+	name, ok := flatEntryName(1, "dir/a.txt")
 	require.True(t, ok)
 	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[0].Inode)
 	require.Equal(t, name, ent[0].Name)
 	require.Equal(t, fuse.DT_File, ent[0].Type)
 
-	name, ok = flatEntryName("dir/b.txt")
+	name, ok = flatEntryName(2, "dir/b.txt")
 	require.True(t, ok)
 	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[1].Inode)
 	require.Equal(t, name, ent[1].Name)
 	require.Equal(t, fuse.DT_File, ent[1].Type)
+
+	name, ok = flatEntryName(3, "dir/b.txt")
+	require.True(t, ok)
+	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[2].Inode)
+	require.Equal(t, name, ent[2].Name)
+	require.Equal(t, fuse.DT_File, ent[2].Type)
 }
 
 // Expectation: Leading slashes in ZIP entries should be handled in flat mode.
@@ -193,13 +147,13 @@ func Test_zipDirNode_readDirAllFlat_LeadingSlash_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ent, 2)
 
-	name, ok := flatEntryName(normalizeZipPath("/file.txt"))
+	name, ok := flatEntryName(0, normalizeZipPath(0, createZipFilePtr(t, "/file.txt"), fsys.Options.ForceUnicode))
 	require.True(t, ok)
 	require.Equal(t, name, ent[0].Name)
 	require.NotContains(t, name, "/")
 	require.Equal(t, fuse.DT_File, ent[0].Type)
 
-	name, ok = flatEntryName(normalizeZipPath("//normal.txt"))
+	name, ok = flatEntryName(1, normalizeZipPath(1, createZipFilePtr(t, "//normal.txt"), fsys.Options.ForceUnicode))
 	require.True(t, ok)
 	require.Equal(t, name, ent[1].Name)
 	require.NotContains(t, name, "/")
@@ -619,7 +573,7 @@ func Test_zipDirNode_lookupFlat_Success(t *testing.T) {
 		mtime: tnow,
 	}
 
-	name, ok := flatEntryName("dir/a.txt")
+	name, ok := flatEntryName(1, "dir/a.txt")
 	require.True(t, ok)
 	lk, err := node.lookupFlat(t.Context(), name)
 	require.NoError(t, err)
@@ -629,7 +583,7 @@ func Test_zipDirNode_lookupFlat_Success(t *testing.T) {
 	require.Equal(t, "dir/a.txt", mn.path)
 	require.WithinDuration(t, tnow, mn.mtime, time.Second)
 
-	name, ok = flatEntryName("dir/b.txt")
+	name, ok = flatEntryName(2, "dir/b.txt")
 	require.True(t, ok)
 	lk, err = node.lookupFlat(t.Context(), name)
 	require.NoError(t, err)
@@ -665,7 +619,7 @@ func Test_zipDirNode_lookupFlat_EntryNotExist_Error(t *testing.T) {
 		mtime: tnow,
 	}
 
-	name, ok := flatEntryName("dir/c.txt") // missing
+	name, ok := flatEntryName(0, "dir/c.txt") // missing
 	require.True(t, ok)
 	lk, err := node.lookupFlat(t.Context(), name)
 	require.Nil(t, lk)
@@ -687,7 +641,7 @@ func Test_zipDirNode_lookupFlat_InvalidArchive_Error(t *testing.T) {
 		mtime: tnow,
 	}
 
-	name, ok := flatEntryName("dir/c.txt")
+	name, ok := flatEntryName(0, "dir/c.txt")
 	require.True(t, ok)
 	lk, err := node.lookupFlat(t.Context(), name)
 	require.Nil(t, lk)
@@ -1011,7 +965,7 @@ func Test_zipDirNode_DeterministicInodes_Flat_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ent, 2)
 
-	name, ok := flatEntryName("dir/a.txt")
+	name, ok := flatEntryName(1, "dir/a.txt")
 	require.True(t, ok)
 	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[0].Inode)
 	require.Equal(t, name, ent[0].Name)
@@ -1026,7 +980,7 @@ func Test_zipDirNode_DeterministicInodes_Flat_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, mn.inode, attr.Inode)
 
-	name, ok = flatEntryName("dir/b.txt")
+	name, ok = flatEntryName(2, "dir/b.txt")
 	require.True(t, ok)
 	require.Equal(t, fs.GenerateDynamicInode(node.inode, name), ent[1].Inode)
 	require.Equal(t, name, ent[1].Name)

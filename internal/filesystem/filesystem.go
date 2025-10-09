@@ -16,15 +16,15 @@ import (
 )
 
 const (
-	fileBasePerm      = 0o444 // RO
-	dirBasePerm       = 0o555 // RO
-	flattenHashDigits = 8     // [flatEntryName]
+	fileBasePerm = 0o444 // RO
+	dirBasePerm  = 0o555 // RO
 
 	defaultFDCacheBypass      = false
 	defaultFDCacheSize        = 350
 	defaultFDCacheTTL         = 60 * time.Second
 	defaultFDLimit            = 512
 	defaultFlatMode           = false
+	defaultForceUnicode       = true
 	defaultMustCRC32          = false
 	defaultPoolBufferSize     = 128 * 1024       // 128KiB
 	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MiB
@@ -61,6 +61,10 @@ type Options struct {
 	// This value multiplies with concurrency, a common read size makes sense.
 	PoolBufferSize int
 
+	// ForceUnicode controls if unicode should be enforced for all ZIP paths.
+	// Beware: If disabled, non-compliant ZIP will end up with garbled paths.
+	ForceUnicode bool
+
 	// FlatMode controls if ZIP-contained subdirectories and files
 	// should be flattened with [flatEntryName] into shallow directories.
 	FlatMode bool
@@ -81,6 +85,7 @@ func DefaultOptions() *Options {
 		FDCacheTTL:     defaultFDCacheTTL,
 		FDLimit:        defaultFDLimit,
 		FlatMode:       defaultFlatMode,
+		ForceUnicode:   defaultForceUnicode,
 		PoolBufferSize: defaultPoolBufferSize,
 	}
 	opts.FDCacheBypass.Store(defaultFDCacheBypass)

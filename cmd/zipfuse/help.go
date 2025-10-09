@@ -6,7 +6,7 @@ const (
 	helpTextShort = "a read-only FUSE filesystem for browsing of ZIP files"
 
 	helpTextLong = `zipfuse is a read-only FUSE filesystem that mirrors another filesystem, but
-exposing only its contained .zip archives as files and folders. It handles
+exposing only its contained ZIP archives as files and folders. It handles
 in-memory enumeration, chunked streaming and on-the-fly extraction - so that
 consumers remain entirely unaware of an archive being involved. It includes a
 HTTP webserver for a responsive diagnostics dashboard and runtime configurables.
