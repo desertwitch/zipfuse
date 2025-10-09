@@ -595,8 +595,7 @@ func Test_zipPathUnicodeFallback_SuspiciousExtension_Success(t *testing.T) {
 	path := "dir/" + string(corruptBytes) + "." + string(corruptBytes)
 
 	result := zipPathUnicodeFallback(7, path)
-	require.Contains(t, result, "dir/file(7)")
-	require.NotContains(t, result, ".")
+	require.Equal(t, "dir/file(7)", result)
 }
 
 // Expectation: zipPathUnicodeFallback should handle mixed valid and invalid components.
