@@ -142,7 +142,7 @@ func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS,
 
 	fsys, err := filesystem.NewFS(opts.rootDir, fopts, rbuf)
 	if err != nil {
-		return nil, fmt.Errorf("fs: %w", err)
+		return nil, fmt.Errorf("fs error: %w", err)
 	}
 
 	return fsys, nil
@@ -156,7 +156,7 @@ func mountFilesystem(opts cliOptions) (*fuse.Conn, error) {
 
 	conn, err := fuse.Mount(opts.mountDir, mountOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("fuse: %w", err)
+		return nil, fmt.Errorf("fuse error: %w", err)
 	}
 
 	return conn, nil
@@ -190,7 +190,7 @@ func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.
 func serveDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, addr string) (*http.Server, error) {
 	dashboard, err := webserver.NewFSDashboard(fsys, rbuf, Version)
 	if err != nil {
-		return nil, fmt.Errorf("dashboard: %w", err)
+		return nil, fmt.Errorf("dashboard error: %w", err)
 	}
 
 	return dashboard.Serve(addr), nil
