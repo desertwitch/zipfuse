@@ -576,6 +576,17 @@ func Test_zipPathUnicodeFallback_DeterministicDirectory_Success(t *testing.T) {
 	require.Equal(t, result1, result2)
 }
 
+// Expectation: zipPathUnicodeFallback should preserve non-corrupt extensions.
+func Test_zipPathUnicodeFallback_Extension_Success(t *testing.T) {
+	t.Parallel()
+
+	corruptBytes := []byte{0xFF, 0xFE}
+	path := "dir/" + string(corruptBytes) + ".jpg"
+
+	result := zipPathUnicodeFallback(7, path)
+	require.Equal(t, "dir/file(7).jpg", result)
+}
+
 // Expectation: zipPathUnicodeFallback should clear suspicious extensions.
 func Test_zipPathUnicodeFallback_SuspiciousExtension_Success(t *testing.T) {
 	t.Parallel()
