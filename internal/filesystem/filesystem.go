@@ -149,7 +149,7 @@ type FS struct {
 }
 
 // NewFS returns a pointer to a new [FS].
-// You must call PreUnmount() before unmount, PostUnmount() after unmount.
+// You must call PrepareUnmount() before unmount, Destroy() after unmount.
 func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error) {
 	if rbuf == nil {
 		return nil, fmt.Errorf("%w: need a non-nil rbuf", errInvalidArgument)
@@ -189,15 +189,16 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 	return fsys, nil
 }
 
-// PreUnmount does pre-unmount FS cleanup.
+// PrepareUnmount does pre-unmount FS cleanup.
 // It takes an error channel for checking if unmount was successful.
 // In case of an unmount failure, it restores the FS to working state.
-func (fsys *FS) PreUnmount(unmountErr <-chan error) {
+func (fsys *FS) PrepareUnmount(unmountErr <-chan error) {
 	fsys.fdcache.HaltAndPurge(unmountErr)
 }
 
-// PostUnmount does post-unmount FS cleanup and blocks until done.
-func (fsys *FS) PostUnmount() {
+// Destroy does post-unmount FS cleanup and blocks until done.
+// You should not use the filesystem after calling of this function.
+func (fsys *FS) Destroy() {
 	fsys.fdcache.Destroy()
 }
 

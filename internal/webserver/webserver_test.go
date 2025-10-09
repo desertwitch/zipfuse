@@ -23,9 +23,9 @@ func testDashboard(t *testing.T, out io.Writer) *FSDashboard {
 
 	t.Cleanup(func() {
 		noErr := make(chan error, 1)
-		fsys.PreUnmount(noErr)
+		fsys.PrepareUnmount(noErr)
 		close(noErr)
-		fsys.PostUnmount()
+		fsys.Destroy()
 	})
 
 	dashboard, err := NewFSDashboard(fsys, rbf, "gotests")
