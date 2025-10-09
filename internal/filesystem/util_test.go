@@ -559,7 +559,7 @@ func Test_zipPathUnicodeFallback_CorruptDirectory_Success(t *testing.T) {
 	path := string(corruptBytes) + "/file.txt"
 
 	result := zipPathUnicodeFallback(10, path)
-	require.Contains(t, result, "noutf8_dir_")
+	require.Contains(t, result, "noutf8_dir")
 	require.Contains(t, result, "/file.txt")
 }
 
@@ -608,7 +608,7 @@ func Test_zipPathUnicodeFallback_MixedComponents_Success(t *testing.T) {
 
 	result := zipPathUnicodeFallback(15, path)
 	require.Contains(t, result, "valid/")
-	require.Contains(t, result, "noutf8_dir_")
+	require.Contains(t, result, "noutf8_dir")
 	require.Contains(t, result, "/subdir/")
 	require.Contains(t, result, "file(15)")
 	require.Contains(t, result, ".log")
