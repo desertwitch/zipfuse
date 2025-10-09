@@ -462,8 +462,7 @@ func Test_normalizeZipPath_Fallback_Success(t *testing.T) {
 	f := createTestZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
 
 	got := normalizeZipPath(42, f, true)
-	require.Contains(t, got, "dir/file(42)")
-	require.Contains(t, got, ".txt")
+	require.Equal(t, "dir/file(42).txt", got)
 }
 
 // Expectation: normalizeZipPath should not fall back when UTF-8 invalid and no Unicode Extra Field.
@@ -474,8 +473,7 @@ func Test_normalizeZipPath_NoFallback_Success(t *testing.T) {
 	f := createTestZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
 
 	got := normalizeZipPath(42, f, false)
-	require.Contains(t, got, "dir/\xff\xfe\xfd")
-	require.Contains(t, got, ".txt")
+	require.Equal(t, "dir/\xff\xfe\xfd.txt", got)
 }
 
 // Expectation: zipUnicodePathFromExtra should extract Unicode path from Extra Field.
@@ -549,10 +547,8 @@ func Test_zipPathUnicodeFallback_CorruptFilename_Success(t *testing.T) {
 	corruptBytes := []byte{0xFF, 0xFE, 0xFD}
 	path := "valid/dir/" + string(corruptBytes) + ".txt"
 
-	result := zipPathUnicodeFallback(42, path)
-	require.Contains(t, result, "valid/dir/")
-	require.Contains(t, result, "file(42)")
-	require.Contains(t, result, ".txt")
+	got := zipPathUnicodeFallback(42, path)
+	require.Equal(t, "valid/dir/file(42).txt", got)
 }
 
 // Expectation: zipPathUnicodeFallback should generate fallback names for corrupt directories.
@@ -565,6 +561,19 @@ func Test_zipPathUnicodeFallback_CorruptDirectory_Success(t *testing.T) {
 	result := zipPathUnicodeFallback(10, path)
 	require.Contains(t, result, "dir_")
 	require.Contains(t, result, "/file.txt")
+}
+
+// Expectation: zipPathUnicodeFallback should generate equal fallback names when called twice.
+func Test_zipPathUnicodeFallback_DeterministicDirectory_Success(t *testing.T) {
+	t.Parallel()
+
+	corruptBytes := []byte{0xFF, 0xFE}
+	path := string(corruptBytes) + "/"
+
+	result1 := zipPathUnicodeFallback(10, path)
+	result2 := zipPathUnicodeFallback(10, path)
+
+	require.Equal(t, result1, result2)
 }
 
 // Expectation: zipPathUnicodeFallback should clear suspicious extensions.
