@@ -406,7 +406,7 @@ func Test_normalizeZipPath_Separators_Success(t *testing.T) {
 		{"triple slashes", "dir///file.txt", "dir/file.txt"},
 		{"leading slash", "/dir/file.txt", "dir/file.txt"},
 		{"multiple leading slashes", "///dir/file.txt", "dir/file.txt"},
-		{"non-unicode", "valid//dir///" + string(corruptBytes) + ".txt", "valid/dir/file(0).txt"},
+		{"non-unicode", "valid//dir///" + string(corruptBytes) + ".txt", "valid/dir/noutf8_file(0).txt"},
 	}
 
 	for _, tt := range tests {
@@ -462,7 +462,7 @@ func Test_normalizeZipPath_Fallback_Success(t *testing.T) {
 	f := createTestZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
 
 	got := normalizeZipPath(42, f, true)
-	require.Equal(t, "dir/file(42).txt", got)
+	require.Equal(t, "dir/noutf8_file(42).txt", got)
 }
 
 // Expectation: normalizeZipPath should not fall back when UTF-8 invalid and no Unicode Extra Field.
@@ -548,7 +548,7 @@ func Test_zipPathUnicodeFallback_CorruptFilename_Success(t *testing.T) {
 	path := "valid/dir/" + string(corruptBytes) + ".txt"
 
 	got := zipPathUnicodeFallback(42, path)
-	require.Equal(t, "valid/dir/file(42).txt", got)
+	require.Equal(t, "valid/dir/noutf8_file(42).txt", got)
 }
 
 // Expectation: zipPathUnicodeFallback should generate fallback names for corrupt directories.
@@ -559,7 +559,7 @@ func Test_zipPathUnicodeFallback_CorruptDirectory_Success(t *testing.T) {
 	path := string(corruptBytes) + "/file.txt"
 
 	result := zipPathUnicodeFallback(10, path)
-	require.Contains(t, result, "dir_")
+	require.Contains(t, result, "noutf8_dir")
 	require.Contains(t, result, "/file.txt")
 }
 
@@ -584,7 +584,7 @@ func Test_zipPathUnicodeFallback_Extension_Success(t *testing.T) {
 	path := "dir/" + string(corruptBytes) + ".jpg"
 
 	result := zipPathUnicodeFallback(7, path)
-	require.Equal(t, "dir/file(7).jpg", result)
+	require.Equal(t, "dir/noutf8_file(7).jpg", result)
 }
 
 // Expectation: zipPathUnicodeFallback should clear suspicious extensions.
@@ -595,7 +595,7 @@ func Test_zipPathUnicodeFallback_SuspiciousExtension_Success(t *testing.T) {
 	path := "dir/" + string(corruptBytes) + "." + string(corruptBytes)
 
 	result := zipPathUnicodeFallback(7, path)
-	require.Equal(t, "dir/file(7)", result)
+	require.Equal(t, "dir/noutf8_file(7)", result)
 }
 
 // Expectation: zipPathUnicodeFallback should handle mixed valid and invalid components.
@@ -608,7 +608,7 @@ func Test_zipPathUnicodeFallback_MixedComponents_Success(t *testing.T) {
 
 	result := zipPathUnicodeFallback(15, path)
 	require.Contains(t, result, "valid/")
-	require.Contains(t, result, "dir_")
+	require.Contains(t, result, "noutf8_dir")
 	require.Contains(t, result, "/subdir/")
 	require.Contains(t, result, "file(15)")
 	require.Contains(t, result, ".log")
