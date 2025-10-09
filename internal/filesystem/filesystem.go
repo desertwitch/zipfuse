@@ -62,7 +62,7 @@ type Options struct {
 	PoolBufferSize int
 
 	// ForceUnicode controls if unicode should be enforced for all ZIP paths.
-	// Beware: If disabled, non-compliant ZIP will end up with garbled paths.
+	// Beware: If disabled, non-compliant ZIPs may end up with garbled paths.
 	ForceUnicode bool
 
 	// FlatMode controls if ZIP-contained subdirectories and files
