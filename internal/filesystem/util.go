@@ -182,10 +182,10 @@ func zipPathUnicodeFallback(index int, normalizedPath string) string {
 				if ext != "" && !utf8.ValidString(ext) {
 					ext = "" // We can't guess it, so drop it.
 				}
-				converted = append(converted, fmt.Sprintf("file(%d)%s", index, ext))
+				converted = append(converted, fmt.Sprintf("noutf8_file(%d)%s", index, ext))
 			} else { // Dir
 				hash := fmt.Sprintf("%x", sha1.Sum([]byte(part)))[:8]
-				converted = append(converted, "dir_"+hash)
+				converted = append(converted, "noutf8_dir_"+hash)
 			}
 		}
 	}
