@@ -174,7 +174,7 @@ func zipPathUnicodeFallback(index int, normalizedPath string) string {
 	converted := make([]string, 0, len(parts))
 
 	for i, part := range parts {
-		if part == "" || utf8.ValidString(part) { // "" = dir ("/" at end)
+		if part == "" || utf8.ValidString(part) { // "" = dir (has "/" at end)
 			converted = append(converted, part)
 		} else {
 			if i == len(parts)-1 { // File
