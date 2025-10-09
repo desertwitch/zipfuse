@@ -40,7 +40,7 @@ func fdLimits() (fsLimit int, cacheLimit int, e error) {
 	return fsLimit, cacheLimit, nil
 }
 
-func setupSignalHandlers(fsys *filesystem.FS, unmountDir string, rbuf *logging.RingBuffer) {
+func setupSignalHandlers(fsys *filesystem.FS, mountDir string, rbuf *logging.RingBuffer) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -49,7 +49,7 @@ func setupSignalHandlers(fsys *filesystem.FS, unmountDir string, rbuf *logging.R
 
 			errs := make(chan error, 1)
 			fsys.PrepareUnmount(errs)
-			if err := fuse.Unmount(unmountDir); err != nil {
+			if err := fuse.Unmount(mountDir); err != nil {
 				errs <- err
 				close(errs)
 
