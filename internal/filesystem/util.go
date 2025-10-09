@@ -169,13 +169,12 @@ func zipUnicodePathFromExtra(f *zip.File) (string, bool) {
 
 // zipPathUnicodeFallback tries to salvage as much UTF8 of the original ZIP path
 // as possible, fallback to generation using archive-internal index and hashing.
-func zipPathUnicodeFallback(index int, path string) string {
-	parts := strings.Split(path, "/")
+func zipPathUnicodeFallback(index int, normalizedPath string) string {
+	parts := strings.Split(normalizedPath, "/")
 	converted := make([]string, 0, len(parts))
 
 	for i, part := range parts {
-		partBytes := []byte(part)
-		if utf8.Valid(partBytes) {
+		if utf8.ValidString(part) {
 			converted = append(converted, part)
 		} else {
 			if i == len(parts)-1 { // File
@@ -185,7 +184,7 @@ func zipPathUnicodeFallback(index int, path string) string {
 				}
 				converted = append(converted, fmt.Sprintf("file(%d)%s", index, ext))
 			} else { // Dir
-				hash := fmt.Sprintf("%x", sha1.Sum(partBytes))[:8]
+				hash := fmt.Sprintf("%x", sha1.Sum([]byte(part)))[:8]
 				converted = append(converted, "dir_"+hash)
 			}
 		}
