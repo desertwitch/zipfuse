@@ -45,15 +45,15 @@ type Options struct {
 	// It must be larger than [Options.FDCacheSize], but beware the OS limits.
 	FDLimit int
 
-	// FDCacheBypass circumvents the LRU cache for ZIP file descriptors.
+	// FDCacheBypass circumvents the cache for ZIP file descriptors.
 	// When enabled at runtime, in-flight descriptors will close after TTL.
 	FDCacheBypass atomic.Bool
 
-	// FDCacheSize is the size of the LRU cache for ZIP file descriptors.
+	// FDCacheSize is the size of the cache for ZIP file descriptors.
 	// It must be smaller than [Options.FDLimit], otherwise may cause deadlock.
 	FDCacheSize int
 
-	// FDCacheTTL is the time-to-live for each ZIP file descriptor in the LRU.
+	// FDCacheTTL is the time-to-live for ZIP file descriptors in the cache.
 	// If a file descriptor is no longer in use, it will be evicted after TTL.
 	FDCacheTTL time.Duration
 
@@ -127,10 +127,10 @@ type Metrics struct {
 	// TotalExtractBytes is the amount of bytes extracted from ZIP files.
 	TotalExtractBytes atomic.Int64
 
-	// TotalFDCacheHits is the amount of cache-hits for the LRU cache.
+	// TotalFDCacheHits is the amount of cache-hits for the FD cache.
 	TotalFDCacheHits atomic.Int64
 
-	// TotalFDCacheMisses is the amount of cache-misses for the LRU cache
+	// TotalFDCacheMisses is the amount of cache-misses for the FD cache
 	TotalFDCacheMisses atomic.Int64
 }
 

@@ -38,7 +38,6 @@ func (d *FSDashboard) totalExtractBytes() string {
 	return humanize.IBytes(uint64(bytes))
 }
 
-//nolint:mnd
 func (d *FSDashboard) totalFDCacheRatio() string {
 	hits := d.fsys.Metrics.TotalFDCacheHits.Load()
 	misses := d.fsys.Metrics.TotalFDCacheMisses.Load()
@@ -48,7 +47,7 @@ func (d *FSDashboard) totalFDCacheRatio() string {
 		return "0.00%"
 	}
 
-	perc := (float64(hits) / float64(total)) * 100
+	perc := (float64(hits) / float64(total)) * 100 //nolint:mnd
 
 	return fmt.Sprintf("%.2f%%", perc)
 }

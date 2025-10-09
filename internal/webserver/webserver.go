@@ -23,48 +23,14 @@ import (
 
 var (
 	//go:embed templates/*.html
-	templateFS embed.FS
-
+	templateFS    embed.FS
 	indexTemplate = template.Must(template.ParseFS(templateFS, "templates/index.html"))
 
-	errMissingArgument = errors.New("missing argument")
+	// errInvalidArgument is for an invalid constructor argument.
+	errInvalidArgument = errors.New("invalid argument")
 )
 
-// fsDashboardData describes data served on the filesystem dashboard.
-type fsDashboardData struct {
-	AllocBytes          string   `json:"allocBytes"`
-	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
-	AvgExtractTime      string   `json:"avgExtractTime"`
-	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
-	ClosedZips          int64    `json:"closedZips"`
-	FDCacheBypass       string   `json:"fdCacheBypass"`
-	FDCacheSize         int      `json:"fdCacheSize"`
-	FDCacheTTL          string   `json:"fdCacheTtl"`
-	FDLimit             int      `json:"fdLimit"`
-	FlatMode            string   `json:"flatMode"`
-	ForceUnicode        string   `json:"forceUnicode"`
-	Logs                []string `json:"logs"`
-	MustCRC32           string   `json:"mustCrc32"`
-	NumGC               uint32   `json:"numGc"`
-	OpenedZips          int64    `json:"openedZips"`
-	OpenZips            int64    `json:"openZips"`
-	PoolBufferSize      string   `json:"poolBufferSize"`
-	ReopenedEntries     int64    `json:"reopenedEntries"`
-	RingBufferSize      int      `json:"ringBufferSize"`
-	StreamingThreshold  string   `json:"streamingThreshold"`
-	SysBytes            string   `json:"sysBytes"`
-	TotalAlloc          string   `json:"totalAlloc"`
-	TotalErrors         int64    `json:"totalErrors"`
-	TotalExtractBytes   string   `json:"totalExtractBytes"`
-	TotalExtracts       int64    `json:"totalExtracts"`
-	TotalFDCacheHits    int64    `json:"totalFdCacheHits"`
-	TotalFDCacheMisses  int64    `json:"totalFdCacheMisses"`
-	TotalFDCacheRatio   string   `json:"totalFdCacheRatio"`
-	TotalMetadatas      int64    `json:"totalMetadatas"`
-	Version             string   `json:"version"`
-}
-
-// FSDashboard is the implementation for the filesystem dashboard.
+// FSDashboard is the implementation of the filesystem dashboard.
 type FSDashboard struct {
 	version string
 	fsys    *filesystem.FS
@@ -74,10 +40,10 @@ type FSDashboard struct {
 // NewFSDashboard returns a pointer to a new [FSDashboard].
 func NewFSDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, version string) (*FSDashboard, error) {
 	if fsys == nil {
-		return nil, fmt.Errorf("%w: need filesystem", errMissingArgument)
+		return nil, fmt.Errorf("%w: need filesystem", errInvalidArgument)
 	}
 	if rbuf == nil {
-		return nil, fmt.Errorf("%w: need ring buffer", errMissingArgument)
+		return nil, fmt.Errorf("%w: need ring buffer", errInvalidArgument)
 	}
 
 	return &FSDashboard{
@@ -120,10 +86,42 @@ func (d *FSDashboard) dashboardMux() *mux.Router {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write(assets.Logo)
 	})
-
 	// mux.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
 
 	return mux
+}
+
+type fsDashboardData struct {
+	AllocBytes          string   `json:"allocBytes"`
+	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
+	AvgExtractTime      string   `json:"avgExtractTime"`
+	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
+	ClosedZips          int64    `json:"closedZips"`
+	FDCacheBypass       string   `json:"fdCacheBypass"`
+	FDCacheSize         int      `json:"fdCacheSize"`
+	FDCacheTTL          string   `json:"fdCacheTtl"`
+	FDLimit             int      `json:"fdLimit"`
+	FlatMode            string   `json:"flatMode"`
+	ForceUnicode        string   `json:"forceUnicode"`
+	Logs                []string `json:"logs"`
+	MustCRC32           string   `json:"mustCrc32"`
+	NumGC               uint32   `json:"numGc"`
+	OpenedZips          int64    `json:"openedZips"`
+	OpenZips            int64    `json:"openZips"`
+	PoolBufferSize      string   `json:"poolBufferSize"`
+	ReopenedEntries     int64    `json:"reopenedEntries"`
+	RingBufferSize      int      `json:"ringBufferSize"`
+	StreamingThreshold  string   `json:"streamingThreshold"`
+	SysBytes            string   `json:"sysBytes"`
+	TotalAlloc          string   `json:"totalAlloc"`
+	TotalErrors         int64    `json:"totalErrors"`
+	TotalExtractBytes   string   `json:"totalExtractBytes"`
+	TotalExtracts       int64    `json:"totalExtracts"`
+	TotalFDCacheHits    int64    `json:"totalFdCacheHits"`
+	TotalFDCacheMisses  int64    `json:"totalFdCacheMisses"`
+	TotalFDCacheRatio   string   `json:"totalFdCacheRatio"`
+	TotalMetadatas      int64    `json:"totalMetadatas"`
+	Version             string   `json:"version"`
 }
 
 func (d *FSDashboard) collectMetrics() fsDashboardData {
