@@ -61,6 +61,7 @@ type cliOptions struct {
 	fdCacheTTL         time.Duration
 	fdLimit            int
 	flatMode           bool
+	strictCache        bool
 	forceUnicode       bool
 	fuseVerbose        bool
 	mountDir           string
@@ -113,18 +114,19 @@ func rootCmd() *cobra.Command {
 	}
 	cmd.PersistentFlags().BoolP("version", "", false, "version for zipfuse") // removes -v shorthand
 
+	cmd.Flags().BoolVar(&opts.fdCacheBypass, "fd-cache-bypass", false, "Bypass the FD cache; (re-)opens and closes file descriptors on every request")
+	cmd.Flags().BoolVar(&opts.forceUnicode, "force-unicode", true, "Unicode (or generated) paths for ZIPs; disabling garbles non-compliant ZIPs")
+	cmd.Flags().BoolVar(&opts.mustCRC32, "must-crc32", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
+	cmd.Flags().BoolVar(&opts.strictCache, "strict-cache", false, "Do not treat ZIP files/contents as immutable (non-changing) for caching decisions")
 	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", true, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
-	cmd.Flags().BoolVarP(&opts.fdCacheBypass, "fd-cache-bypass", "b", false, "Bypass the FD cache; (re-)opens and closes file descriptors on every request")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
-	cmd.Flags().BoolVarP(&opts.forceUnicode, "force-unicode", "u", true, "Unicode (or generated) paths for ZIPs; disabling garbles non-compliant ZIPs")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print all verbose FUSE communication and diagnostics to standard error (stderr)")
-	cmd.Flags().BoolVarP(&opts.mustCRC32, "must-crc32", "m", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
-	cmd.Flags().DurationVarP(&opts.fdCacheTTL, "fd-cache-ttl", "t", 60*time.Second, "Time-to-live before FD cache evicts unused open file descriptors")
-	cmd.Flags().IntVarP(&opts.fdCacheSize, "fd-cache-size", "c", cacheLimit, "Max number of open file descriptors in the FD cache (must be < fd-limit)")
-	cmd.Flags().IntVarP(&opts.fdLimit, "fd-limit", "l", fsLimit, "Limit of total open file descriptors (> fd-cache-size; beware OS limits)")
-	cmd.Flags().IntVarP(&opts.ringBufferSize, "ring-buffer-size", "r", 500, "Buffer size for the event ring-buffer (displayed in diagnostics dashboard)")
-	cmd.Flags().StringVarP(&opts.streamPoolSizeRaw, "stream-pool-size", "p", "128KiB", "Buffer size for the streamed read buffer pool (beware this multiplies)")
+	cmd.Flags().DurationVar(&opts.fdCacheTTL, "fd-cache-ttl", 60*time.Second, "Time-to-live before FD cache evicts unused open file descriptors")
+	cmd.Flags().IntVar(&opts.fdCacheSize, "fd-cache-size", cacheLimit, "Max number of open file descriptors in the FD cache (must be < fd-limit)")
+	cmd.Flags().IntVar(&opts.fdLimit, "fd-limit", fsLimit, "Limit of total open file descriptors (> fd-cache-size; beware OS limits)")
+	cmd.Flags().IntVar(&opts.ringBufferSize, "ring-buffer-size", 500, "Buffer lines for the event ring-buffer (displayed in diagnostics dashboard)")
+	cmd.Flags().StringVar(&opts.streamPoolSizeRaw, "stream-pool-size", "128KiB", "Buffer size for the streamed read buffer pool (beware this multiplies)")
 	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "stream-threshold", "s", "1MiB", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&opts.webserverAddr, "webserver", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
@@ -139,6 +141,7 @@ func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS,
 		FlatMode:       opts.flatMode,
 		ForceUnicode:   opts.forceUnicode,
 		StreamPoolSize: int(opts.streamPoolSize),
+		StrictCache:    opts.strictCache,
 	}
 	fopts.FDCacheBypass.Store(opts.fdCacheBypass)
 	fopts.MustCRC32.Store(opts.mustCRC32)

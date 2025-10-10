@@ -54,8 +54,9 @@ type zipInMemoryFileNode struct {
 }
 
 func (z *zipInMemoryFileNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
-	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
-	resp.Flags |= fuse.OpenKeepCache
+	if !z.fsys.Options.StrictCache {
+		resp.Flags |= fuse.OpenKeepCache
+	}
 
 	return z, nil
 }
@@ -104,8 +105,9 @@ func (z *zipDiskStreamFileNode) Open(_ context.Context, _ *fuse.OpenRequest, res
 		return nil, z.fsys.countError(toFuseErr(syscall.EINVAL))
 	}
 
-	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
-	resp.Flags |= fuse.OpenKeepCache
+	if !z.fsys.Options.StrictCache {
+		resp.Flags |= fuse.OpenKeepCache
+	}
 
 	return &zipDiskStreamFileHandle{
 		fsys:    z.fsys,

@@ -28,6 +28,7 @@ const (
 	defaultMustCRC32          = false
 	defaultStreamingThreshold = 1 * 1024 * 1024 // 1MiB
 	defaultStreamPoolSize     = 128 * 1024      // 128KiB
+	defaultStrictCache        = false
 )
 
 var (
@@ -58,8 +59,14 @@ type Options struct {
 	FDCacheTTL time.Duration
 
 	// StreamPoolSize is the buffer size for the streamed read buffer pool.
-	// This value multiplies with concurrency, a common read size makes sense.
+	// This value multiplies with concurrency; a common read size makes sense,
+	// in particular one that aligns well with page size/FUSE readahead setting.
 	StreamPoolSize int
+
+	// StrictCache controls if ZIP files/contents should be treated as
+	// immutable for caching decisions (and invalidation of cached content).
+	// If disabled, ZIPs are considered immutable (non-changing) for caching.
+	StrictCache bool
 
 	// ForceUnicode controls if unicode should be enforced for all ZIP paths.
 	// Beware: If disabled, non-compliant ZIPs may end up with garbled paths.
@@ -87,6 +94,7 @@ func DefaultOptions() *Options {
 		FlatMode:       defaultFlatMode,
 		ForceUnicode:   defaultForceUnicode,
 		StreamPoolSize: defaultStreamPoolSize,
+		StrictCache:    defaultStrictCache,
 	}
 	opts.FDCacheBypass.Store(defaultFDCacheBypass)
 	opts.MustCRC32.Store(defaultMustCRC32)

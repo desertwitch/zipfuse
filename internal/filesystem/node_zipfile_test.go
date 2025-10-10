@@ -47,37 +47,50 @@ func Test_zipBaseFileNode_Attr_Success(t *testing.T) {
 // Expectation: Open should set the caching flag and return the node itself as the handle.
 func Test_zipInMemoryFileNode_Open_Success(t *testing.T) {
 	t.Parallel()
-	tmpDir, fsys := testFS(t, io.Discard)
-	tnow := time.Now()
 
-	content := []byte("test content for in-memory node")
-	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
-		Path    string
-		ModTime time.Time
-		Content []byte
-	}{
-		{Path: "test.txt", ModTime: tnow, Content: content},
-	})
+	for _, mode := range []bool{true, false} {
+		t.Run("StrictCache="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+			tmpDir, fsys := testFS(t, io.Discard)
+			tnow := time.Now()
 
-	node := &zipInMemoryFileNode{
-		zipBaseFileNode: &zipBaseFileNode{
-			fsys:    fsys,
-			inode:   fs.GenerateDynamicInode(1, "test.txt"),
-			archive: zipPath,
-			path:    "test.txt",
-			size:    uint64(len(content)),
-			mtime:   tnow,
-		},
+			fsys.Options.StrictCache = mode
+
+			content := []byte("test content for in-memory node")
+			zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+				Path    string
+				ModTime time.Time
+				Content []byte
+			}{
+				{Path: "test.txt", ModTime: tnow, Content: content},
+			})
+
+			node := &zipInMemoryFileNode{
+				zipBaseFileNode: &zipBaseFileNode{
+					fsys:    fsys,
+					inode:   fs.GenerateDynamicInode(1, "test.txt"),
+					archive: zipPath,
+					path:    "test.txt",
+					size:    uint64(len(content)),
+					mtime:   tnow,
+				},
+			}
+
+			resp := &fuse.OpenResponse{}
+			handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
+			require.NoError(t, err)
+
+			inmemHandle, ok := handle.(*zipInMemoryFileNode)
+			require.True(t, ok)
+			require.Equal(t, node, inmemHandle, "handle should be the same as the original node")
+
+			if fsys.Options.StrictCache {
+				require.Zero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should not be set")
+			} else {
+				require.NotZero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should be set")
+			}
+		})
 	}
-
-	resp := &fuse.OpenResponse{}
-	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
-	require.NoError(t, err)
-
-	inmemHandle, ok := handle.(*zipInMemoryFileNode)
-	require.True(t, ok)
-	require.Equal(t, node, inmemHandle, "handle should be the same as the original node")
-	require.NotZero(t, resp.Flags&fuse.OpenKeepCache)
 }
 
 // Expectation: ReadAll should return the complete content of the underlying file.
@@ -200,43 +213,55 @@ func Test_zipInMemoryFileNode_ReadAll_InvalidArchive_Error(t *testing.T) {
 // Expectation: Open should set the caching flag and return a zipDiskStreamFileHandle.
 func Test_zipDiskStreamFileNode_Open_Success(t *testing.T) {
 	t.Parallel()
-	tmpDir, fsys := testFS(t, io.Discard)
-	tnow := time.Now()
 
-	content := []byte("test content for disk stream node")
-	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
-		Path    string
-		ModTime time.Time
-		Content []byte
-	}{
-		{Path: "stream.txt", ModTime: tnow, Content: content},
-	})
+	for _, mode := range []bool{true, false} {
+		t.Run("StrictCache="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+			tmpDir, fsys := testFS(t, io.Discard)
+			tnow := time.Now()
 
-	node := &zipDiskStreamFileNode{
-		zipBaseFileNode: &zipBaseFileNode{
-			fsys:    fsys,
-			inode:   fs.GenerateDynamicInode(1, "stream.txt"),
-			archive: zipPath,
-			path:    "stream.txt",
-			size:    uint64(len(content)),
-			mtime:   tnow,
-		},
+			fsys.Options.StrictCache = mode
+
+			content := []byte("test content for disk stream node")
+			zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+				Path    string
+				ModTime time.Time
+				Content []byte
+			}{
+				{Path: "stream.txt", ModTime: tnow, Content: content},
+			})
+
+			node := &zipDiskStreamFileNode{
+				zipBaseFileNode: &zipBaseFileNode{
+					fsys:    fsys,
+					inode:   fs.GenerateDynamicInode(1, "stream.txt"),
+					archive: zipPath,
+					path:    "stream.txt",
+					size:    uint64(len(content)),
+					mtime:   tnow,
+				},
+			}
+
+			resp := &fuse.OpenResponse{}
+			handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
+			require.NoError(t, err)
+
+			streamHandle, ok := handle.(*zipDiskStreamFileHandle)
+			require.True(t, ok)
+			require.NotNil(t, streamHandle)
+
+			defer func() {
+				err = streamHandle.Release(t.Context(), &fuse.ReleaseRequest{})
+				require.NoError(t, err)
+			}()
+
+			if fsys.Options.StrictCache {
+				require.Zero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should not be set")
+			} else {
+				require.NotZero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should be set")
+			}
+		})
 	}
-
-	resp := &fuse.OpenResponse{}
-	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
-	require.NoError(t, err)
-
-	streamHandle, ok := handle.(*zipDiskStreamFileHandle)
-	require.True(t, ok)
-	require.NotNil(t, streamHandle)
-
-	defer func() {
-		err = streamHandle.Release(t.Context(), &fuse.ReleaseRequest{})
-		require.NoError(t, err)
-	}()
-
-	require.NotZero(t, resp.Flags&fuse.OpenKeepCache)
 }
 
 // Expectation: Read should return EINVAL for a missing file.

@@ -125,6 +125,7 @@ type fsDashboardData struct {
 	StreamPoolMissAvg   string   `json:"streamPoolMissAvg"`
 	StreamPoolMisses    int64    `json:"streamPoolMisses"`
 	StreamPoolSize      string   `json:"streamPoolSize"`
+	StrictCache         string   `json:"strictCache"`
 	SysBytes            string   `json:"sysBytes"`
 	TotalAlloc          string   `json:"totalAlloc"`
 	TotalErrors         int64    `json:"totalErrors"`
@@ -170,6 +171,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		StreamPoolMissAvg:   d.streamPoolMissAvgSize(),
 		StreamPoolMisses:    d.fsys.Metrics.TotalStreamPoolMisses.Load(),
 		StreamPoolSize:      humanize.IBytes(uint64(d.fsys.Options.StreamPoolSize)),
+		StrictCache:         enabledOrDisabled(d.fsys.Options.StrictCache),
 		SysBytes:            humanize.IBytes(m.Sys),
 		TotalAlloc:          humanize.IBytes(m.TotalAlloc),
 		TotalErrors:         d.fsys.Metrics.Errors.Load(),
