@@ -47,37 +47,50 @@ func Test_zipBaseFileNode_Attr_Success(t *testing.T) {
 // Expectation: Open should set the caching flag and return the node itself as the handle.
 func Test_zipInMemoryFileNode_Open_Success(t *testing.T) {
 	t.Parallel()
-	tmpDir, fsys := testFS(t, io.Discard)
-	tnow := time.Now()
 
-	content := []byte("test content for in-memory node")
-	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
-		Path    string
-		ModTime time.Time
-		Content []byte
-	}{
-		{Path: "test.txt", ModTime: tnow, Content: content},
-	})
+	for _, mode := range []bool{true, false} {
+		t.Run("StrictCache="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+			tmpDir, fsys := testFS(t, io.Discard)
+			tnow := time.Now()
 
-	node := &zipInMemoryFileNode{
-		zipBaseFileNode: &zipBaseFileNode{
-			fsys:    fsys,
-			inode:   fs.GenerateDynamicInode(1, "test.txt"),
-			archive: zipPath,
-			path:    "test.txt",
-			size:    uint64(len(content)),
-			mtime:   tnow,
-		},
+			fsys.Options.StrictCache = mode
+
+			content := []byte("test content for in-memory node")
+			zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+				Path    string
+				ModTime time.Time
+				Content []byte
+			}{
+				{Path: "test.txt", ModTime: tnow, Content: content},
+			})
+
+			node := &zipInMemoryFileNode{
+				zipBaseFileNode: &zipBaseFileNode{
+					fsys:    fsys,
+					inode:   fs.GenerateDynamicInode(1, "test.txt"),
+					archive: zipPath,
+					path:    "test.txt",
+					size:    uint64(len(content)),
+					mtime:   tnow,
+				},
+			}
+
+			resp := &fuse.OpenResponse{}
+			handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
+			require.NoError(t, err)
+
+			inmemHandle, ok := handle.(*zipInMemoryFileNode)
+			require.True(t, ok)
+			require.Equal(t, node, inmemHandle, "handle should be the same as the original node")
+
+			if fsys.Options.StrictCache {
+				require.Zero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should not be set")
+			} else {
+				require.NotZero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should be set")
+			}
+		})
 	}
-
-	resp := &fuse.OpenResponse{}
-	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
-	require.NoError(t, err)
-
-	inmemHandle, ok := handle.(*zipInMemoryFileNode)
-	require.True(t, ok)
-	require.Equal(t, node, inmemHandle, "handle should be the same as the original node")
-	require.NotZero(t, resp.Flags&fuse.OpenKeepCache)
 }
 
 // Expectation: ReadAll should return the complete content of the underlying file.
@@ -200,43 +213,55 @@ func Test_zipInMemoryFileNode_ReadAll_InvalidArchive_Error(t *testing.T) {
 // Expectation: Open should set the caching flag and return a zipDiskStreamFileHandle.
 func Test_zipDiskStreamFileNode_Open_Success(t *testing.T) {
 	t.Parallel()
-	tmpDir, fsys := testFS(t, io.Discard)
-	tnow := time.Now()
 
-	content := []byte("test content for disk stream node")
-	zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
-		Path    string
-		ModTime time.Time
-		Content []byte
-	}{
-		{Path: "stream.txt", ModTime: tnow, Content: content},
-	})
+	for _, mode := range []bool{true, false} {
+		t.Run("StrictCache="+strconv.FormatBool(mode), func(t *testing.T) {
+			t.Parallel()
+			tmpDir, fsys := testFS(t, io.Discard)
+			tnow := time.Now()
 
-	node := &zipDiskStreamFileNode{
-		zipBaseFileNode: &zipBaseFileNode{
-			fsys:    fsys,
-			inode:   fs.GenerateDynamicInode(1, "stream.txt"),
-			archive: zipPath,
-			path:    "stream.txt",
-			size:    uint64(len(content)),
-			mtime:   tnow,
-		},
+			fsys.Options.StrictCache = mode
+
+			content := []byte("test content for disk stream node")
+			zipPath := createTestZip(t, tmpDir, "test.zip", []struct {
+				Path    string
+				ModTime time.Time
+				Content []byte
+			}{
+				{Path: "stream.txt", ModTime: tnow, Content: content},
+			})
+
+			node := &zipDiskStreamFileNode{
+				zipBaseFileNode: &zipBaseFileNode{
+					fsys:    fsys,
+					inode:   fs.GenerateDynamicInode(1, "stream.txt"),
+					archive: zipPath,
+					path:    "stream.txt",
+					size:    uint64(len(content)),
+					mtime:   tnow,
+				},
+			}
+
+			resp := &fuse.OpenResponse{}
+			handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
+			require.NoError(t, err)
+
+			streamHandle, ok := handle.(*zipDiskStreamFileHandle)
+			require.True(t, ok)
+			require.NotNil(t, streamHandle)
+
+			defer func() {
+				err = streamHandle.Release(t.Context(), &fuse.ReleaseRequest{})
+				require.NoError(t, err)
+			}()
+
+			if fsys.Options.StrictCache {
+				require.Zero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should not be set")
+			} else {
+				require.NotZero(t, resp.Flags&fuse.OpenKeepCache, "OpenKeepCache flag should be set")
+			}
+		})
 	}
-
-	resp := &fuse.OpenResponse{}
-	handle, err := node.Open(t.Context(), &fuse.OpenRequest{}, resp)
-	require.NoError(t, err)
-
-	streamHandle, ok := handle.(*zipDiskStreamFileHandle)
-	require.True(t, ok)
-	require.NotNil(t, streamHandle)
-
-	defer func() {
-		err = streamHandle.Release(t.Context(), &fuse.ReleaseRequest{})
-		require.NoError(t, err)
-	}()
-
-	require.NotZero(t, resp.Flags&fuse.OpenKeepCache)
 }
 
 // Expectation: Read should return EINVAL for a missing file.
@@ -718,7 +743,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_AllocLargeBuffer_Success(t *testing.
 	tnow := time.Now()
 
 	// Content to force allocation
-	largeSize := fsys.Options.PoolBufferSize + 1024
+	largeSize := fsys.Options.StreamPoolSize + 1024
 	content := make([]byte, largeSize)
 	for i := range content {
 		content[i] = byte(i % 256)
@@ -772,7 +797,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_BufferReuse_Success(t *testing.T) {
 	tnow := time.Now()
 
 	// Content that can be read in pool-sized chunks
-	totalSize := fsys.Options.PoolBufferSize * 3
+	totalSize := fsys.Options.StreamPoolSize * 3
 	content := make([]byte, totalSize)
 	for i := range content {
 		content[i] = byte(i % 256)
@@ -809,16 +834,16 @@ func Test_zipDiskStreamFileHandle_Read_Pool_BufferReuse_Success(t *testing.T) {
 	}()
 
 	for i := range 3 {
-		offset := int64(i * fsys.Options.PoolBufferSize)
+		offset := int64(i * fsys.Options.StreamPoolSize)
 		req := &fuse.ReadRequest{
 			Offset: offset,
-			Size:   fsys.Options.PoolBufferSize,
+			Size:   fsys.Options.StreamPoolSize,
 		}
 		resp := &fuse.ReadResponse{}
 
 		err = fhandle.Read(t.Context(), req, resp)
 		require.NoError(t, err)
-		require.Equal(t, content[offset:offset+int64(fsys.Options.PoolBufferSize)], resp.Data)
+		require.Equal(t, content[offset:offset+int64(fsys.Options.StreamPoolSize)], resp.Data)
 	}
 }
 
@@ -828,7 +853,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_BufferBoundary_Success(t *testing.T)
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	content := make([]byte, fsys.Options.PoolBufferSize)
+	content := make([]byte, fsys.Options.StreamPoolSize)
 	for i := range content {
 		content[i] = byte(i % 256)
 	}
@@ -865,7 +890,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_BufferBoundary_Success(t *testing.T)
 
 	req := &fuse.ReadRequest{
 		Offset: 0,
-		Size:   fsys.Options.PoolBufferSize,
+		Size:   fsys.Options.StreamPoolSize,
 	}
 	resp := &fuse.ReadResponse{}
 
@@ -880,7 +905,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_OverCapacity_Success(t *testing.T) {
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	oversize := fsys.Options.PoolBufferSize + 1
+	oversize := fsys.Options.StreamPoolSize + 1
 	content := make([]byte, oversize)
 	for i := range content {
 		content[i] = byte(i % 256)
@@ -933,7 +958,7 @@ func Test_zipDiskStreamFileHandle_Read_Pool_SmallThenLarge_Success(t *testing.T)
 	tmpDir, fsys := testFS(t, io.Discard)
 	tnow := time.Now()
 
-	totalSize := fsys.Options.PoolBufferSize * 2
+	totalSize := fsys.Options.StreamPoolSize * 2
 	content := make([]byte, totalSize)
 	for i := range content {
 		content[i] = byte(i % 256)
@@ -983,11 +1008,11 @@ func Test_zipDiskStreamFileHandle_Read_Pool_SmallThenLarge_Success(t *testing.T)
 	// Large read second (allocates)
 	req2 := &fuse.ReadRequest{
 		Offset: 1024,
-		Size:   fsys.Options.PoolBufferSize + 512,
+		Size:   fsys.Options.StreamPoolSize + 512,
 	}
 	resp2 := &fuse.ReadResponse{}
 
 	err = fhandle.Read(t.Context(), req2, resp2)
 	require.NoError(t, err)
-	require.Equal(t, content[1024:1024+fsys.Options.PoolBufferSize+512], resp2.Data)
+	require.Equal(t, content[1024:1024+fsys.Options.StreamPoolSize+512], resp2.Data)
 }

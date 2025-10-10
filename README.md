@@ -14,8 +14,10 @@
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml" target="_blank"><img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg"></a>
 </div><br>
 
-**Note: This software is under active development.**  
-CLI arguments and documentation may change until a stable (v1.0.0) release.
+>**Note: This software is under active development.**  
+> CLI arguments and documentation may change until a stable (v1.0.0) release.
+
+<img alt="Example" src="assets/example.gif" width="650">
 
 ## ZipFUSE Filesystem
 
@@ -63,19 +65,20 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 |------|-----------|---------|-------------|
 | --allow-other `<bool>` | -a | true | Allow other system users to access the mounted filesystem. |
 | --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to standard output. |
+| --fd-cache-bypass `<bool>` | (none) | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
+| --fd-cache-size `<int>` | (none) | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
+| --fd-cache-ttl `<duration>` | (none) | 60s | Time-to-live before evicting cached file descriptors (that are not in use). |
+| --fd-limit `<int>` | (none) | (50% of OS soft limit) | Maximum total open file descriptors at any given time (must be > `fd-cache-size`). |
 | --flatten-zips `<bool>` | -f | false | Flatten ZIP-contained subdirectories into one directory per ZIP archive. |
-| --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed ZIP archives (slower). |
-| --stream-threshold `<size>` | -s | 10MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
-| --fd-limit `<int>` | -l | (50% of OS soft limit) | Maximum total open file descriptors at any given time (must be > `fd-cache-size`). |
-| --fd-cache-size `<int>` | -c | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
-| --fd-cache-ttl `<duration>` | -t | 60s | Time-to-live before evicting cached file descriptors (that are not in use). |
-| --fd-cache-bypass `<bool>` | -b | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
-| --pool-buffer-size `<size>` | -p | 128KiB | Buffer size for read pool (multiplies with concurrency). |
-| --ring-buffer-size `<int>` | -r | 500 | Lines of the in-memory event ring-buffer (as served in the diagnostics dashboard). |
-| --force-unicode `<bool>` | -u | true | Unicode (or fallback to synthetic generated) paths for ZIPs; disabling garbles non-compliant ZIPs when trying to be interpreted as unicode. |
+| --force-unicode `<bool>` | (none) | true | Unicode (or fallback to synthetic generated) paths for ZIPs; disabling garbles non-compliant ZIPs when trying to be interpreted as unicode. |
+| --must-crc32 `<bool>` | (none) | false | Force integrity verification for non-compressed ZIP archives (slower). |
+| --ring-buffer-size `<int>` | (none) | 500 | Lines of the in-memory event ring-buffer (as served in the diagnostics dashboard). |
+| --stream-pool-size `<size>` | (none) | 128KiB | Buffer size for the streamed read buffer pool (multiplies with concurrency). |
+| --stream-threshold `<size>` | -s | 1MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
+| --strict-cache `<bool>` | (none) | false | Do not treat ZIP files/contents as immutable (non-changing) for caching decisions. |
 | --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to standard error. |
-| --webserver `<addr>` | -w | (empty) | Address for the diagnostics dashboard (e.g. `:8000`). If unset, the webserver is disabled. |
 | --version | (none) | false | Print the program version to standard output. |
+| --webserver `<addr>` | -w | (empty) | Address for the diagnostics dashboard (e.g. `:8000`). If unset, the webserver is disabled. |
 
 Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`, `10MB`, or `10MiB`.  
 Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or combined values like `1h30m`.

@@ -75,26 +75,6 @@ func isDir(f *zip.File, normalizedPath string) bool {
 	return f.FileInfo().IsDir() || strings.HasSuffix(normalizedPath, "/")
 }
 
-// flatEntryName flattens a normalized path to a filename, discarding structure.
-// Path collisions are avoided via appending of the index to the filename base.
-func flatEntryName(index int, normalizedPath string) (string, bool) {
-	cleanedEntryName := filepath.Clean(normalizedPath)
-
-	if strings.HasPrefix(cleanedEntryName, "..") {
-		return cleanedEntryName, false
-	}
-
-	baseName := filepath.Base(cleanedEntryName)
-	if baseName == "." || baseName == ".." || baseName == "/" {
-		return baseName, false
-	}
-
-	ext := filepath.Ext(baseName)
-	nameWithoutExt := strings.TrimSuffix(baseName, ext)
-
-	return fmt.Sprintf("%s(%d)%s", nameWithoutExt, index, ext), true
-}
-
 // normalizeZipPath ensures ZIP paths use slashes and removes malformations.
 // It also handles non-unicode paths, trying to get the unicode representation
 // or instead falling back to a generation using ZIP file index and/or hashing.
@@ -103,15 +83,12 @@ func normalizeZipPath(index int, f *zip.File, forceUnicode bool) string {
 	var isUnicode bool
 
 	if utf8.ValidString(f.Name) {
-		// It is already valid UTF8, use it as-is.
 		path = f.Name
 		isUnicode = true
 	} else if p, ok := zipUnicodePathFromExtra(f); ok {
-		// Use the Unicode Extra Field, if available.
 		path = p
 		isUnicode = true
 	} else {
-		// Use the non-unicode path, fallback later (if allowed).
 		path = f.Name
 		isUnicode = false
 	}
@@ -125,7 +102,6 @@ func normalizeZipPath(index int, f *zip.File, forceUnicode bool) string {
 	path = strings.TrimPrefix(path, "/")
 
 	if !isUnicode && forceUnicode {
-		// Try to salvage as much UTF8 as possible, or generate.
 		// We do this here because the function relies on clean "/".
 		path = zipPathUnicodeFallback(index, path)
 	}
@@ -146,7 +122,7 @@ func zipUnicodePathFromExtra(f *zip.File) (string, bool) {
 		dataSize := binary.LittleEndian.Uint16(extra[i+2:])
 		i += 4
 		if i+int(dataSize) > len(extra) {
-			break // malformed
+			break
 		}
 
 		data := extra[i : i+int(dataSize)]
@@ -159,7 +135,7 @@ func zipUnicodePathFromExtra(f *zip.File) (string, bool) {
 
 			ubuf := data[5:]
 			if utf8.Valid(ubuf) {
-				return string(ubuf), true // UTF8
+				return string(ubuf), true
 			}
 		}
 	}
@@ -174,16 +150,16 @@ func zipPathUnicodeFallback(index int, normalizedPath string) string {
 	converted := make([]string, 0, len(parts))
 
 	for i, part := range parts {
-		if part == "" || utf8.ValidString(part) { // "" = dir (has "/" at end)
+		if part == "" || utf8.ValidString(part) {
 			converted = append(converted, part)
 		} else {
 			if i == len(parts)-1 { // File
 				ext := filepath.Ext(part)
 				if ext != "" && !utf8.ValidString(ext) {
-					ext = "" // We can't guess it, so drop it.
+					ext = ""
 				}
 				converted = append(converted, fmt.Sprintf("noutf8_file(%d)%s", index, ext))
-			} else { // Dir
+			} else { // Directory
 				hash := fmt.Sprintf("%x", sha1.Sum([]byte(part)))[:8]
 				converted = append(converted, "noutf8_dir("+hash+")")
 			}
@@ -191,4 +167,24 @@ func zipPathUnicodeFallback(index int, normalizedPath string) string {
 	}
 
 	return strings.Join(converted, "/")
+}
+
+// flatEntryName flattens a normalized path to a filename, discarding structure.
+// Path collisions are avoided via appending of the index to the filename base.
+func flatEntryName(index int, normalizedPath string) (string, bool) {
+	cleanedEntryName := filepath.Clean(normalizedPath)
+
+	if strings.HasPrefix(cleanedEntryName, "..") {
+		return cleanedEntryName, false
+	}
+
+	baseName := filepath.Base(cleanedEntryName)
+	if baseName == "." || baseName == ".." || baseName == "/" {
+		return baseName, false
+	}
+
+	ext := filepath.Ext(baseName)
+	nameWithoutExt := strings.TrimSuffix(baseName, ext)
+
+	return fmt.Sprintf("%s(%d)%s", nameWithoutExt, index, ext), true
 }

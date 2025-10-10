@@ -242,130 +242,6 @@ func Test_isDir_Success(t *testing.T) {
 	}
 }
 
-// Expectation: flatEntryName should flatten paths correctly and append index.
-func Test_flatEntryName_Success(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		index    int
-		input    string
-		expected string
-		valid    bool
-	}{
-		{0, "dir/file.txt", "file(0).txt", true},
-		{5, "a/b/c/test.log", "test(5).log", true},
-		{10, "file.txt", "file(10).txt", true},
-		{99, "deep/nested/path/document.pdf", "document(99).pdf", true},
-	}
-
-	for _, tc := range testCases {
-		result, valid := flatEntryName(tc.index, tc.input)
-		require.Equal(t, tc.valid, valid)
-		if valid {
-			require.Equal(t, tc.expected, result)
-		}
-	}
-}
-
-// Expectation: flatEntryName should preserve file extensions.
-func Test_flatEntryName_PreserveExtension_Success(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		index int
-		input string
-		ext   string
-	}{
-		{1, "dir/file.txt", ".txt"},
-		{2, "path/to/document.pdf", ".pdf"},
-		{3, "nested/script.sh", ".sh"},
-		{4, "archive.tar.gz", ".gz"},
-	}
-
-	for _, tc := range testCases {
-		result, valid := flatEntryName(tc.index, tc.input)
-		require.True(t, valid)
-		require.Equal(t, filepath.Ext(result), tc.ext)
-	}
-}
-
-// Expectation: flatEntryName should generate different names for different indices.
-func Test_flatEntryName_UniqueIndices_Success(t *testing.T) {
-	t.Parallel()
-
-	path := "dir/file.txt"
-	name1, valid1 := flatEntryName(1, path)
-	require.True(t, valid1)
-
-	name2, valid2 := flatEntryName(2, path)
-	require.True(t, valid2)
-
-	require.NotEqual(t, name1, name2)
-	require.Equal(t, "file(1).txt", name1)
-	require.Equal(t, "file(2).txt", name2)
-}
-
-// Expectation: flatEntryName should generate consistent names for the same input.
-func Test_flatEntryName_Deterministic_Success(t *testing.T) {
-	t.Parallel()
-
-	path := "some/deep/path/file.txt"
-	index := 42
-
-	name1, valid1 := flatEntryName(index, path)
-	require.True(t, valid1)
-
-	name2, valid2 := flatEntryName(index, path)
-	require.True(t, valid2)
-
-	require.Equal(t, name1, name2)
-}
-
-// Expectation: flatEntryName should handle files without extensions.
-func Test_flatEntryName_NoExtension_Success(t *testing.T) {
-	t.Parallel()
-
-	name, valid := flatEntryName(5, "dir/README")
-	require.True(t, valid)
-	require.Equal(t, "README(5)", name)
-	require.Empty(t, filepath.Ext(name))
-}
-
-// Expectation: flatEntryName should handle dotfiles.
-func Test_flatEntryName_Dotfile_Success(t *testing.T) {
-	t.Parallel()
-
-	name, valid := flatEntryName(3, "dir/.gitignore")
-	require.True(t, valid)
-	require.Equal(t, "(3).gitignore", name)
-}
-
-// Expectation: flatEntryName should handle paths with multiple dots.
-func Test_flatEntryName_MultipleDots_Success(t *testing.T) {
-	t.Parallel()
-
-	name, valid := flatEntryName(7, "dir/archive.tar.gz")
-	require.True(t, valid)
-	require.Equal(t, "archive.tar(7).gz", name)
-}
-
-// Expectation: flatEntryName should return false for invalid paths.
-func Test_flatEntryName_InvalidPaths_Error(t *testing.T) {
-	t.Parallel()
-
-	testCases := []string{
-		".",
-		"..",
-		"../file.txt",
-		"/",
-	}
-
-	for _, tc := range testCases {
-		_, valid := flatEntryName(0, tc)
-		require.False(t, valid)
-	}
-}
-
 // Expectation: normalizeZipPath should handle valid UTF-8 paths correctly.
 func Test_normalizeZipPath_ValidUTF8_Success(t *testing.T) {
 	t.Parallel()
@@ -612,4 +488,128 @@ func Test_zipPathUnicodeFallback_MixedComponents_Success(t *testing.T) {
 	require.Contains(t, result, "/subdir/")
 	require.Contains(t, result, "file(15)")
 	require.Contains(t, result, ".log")
+}
+
+// Expectation: flatEntryName should flatten paths correctly and append index.
+func Test_flatEntryName_Success(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		index    int
+		input    string
+		expected string
+		valid    bool
+	}{
+		{0, "dir/file.txt", "file(0).txt", true},
+		{5, "a/b/c/test.log", "test(5).log", true},
+		{10, "file.txt", "file(10).txt", true},
+		{99, "deep/nested/path/document.pdf", "document(99).pdf", true},
+	}
+
+	for _, tc := range testCases {
+		result, valid := flatEntryName(tc.index, tc.input)
+		require.Equal(t, tc.valid, valid)
+		if valid {
+			require.Equal(t, tc.expected, result)
+		}
+	}
+}
+
+// Expectation: flatEntryName should preserve file extensions.
+func Test_flatEntryName_PreserveExtension_Success(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		index int
+		input string
+		ext   string
+	}{
+		{1, "dir/file.txt", ".txt"},
+		{2, "path/to/document.pdf", ".pdf"},
+		{3, "nested/script.sh", ".sh"},
+		{4, "archive.tar.gz", ".gz"},
+	}
+
+	for _, tc := range testCases {
+		result, valid := flatEntryName(tc.index, tc.input)
+		require.True(t, valid)
+		require.Equal(t, filepath.Ext(result), tc.ext)
+	}
+}
+
+// Expectation: flatEntryName should generate different names for different indices.
+func Test_flatEntryName_UniqueIndices_Success(t *testing.T) {
+	t.Parallel()
+
+	path := "dir/file.txt"
+	name1, valid1 := flatEntryName(1, path)
+	require.True(t, valid1)
+
+	name2, valid2 := flatEntryName(2, path)
+	require.True(t, valid2)
+
+	require.NotEqual(t, name1, name2)
+	require.Equal(t, "file(1).txt", name1)
+	require.Equal(t, "file(2).txt", name2)
+}
+
+// Expectation: flatEntryName should generate consistent names for the same input.
+func Test_flatEntryName_Deterministic_Success(t *testing.T) {
+	t.Parallel()
+
+	path := "some/deep/path/file.txt"
+	index := 42
+
+	name1, valid1 := flatEntryName(index, path)
+	require.True(t, valid1)
+
+	name2, valid2 := flatEntryName(index, path)
+	require.True(t, valid2)
+
+	require.Equal(t, name1, name2)
+}
+
+// Expectation: flatEntryName should handle files without extensions.
+func Test_flatEntryName_NoExtension_Success(t *testing.T) {
+	t.Parallel()
+
+	name, valid := flatEntryName(5, "dir/README")
+	require.True(t, valid)
+	require.Equal(t, "README(5)", name)
+	require.Empty(t, filepath.Ext(name))
+}
+
+// Expectation: flatEntryName should handle dotfiles.
+func Test_flatEntryName_Dotfile_Success(t *testing.T) {
+	t.Parallel()
+
+	name, valid := flatEntryName(3, "dir/.gitignore")
+	require.True(t, valid)
+	require.Equal(t, "(3).gitignore", name)
+}
+
+// Expectation: flatEntryName should handle paths with multiple dots.
+func Test_flatEntryName_MultipleDots_Success(t *testing.T) {
+	t.Parallel()
+
+	name, valid := flatEntryName(7, "dir/archive.tar.gz")
+	require.True(t, valid)
+	require.Equal(t, "archive.tar(7).gz", name)
+}
+
+// Expectation: flatEntryName should return false for invalid paths.
+func Test_flatEntryName_InvalidPaths_Error(t *testing.T) {
+	t.Parallel()
+
+	testCases := []string{
+		".",
+		"..",
+		"../file.txt",
+		"/",
+	}
+
+	for _, tc := range testCases {
+		_, valid := flatEntryName(0, tc)
+		require.False(t, valid)
+	}
 }

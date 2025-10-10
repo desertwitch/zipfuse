@@ -20,14 +20,15 @@ const (
 	dirBasePerm  = 0o555 // RO
 
 	defaultFDCacheBypass      = false
-	defaultFDCacheSize        = 350
+	defaultFDCacheSize        = 256
 	defaultFDCacheTTL         = 60 * time.Second
 	defaultFDLimit            = 512
 	defaultFlatMode           = false
 	defaultForceUnicode       = true
 	defaultMustCRC32          = false
-	defaultPoolBufferSize     = 128 * 1024       // 128KiB
-	defaultStreamingThreshold = 10 * 1024 * 1024 // 10MiB
+	defaultStreamingThreshold = 1 * 1024 * 1024 // 1MiB
+	defaultStreamPoolSize     = 128 * 1024      // 128KiB
+	defaultStrictCache        = false
 )
 
 var (
@@ -45,21 +46,27 @@ type Options struct {
 	// It must be larger than [Options.FDCacheSize], but beware the OS limits.
 	FDLimit int
 
-	// FDCacheBypass circumvents the LRU cache for ZIP file descriptors.
+	// FDCacheBypass circumvents the cache for ZIP file descriptors.
 	// When enabled at runtime, in-flight descriptors will close after TTL.
 	FDCacheBypass atomic.Bool
 
-	// FDCacheSize is the size of the LRU cache for ZIP file descriptors.
+	// FDCacheSize is the size of the cache for ZIP file descriptors.
 	// It must be smaller than [Options.FDLimit], otherwise may cause deadlock.
 	FDCacheSize int
 
-	// FDCacheTTL is the time-to-live for each ZIP file descriptor in the LRU.
+	// FDCacheTTL is the time-to-live for ZIP file descriptors in the cache.
 	// If a file descriptor is no longer in use, it will be evicted after TTL.
 	FDCacheTTL time.Duration
 
-	// PoolBufferSize is the buffer size for the file read buffer pool.
-	// This value multiplies with concurrency, a common read size makes sense.
-	PoolBufferSize int
+	// StreamPoolSize is the buffer size for the streamed read buffer pool.
+	// This value multiplies with concurrency; a common read size makes sense,
+	// in particular one that aligns well with page size/FUSE readahead setting.
+	StreamPoolSize int
+
+	// StrictCache controls if ZIP files/contents should be treated as
+	// immutable for caching decisions (and invalidation of cached content).
+	// If disabled, ZIPs are considered immutable (non-changing) for caching.
+	StrictCache bool
 
 	// ForceUnicode controls if unicode should be enforced for all ZIP paths.
 	// Beware: If disabled, non-compliant ZIPs may end up with garbled paths.
@@ -86,7 +93,8 @@ func DefaultOptions() *Options {
 		FDLimit:        defaultFDLimit,
 		FlatMode:       defaultFlatMode,
 		ForceUnicode:   defaultForceUnicode,
-		PoolBufferSize: defaultPoolBufferSize,
+		StreamPoolSize: defaultStreamPoolSize,
+		StrictCache:    defaultStrictCache,
 	}
 	opts.FDCacheBypass.Store(defaultFDCacheBypass)
 	opts.MustCRC32.Store(defaultMustCRC32)
@@ -127,11 +135,23 @@ type Metrics struct {
 	// TotalExtractBytes is the amount of bytes extracted from ZIP files.
 	TotalExtractBytes atomic.Int64
 
-	// TotalFDCacheHits is the amount of cache-hits for the LRU cache.
+	// TotalFDCacheHits is the amount of cache-hits for the FD cache.
 	TotalFDCacheHits atomic.Int64
 
-	// TotalFDCacheMisses is the amount of cache-misses for the LRU cache
+	// TotalFDCacheMisses is the amount of cache-misses for the FD cache
 	TotalFDCacheMisses atomic.Int64
+
+	// TotalStreamPoolHits is the amount of times pool buffers were used.
+	TotalStreamPoolHits atomic.Int64
+
+	// TotalStreamPoolMisses is the amount of times buffers were allocated.
+	TotalStreamPoolMisses atomic.Int64
+
+	// TotalStreamPoolHitBytes is the bytes actually used from pool buffers.
+	TotalStreamPoolHitBytes atomic.Int64
+
+	// TotalStreamPoolMissBytes is the bytes newly allocated outside the pool.
+	TotalStreamPoolMissBytes atomic.Int64
 }
 
 // FS is the core implementation of the filesystem.
@@ -149,7 +169,7 @@ type FS struct {
 }
 
 // NewFS returns a pointer to a new [FS].
-// You must call PreUnmount() before unmount, PostUnmount() after unmount.
+// You must call PrepareUnmount() before unmount, Destroy() after unmount.
 func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error) {
 	if rbuf == nil {
 		return nil, fmt.Errorf("%w: need a non-nil rbuf", errInvalidArgument)
@@ -180,7 +200,7 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 
 	fsys.bufpool = sync.Pool{
 		New: func() any {
-			b := make([]byte, opts.PoolBufferSize)
+			b := make([]byte, opts.StreamPoolSize)
 
 			return &b
 		},
@@ -189,15 +209,16 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 	return fsys, nil
 }
 
-// PreUnmount does pre-unmount FS cleanup.
+// PrepareUnmount does pre-unmount FS cleanup.
 // It takes an error channel for checking if unmount was successful.
 // In case of an unmount failure, it restores the FS to working state.
-func (fsys *FS) PreUnmount(unmountErr <-chan error) {
+func (fsys *FS) PrepareUnmount(unmountErr <-chan error) {
 	fsys.fdcache.HaltAndPurge(unmountErr)
 }
 
-// PostUnmount does post-unmount FS cleanup and blocks until done.
-func (fsys *FS) PostUnmount() {
+// Destroy does post-unmount FS cleanup and blocks until done.
+// You should not use the filesystem after calling of this function.
+func (fsys *FS) Destroy() {
 	fsys.fdcache.Destroy()
 }
 

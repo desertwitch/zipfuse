@@ -1,3 +1,4 @@
+//nolint:mnd
 package webserver
 
 import (
@@ -23,7 +24,7 @@ func (d *FSDashboard) avgExtractSpeed() string {
 		return "0 B/s"
 	}
 
-	bps := float64(bytes) / (float64(ns) / 1e9) //nolint:mnd
+	bps := float64(bytes) / (float64(ns) / 1e9)
 
 	return humanize.IBytes(uint64(bps)) + "/s"
 }
@@ -38,7 +39,6 @@ func (d *FSDashboard) totalExtractBytes() string {
 	return humanize.IBytes(uint64(bytes))
 }
 
-//nolint:mnd
 func (d *FSDashboard) totalFDCacheRatio() string {
 	hits := d.fsys.Metrics.TotalFDCacheHits.Load()
 	misses := d.fsys.Metrics.TotalFDCacheMisses.Load()
@@ -51,6 +51,46 @@ func (d *FSDashboard) totalFDCacheRatio() string {
 	perc := (float64(hits) / float64(total)) * 100
 
 	return fmt.Sprintf("%.2f%%", perc)
+}
+
+func (d *FSDashboard) streamPoolHitRatio() string {
+	hits := d.fsys.Metrics.TotalStreamPoolHits.Load()
+	misses := d.fsys.Metrics.TotalStreamPoolMisses.Load()
+	total := hits + misses
+
+	if total == 0 {
+		return "0.00%"
+	}
+
+	perc := (float64(hits) / float64(total)) * 100
+
+	return fmt.Sprintf("%.2f%%", perc)
+}
+
+func (d *FSDashboard) streamPoolHitAvgSize() string {
+	hits := d.fsys.Metrics.TotalStreamPoolHits.Load()
+	hitBytes := d.fsys.Metrics.TotalStreamPoolHitBytes.Load()
+
+	if hits == 0 {
+		return "0 B"
+	}
+
+	avg := hitBytes / hits
+
+	return humanize.IBytes(uint64(avg))
+}
+
+func (d *FSDashboard) streamPoolMissAvgSize() string {
+	misses := d.fsys.Metrics.TotalStreamPoolMisses.Load()
+	missBytes := d.fsys.Metrics.TotalStreamPoolMissBytes.Load()
+
+	if misses == 0 {
+		return "0 B"
+	}
+
+	avg := missBytes / misses
+
+	return humanize.IBytes(uint64(avg))
 }
 
 func enabledOrDisabled(v bool) string {

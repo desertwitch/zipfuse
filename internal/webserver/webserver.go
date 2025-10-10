@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"slices"
@@ -23,48 +24,14 @@ import (
 
 var (
 	//go:embed templates/*.html
-	templateFS embed.FS
-
+	templateFS    embed.FS
 	indexTemplate = template.Must(template.ParseFS(templateFS, "templates/index.html"))
 
-	errMissingArgument = errors.New("missing argument")
+	// errInvalidArgument is for an invalid constructor argument.
+	errInvalidArgument = errors.New("invalid argument")
 )
 
-// fsDashboardData describes data served on the filesystem dashboard.
-type fsDashboardData struct {
-	AllocBytes          string   `json:"allocBytes"`
-	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
-	AvgExtractTime      string   `json:"avgExtractTime"`
-	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
-	ClosedZips          int64    `json:"closedZips"`
-	FDCacheBypass       string   `json:"fdCacheBypass"`
-	FDCacheSize         int      `json:"fdCacheSize"`
-	FDCacheTTL          string   `json:"fdCacheTtl"`
-	FDLimit             int      `json:"fdLimit"`
-	FlatMode            string   `json:"flatMode"`
-	ForceUnicode        string   `json:"forceUnicode"`
-	Logs                []string `json:"logs"`
-	MustCRC32           string   `json:"mustCrc32"`
-	NumGC               uint32   `json:"numGc"`
-	OpenedZips          int64    `json:"openedZips"`
-	OpenZips            int64    `json:"openZips"`
-	PoolBufferSize      string   `json:"poolBufferSize"`
-	ReopenedEntries     int64    `json:"reopenedEntries"`
-	RingBufferSize      int      `json:"ringBufferSize"`
-	StreamingThreshold  string   `json:"streamingThreshold"`
-	SysBytes            string   `json:"sysBytes"`
-	TotalAlloc          string   `json:"totalAlloc"`
-	TotalErrors         int64    `json:"totalErrors"`
-	TotalExtractBytes   string   `json:"totalExtractBytes"`
-	TotalExtracts       int64    `json:"totalExtracts"`
-	TotalFDCacheHits    int64    `json:"totalFdCacheHits"`
-	TotalFDCacheMisses  int64    `json:"totalFdCacheMisses"`
-	TotalFDCacheRatio   string   `json:"totalFdCacheRatio"`
-	TotalMetadatas      int64    `json:"totalMetadatas"`
-	Version             string   `json:"version"`
-}
-
-// FSDashboard is the implementation for the filesystem dashboard.
+// FSDashboard is the implementation of the filesystem dashboard.
 type FSDashboard struct {
 	version string
 	fsys    *filesystem.FS
@@ -74,10 +41,10 @@ type FSDashboard struct {
 // NewFSDashboard returns a pointer to a new [FSDashboard].
 func NewFSDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, version string) (*FSDashboard, error) {
 	if fsys == nil {
-		return nil, fmt.Errorf("%w: need filesystem", errMissingArgument)
+		return nil, fmt.Errorf("%w: need filesystem", errInvalidArgument)
 	}
 	if rbuf == nil {
-		return nil, fmt.Errorf("%w: need ring buffer", errMissingArgument)
+		return nil, fmt.Errorf("%w: need ring buffer", errInvalidArgument)
 	}
 
 	return &FSDashboard{
@@ -92,6 +59,13 @@ func (d *FSDashboard) Serve(addr string) *http.Server {
 	srv := &http.Server{Addr: addr, Handler: d.dashboardMux()}
 
 	go func() {
+		defer func() {
+			r := recover()
+			if r != nil {
+				fmt.Fprintf(os.Stderr, "(webserver) PANIC: %v\n", r)
+				debug.PrintStack()
+			}
+		}()
 		d.rbuf.Printf("serving dashboard on %s\n", addr)
 
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -120,10 +94,48 @@ func (d *FSDashboard) dashboardMux() *mux.Router {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write(assets.Logo)
 	})
-
 	// mux.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
 
 	return mux
+}
+
+type fsDashboardData struct {
+	AllocBytes          string   `json:"allocBytes"`
+	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
+	AvgExtractTime      string   `json:"avgExtractTime"`
+	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
+	ClosedZips          int64    `json:"closedZips"`
+	FDCacheBypass       string   `json:"fdCacheBypass"`
+	FDCacheSize         int      `json:"fdCacheSize"`
+	FDCacheTTL          string   `json:"fdCacheTtl"`
+	FDLimit             int      `json:"fdLimit"`
+	FlatMode            string   `json:"flatMode"`
+	ForceUnicode        string   `json:"forceUnicode"`
+	Logs                []string `json:"logs"`
+	MustCRC32           string   `json:"mustCrc32"`
+	NumGC               uint32   `json:"numGc"`
+	OpenedZips          int64    `json:"openedZips"`
+	OpenZips            int64    `json:"openZips"`
+	ReopenedEntries     int64    `json:"reopenedEntries"`
+	RingBufferSize      int      `json:"ringBufferSize"`
+	StreamingThreshold  string   `json:"streamingThreshold"`
+	StreamPoolHitAvg    string   `json:"streamPoolHitAvg"`
+	StreamPoolHitRatio  string   `json:"streamPoolHitRatio"`
+	StreamPoolHits      int64    `json:"streamPoolHits"`
+	StreamPoolMissAvg   string   `json:"streamPoolMissAvg"`
+	StreamPoolMisses    int64    `json:"streamPoolMisses"`
+	StreamPoolSize      string   `json:"streamPoolSize"`
+	StrictCache         string   `json:"strictCache"`
+	SysBytes            string   `json:"sysBytes"`
+	TotalAlloc          string   `json:"totalAlloc"`
+	TotalErrors         int64    `json:"totalErrors"`
+	TotalExtractBytes   string   `json:"totalExtractBytes"`
+	TotalExtracts       int64    `json:"totalExtracts"`
+	TotalFDCacheHits    int64    `json:"totalFdCacheHits"`
+	TotalFDCacheMisses  int64    `json:"totalFdCacheMisses"`
+	TotalFDCacheRatio   string   `json:"totalFdCacheRatio"`
+	TotalMetadatas      int64    `json:"totalMetadatas"`
+	Version             string   `json:"version"`
 }
 
 func (d *FSDashboard) collectMetrics() fsDashboardData {
@@ -150,10 +162,16 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		NumGC:               m.NumGC,
 		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
 		OpenZips:            d.fsys.Metrics.OpenZips.Load(),
-		PoolBufferSize:      humanize.IBytes(uint64(d.fsys.Options.PoolBufferSize)),
 		ReopenedEntries:     d.fsys.Metrics.TotalReopenedEntries.Load(),
 		RingBufferSize:      d.rbuf.Size(),
 		StreamingThreshold:  humanize.IBytes(d.fsys.Options.StreamingThreshold.Load()),
+		StreamPoolHitAvg:    d.streamPoolHitAvgSize(),
+		StreamPoolHitRatio:  d.streamPoolHitRatio(),
+		StreamPoolHits:      d.fsys.Metrics.TotalStreamPoolHits.Load(),
+		StreamPoolMissAvg:   d.streamPoolMissAvgSize(),
+		StreamPoolMisses:    d.fsys.Metrics.TotalStreamPoolMisses.Load(),
+		StreamPoolSize:      humanize.IBytes(uint64(d.fsys.Options.StreamPoolSize)),
+		StrictCache:         enabledOrDisabled(d.fsys.Options.StrictCache),
 		SysBytes:            humanize.IBytes(m.Sys),
 		TotalAlloc:          humanize.IBytes(m.TotalAlloc),
 		TotalErrors:         d.fsys.Metrics.Errors.Load(),
@@ -201,16 +219,20 @@ func (d *FSDashboard) gcHandler(w http.ResponseWriter, _ *http.Request) {
 
 func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
 	d.fsys.Metrics.Errors.Store(0)
+	d.fsys.Metrics.TotalOpenedZips.Store(0)
 	d.fsys.Metrics.TotalClosedZips.Store(0)
-	d.fsys.Metrics.TotalExtractBytes.Store(0)
-	d.fsys.Metrics.TotalExtractCount.Store(0)
+	d.fsys.Metrics.TotalReopenedEntries.Store(0)
+	d.fsys.Metrics.TotalMetadataReadTime.Store(0)
+	d.fsys.Metrics.TotalMetadataReadCount.Store(0)
 	d.fsys.Metrics.TotalExtractTime.Store(0)
+	d.fsys.Metrics.TotalExtractCount.Store(0)
+	d.fsys.Metrics.TotalExtractBytes.Store(0)
 	d.fsys.Metrics.TotalFDCacheHits.Store(0)
 	d.fsys.Metrics.TotalFDCacheMisses.Store(0)
-	d.fsys.Metrics.TotalMetadataReadCount.Store(0)
-	d.fsys.Metrics.TotalMetadataReadTime.Store(0)
-	d.fsys.Metrics.TotalOpenedZips.Store(0)
-	d.fsys.Metrics.TotalReopenedEntries.Store(0)
+	d.fsys.Metrics.TotalStreamPoolHits.Store(0)
+	d.fsys.Metrics.TotalStreamPoolMisses.Store(0)
+	d.fsys.Metrics.TotalStreamPoolHitBytes.Store(0)
+	d.fsys.Metrics.TotalStreamPoolMissBytes.Store(0)
 
 	d.rbuf.Println("Metrics reset via API.")
 
@@ -237,7 +259,7 @@ func (d *FSDashboard) thresholdHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Streaming threshold set: %s.\n", humanize.IBytes(val))
 }
 
-func (d *FSDashboard) booleanHandler(descr string, target *atomic.Bool) http.HandlerFunc {
+func (d *FSDashboard) booleanHandler(desc string, target *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 
@@ -249,10 +271,10 @@ func (d *FSDashboard) booleanHandler(descr string, target *atomic.Bool) http.Han
 		}
 		target.Store(val)
 
-		d.rbuf.Printf("%s set via API: %t.\n", descr, val)
+		d.rbuf.Printf("%s set via API: %t.\n", desc, val)
 
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "%s set: %t.\n", descr, val)
+		fmt.Fprintf(w, "%s set: %t.\n", desc, val)
 	}
 }

@@ -157,7 +157,7 @@
             </div>
         </div>
 
-        <div class="section-label">Filesystem Metrics</div>
+        <div class="section-label">Archive Metrics</div>
         <div class="metrics-grid">
             <div class="metric-tile">
                 <div class="metric-label">Current Archives Opened</div>
@@ -203,6 +203,9 @@
                 <div class="metric-label">Average Extraction Speed</div>
                 <div class="metric-value" data-metric="avgExtractSpeed">{{.AvgExtractSpeed}}</div>
             </div>
+        </div>
+        <div class="section-label">Cache Metrics</div>
+        <div class="metrics-grid">
             <div class="metric-tile">
                 <div class="metric-label">FD Cache Hits</div>
                 <div class="metric-value" data-metric="totalFdCacheHits">{{.TotalFDCacheHits}}</div>
@@ -214,6 +217,26 @@
             <div class="metric-tile">
                 <div class="metric-label">FD Cache Hit Ratio</div>
                 <div class="metric-value" data-metric="totalFdCacheRatio">{{.TotalFDCacheRatio}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Hits</div>
+                <div class="metric-value" data-metric="streamPoolHits">{{.StreamPoolHits}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Misses</div>
+                <div class="metric-value" data-metric="streamPoolMisses">{{.StreamPoolMisses}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Hit Ratio</div>
+                <div class="metric-value" data-metric="streamPoolHitRatio">{{.StreamPoolHitRatio}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Hit Average</div>
+                <div class="metric-value" data-metric="streamPoolHitAvg">{{.StreamPoolHitAvg}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Miss Average</div>
+                <div class="metric-value" data-metric="streamPoolMissAvg">{{.StreamPoolMissAvg}}</div>
             </div>
         </div>
 
@@ -232,6 +255,10 @@
                 <div class="metric-value" data-metric="mustCrc32">{{.MustCRC32}}</div>
             </div>
             <div class="metric-tile">
+                <div class="metric-label">Strict Cache Mode</div>
+                <div class="metric-value" data-metric="strictCache">{{.StrictCache}}</div>
+            </div>
+            <div class="metric-tile">
                 <div class="metric-label">FD Cache Bypass</div>
                 <div class="metric-value" data-metric="fdCacheBypass">{{.FDCacheBypass}}</div>
             </div>
@@ -248,8 +275,8 @@
                 <div class="metric-value" data-metric="fdLimit">{{.FDLimit}}</div>
             </div>
             <div class="metric-tile">
-                <div class="metric-label">Read Pool Buffer Size</div>
-                <div class="metric-value" data-metric="poolBufferSize">{{.PoolBufferSize}}</div>
+                <div class="metric-label">Stream Pool Buffer Size</div>
+                <div class="metric-value" data-metric="streamPoolSize">{{.StreamPoolSize}}</div>
             </div>
             <div class="metric-tile">
                 <div class="metric-label">Streaming Threshold</div>

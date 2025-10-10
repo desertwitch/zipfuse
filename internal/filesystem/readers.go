@@ -21,6 +21,7 @@ type zipReader struct {
 }
 
 // newZipReader returns a pointer to a new [zipReader] for given path.
+// Beware that this function may block on the filesystem FD semaphore.
 //
 // It increases the atomic reference count by one upon returning the new
 // pointer. Once done, you need to call Release() to close the reference.

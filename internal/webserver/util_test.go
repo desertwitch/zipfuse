@@ -165,6 +165,100 @@ func Test_totalFDCacheRatio_Success(t *testing.T) {
 	}
 }
 
+// Expectation: streamPoolHitRatio should return correct percentage string.
+func Test_streamPoolHitRatio_Success(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		hits    int64
+		misses  int64
+		wantStr string
+	}{
+		{
+			name:    "NoHitsNoMisses",
+			hits:    0,
+			misses:  0,
+			wantStr: "0.00%",
+		},
+		{
+			name:    "OnlyHits",
+			hits:    10,
+			misses:  0,
+			wantStr: "100.00%",
+		},
+		{
+			name:    "OnlyMisses",
+			hits:    0,
+			misses:  5,
+			wantStr: "0.00%",
+		},
+		{
+			name:    "EqualHitsAndMisses",
+			hits:    5,
+			misses:  5,
+			wantStr: "50.00%",
+		},
+		{
+			name:    "MoreHits",
+			hits:    8,
+			misses:  2,
+			wantStr: "80.00%",
+		},
+		{
+			name:    "MoreMisses",
+			hits:    2,
+			misses:  8,
+			wantStr: "20.00%",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dash := testDashboard(t, io.Discard)
+			dash.fsys.Metrics.TotalStreamPoolHits.Store(tt.hits)
+			dash.fsys.Metrics.TotalStreamPoolMisses.Store(tt.misses)
+
+			got := dash.streamPoolHitRatio()
+			require.Equal(t, tt.wantStr, got)
+		})
+	}
+}
+
+// Expectation: streamPoolHitAvgSize should return average size or 0 B.
+func Test_streamPoolHitAvgSize_Success(t *testing.T) {
+	t.Parallel()
+	dash := testDashboard(t, io.Discard)
+
+	// No hits
+	dash.fsys.Metrics.TotalStreamPoolHits.Store(0)
+	dash.fsys.Metrics.TotalStreamPoolHitBytes.Store(1024)
+	require.Equal(t, "0 B", dash.streamPoolHitAvgSize())
+
+	// With hits
+	dash.fsys.Metrics.TotalStreamPoolHits.Store(2)
+	dash.fsys.Metrics.TotalStreamPoolHitBytes.Store(2048)
+	require.Equal(t, "1.0 KiB", dash.streamPoolHitAvgSize())
+}
+
+// Expectation: streamPoolHitAvgSize should return average size or 0 B.
+func Test_streamPoolMissAvgSize_Success(t *testing.T) {
+	t.Parallel()
+	dash := testDashboard(t, io.Discard)
+
+	// No misses
+	dash.fsys.Metrics.TotalStreamPoolMisses.Store(0)
+	dash.fsys.Metrics.TotalStreamPoolMissBytes.Store(1024)
+	require.Equal(t, "0 B", dash.streamPoolMissAvgSize())
+
+	// With misses
+	dash.fsys.Metrics.TotalStreamPoolMisses.Store(2)
+	dash.fsys.Metrics.TotalStreamPoolMissBytes.Store(2048)
+	require.Equal(t, "1.0 KiB", dash.streamPoolMissAvgSize())
+}
+
 // Expectation: enabledOrDisabled should produce the correct string.
 func Test_enabledOrDisabled_Success(t *testing.T) {
 	t.Parallel()

@@ -21,16 +21,12 @@ When enabled, the diagnostics server exposes the following routes over HTTP:
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"log"
+	"net/http"
 	"os"
-	"os/signal"
-	"runtime"
 	"runtime/debug"
 	"sync"
-	"syscall"
 	"time"
 
 	"bazil.org/fuse"
@@ -40,7 +36,6 @@ import (
 	"github.com/desertwitch/zipfuse/internal/webserver"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -53,6 +48,9 @@ var (
 
 	// errInvalidArgument is for an invalid CLI argument/value provided.
 	errInvalidArgument = errors.New("invalid argument")
+
+	// errPanicRecovered is for a goroutine panic that was recovered.
+	errPanicRecovered = errors.New("panic recovered")
 )
 
 type cliOptions struct {
@@ -63,46 +61,25 @@ type cliOptions struct {
 	fdCacheTTL         time.Duration
 	fdLimit            int
 	flatMode           bool
+	strictCache        bool
 	forceUnicode       bool
 	fuseVerbose        bool
 	mountDir           string
 	mustCRC32          bool
-	poolBufferSize     uint64
-	poolBufferSizeRaw  string
 	ringBufferSize     int
 	rootDir            string
+	streamPoolSize     uint64
+	streamPoolSizeRaw  string
 	streamThreshold    uint64
 	streamThresholdRaw string
 	webserverAddr      string
-}
-
-//nolint:mnd,err113,nonamedreturns
-func fdLimit() (fsLimit int, cacheLimit int, e error) {
-	var rlim unix.Rlimit
-	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim); err != nil {
-		return 0, 0, fmt.Errorf("failed to get rlimit: %w", e)
-	}
-
-	osLimit := int(rlim.Cur)
-	if osLimit <= 0 {
-		return 0, 0, fmt.Errorf("invalid os limit: %d", osLimit)
-	}
-
-	fsLimit = osLimit / 2                     // 50% of OS limit
-	cacheLimit = int(float64(fsLimit) * 0.70) // 70% of FS limit
-
-	if fsLimit < 1 || cacheLimit < 1 {
-		return 0, 0, fmt.Errorf("calculated values too small (soft=%d)", osLimit)
-	}
-
-	return fsLimit, cacheLimit, nil
 }
 
 //nolint:mnd
 func rootCmd() *cobra.Command {
 	var opts cliOptions
 
-	fsLimit, cacheLimit, err := fdLimit()
+	fsLimit, cacheLimit, err := fdLimits()
 	if err != nil {
 		fsLimit = filesystem.DefaultOptions().FDLimit
 		cacheLimit = filesystem.DefaultOptions().FDCacheSize
@@ -125,7 +102,7 @@ func rootCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%w: failed to parse --stream-threshold: %w", errInvalidArgument, err)
 			}
-			opts.poolBufferSize, err = humanize.ParseBytes(opts.poolBufferSizeRaw)
+			opts.streamPoolSize, err = humanize.ParseBytes(opts.streamPoolSizeRaw)
 			if err != nil {
 				return fmt.Errorf("%w: failed to parse --pool-buffer-size: %w", errInvalidArgument, err)
 			}
@@ -137,22 +114,113 @@ func rootCmd() *cobra.Command {
 	}
 	cmd.PersistentFlags().BoolP("version", "", false, "version for zipfuse") // removes -v shorthand
 
+	cmd.Flags().BoolVar(&opts.fdCacheBypass, "fd-cache-bypass", false, "Bypass the FD cache; (re-)opens and closes file descriptors on every request")
+	cmd.Flags().BoolVar(&opts.forceUnicode, "force-unicode", true, "Unicode (or generated) paths for ZIPs; disabling garbles non-compliant ZIPs")
+	cmd.Flags().BoolVar(&opts.mustCRC32, "must-crc32", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
+	cmd.Flags().BoolVar(&opts.strictCache, "strict-cache", false, "Do not treat ZIP files/contents as immutable (non-changing) for caching decisions")
 	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", true, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
-	cmd.Flags().BoolVarP(&opts.fdCacheBypass, "fd-cache-bypass", "b", false, "Bypass the FD cache; (re-)opens and closes file descriptors on every request")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
-	cmd.Flags().BoolVarP(&opts.forceUnicode, "force-unicode", "u", true, "Unicode (or generated) paths for ZIPs; disabling garbles non-compliant ZIPs")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print all verbose FUSE communication and diagnostics to standard error (stderr)")
-	cmd.Flags().BoolVarP(&opts.mustCRC32, "must-crc32", "m", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
-	cmd.Flags().DurationVarP(&opts.fdCacheTTL, "fd-cache-ttl", "t", 60*time.Second, "Time-to-live before FD cache evicts unused open file descriptors")
-	cmd.Flags().IntVarP(&opts.fdCacheSize, "fd-cache-size", "c", cacheLimit, "Max number of open file descriptors in the FD cache (must be < fd-limit)")
-	cmd.Flags().IntVarP(&opts.fdLimit, "fd-limit", "l", fsLimit, "Limit of total open file descriptors (> fd-cache-size; beware OS limits)")
-	cmd.Flags().IntVarP(&opts.ringBufferSize, "ring-buffer-size", "r", 500, "Buffer size for the event ring-buffer (displayed in diagnostics dashboard)")
-	cmd.Flags().StringVarP(&opts.poolBufferSizeRaw, "pool-buffer-size", "p", "128KiB", "Buffer size for the file read buffer pool (beware this multiplies)")
-	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "stream-threshold", "s", "10MiB", "Size cutoff for loading a file fully into RAM (streaming instead)")
+	cmd.Flags().DurationVar(&opts.fdCacheTTL, "fd-cache-ttl", 60*time.Second, "Time-to-live before FD cache evicts unused open file descriptors")
+	cmd.Flags().IntVar(&opts.fdCacheSize, "fd-cache-size", cacheLimit, "Max number of open file descriptors in the FD cache (must be < fd-limit)")
+	cmd.Flags().IntVar(&opts.fdLimit, "fd-limit", fsLimit, "Limit of total open file descriptors (> fd-cache-size; beware OS limits)")
+	cmd.Flags().IntVar(&opts.ringBufferSize, "ring-buffer-size", 500, "Buffer lines for the event ring-buffer (displayed in diagnostics dashboard)")
+	cmd.Flags().StringVar(&opts.streamPoolSizeRaw, "stream-pool-size", "128KiB", "Buffer size for the streamed read buffer pool (beware this multiplies)")
+	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "stream-threshold", "s", "1MiB", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&opts.webserverAddr, "webserver", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
 	return cmd
+}
+
+func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS, error) {
+	fopts := &filesystem.Options{
+		FDCacheSize:    opts.fdCacheSize,
+		FDCacheTTL:     opts.fdCacheTTL,
+		FDLimit:        opts.fdLimit,
+		FlatMode:       opts.flatMode,
+		ForceUnicode:   opts.forceUnicode,
+		StreamPoolSize: int(opts.streamPoolSize),
+		StrictCache:    opts.strictCache,
+	}
+	fopts.FDCacheBypass.Store(opts.fdCacheBypass)
+	fopts.MustCRC32.Store(opts.mustCRC32)
+	fopts.StreamingThreshold.Store(opts.streamThreshold)
+
+	fsys, err := filesystem.NewFS(opts.rootDir, fopts, rbuf)
+	if err != nil {
+		return nil, fmt.Errorf("fs error: %w", err)
+	}
+
+	return fsys, nil
+}
+
+func mountFilesystem(opts cliOptions) (*fuse.Conn, error) {
+	mountOpts := []fuse.MountOption{
+		fuse.FSName("zipfuse"),
+		fuse.ReadOnly(),
+		fuse.MaxReadahead(uint32(opts.streamPoolSize)),
+	}
+	if opts.allowOther {
+		mountOpts = append(mountOpts, fuse.AllowOther())
+	}
+
+	conn, err := fuse.Mount(opts.mountDir, mountOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("fuse error: %w", err)
+	}
+
+	return conn, nil
+}
+
+func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.WaitGroup, <-chan error) {
+	var wg sync.WaitGroup
+	errChan := make(chan error, 1)
+
+	wg.Go(func() {
+		defer func() {
+			r := recover()
+			if r != nil {
+				fmt.Fprintf(os.Stderr, "(fs) PANIC: %v\n", r)
+				debug.PrintStack()
+				errChan <- fmt.Errorf("failed to serve fs: %w", errPanicRecovered)
+			}
+			close(errChan)
+		}()
+
+		var config *fs.Config
+		if verbose {
+			config = &fs.Config{
+				Debug: func(msg interface{}) {
+					fmt.Fprintf(os.Stderr, "%s", msg)
+				},
+			}
+		}
+
+		srv := fs.New(conn, config)
+		if err := srv.Serve(fsys); err != nil {
+			errChan <- fmt.Errorf("failed to serve fs: %w", err)
+		}
+	})
+
+	return &wg, errChan
+}
+
+func serveDashboard(addr string, fsys *filesystem.FS, rbuf *logging.RingBuffer) (*http.Server, error) {
+	dashboard, err := webserver.NewFSDashboard(fsys, rbuf, Version)
+	if err != nil {
+		return nil, fmt.Errorf("dashboard error: %w", err)
+	}
+
+	return dashboard.Serve(addr), nil
+}
+
+func cleanupMount(mountDir string, conn *fuse.Conn, fsys *filesystem.FS) {
+	defer conn.Close()
+	defer fuse.Unmount(mountDir) //nolint:errcheck
+	noErr := make(chan error, 1)
+	fsys.PrepareUnmount(noErr)
+	close(noErr)
 }
 
 func main() {
@@ -161,154 +229,33 @@ func main() {
 	}
 }
 
-func dryWalkFS(fsys *filesystem.FS) error {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		for range sig {
-			log.Println("Signal received, cancelling the filesystem walk...")
-			cancel()
-		}
-	}()
-
-	err := fsys.Walk(ctx, func(path string, _ *fuse.Dirent, _ fs.Node, attr fuse.Attr) error {
-		fmt.Fprintf(os.Stdout, "%d:%s\n", attr.Inode, path)
-
-		return nil
-	})
-	if err == nil {
-		return nil
-	}
-
-	for {
-		unwrapped := errors.Unwrap(err)
-		if unwrapped == nil {
-			// Return the deepest error, and not the whole chain.
-			// The node-produced error messages will show the details.
-			return fmt.Errorf("fs walk error: %w", err)
-		}
-		err = unwrapped
-	}
-}
-
-func setupSignalHandlers(fsys *filesystem.FS, unmountDir string, rbuf *logging.RingBuffer) {
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		for range sig {
-			rbuf.Println("Signal received, unmounting the filesystem...")
-
-			errs := make(chan error, 1)
-			fsys.PreUnmount(errs)
-			if err := fuse.Unmount(unmountDir); err != nil {
-				errs <- err
-				close(errs)
-
-				rbuf.Printf("Unmount error: %v (try again later)\n", err)
-
-				continue
-			}
-			close(errs)
-
-			return
-		}
-	}()
-
-	sig1 := make(chan os.Signal, 1)
-	signal.Notify(sig1, syscall.SIGUSR1)
-	go func() {
-		for range sig1 {
-			rbuf.Println("Signal received, forcing garbage collection...")
-			runtime.GC()
-			debug.FreeOSMemory()
-		}
-	}()
-
-	sig2 := make(chan os.Signal, 1)
-	signal.Notify(sig2, syscall.SIGUSR2)
-	go func() {
-		for range sig2 {
-			rbuf.Println("Signal received, printing stacktrace to standard error...")
-			buf := make([]byte, stackTraceBufferSize)
-			stacklen := runtime.Stack(buf, true)
-			os.Stderr.Write(buf[:stacklen])
-		}
-	}()
-}
-
 func run(opts cliOptions) error {
 	rbuf := logging.NewRingBuffer(opts.ringBufferSize, os.Stderr)
 
-	fopts := &filesystem.Options{
-		FDCacheSize:    opts.fdCacheSize,
-		FDCacheTTL:     opts.fdCacheTTL,
-		FDLimit:        opts.fdLimit,
-		FlatMode:       opts.flatMode,
-		ForceUnicode:   opts.forceUnicode,
-		PoolBufferSize: int(opts.poolBufferSize),
-	}
-	fopts.FDCacheBypass.Store(opts.fdCacheBypass)
-	fopts.MustCRC32.Store(opts.mustCRC32)
-	fopts.StreamingThreshold.Store(opts.streamThreshold)
-
-	fsys, err := filesystem.NewFS(opts.rootDir, fopts, rbuf)
+	fsys, err := setupFilesystem(opts, rbuf)
 	if err != nil {
-		return fmt.Errorf("failed to establish fs: %w", err)
+		return fmt.Errorf("failed to setup fs: %w", err)
 	}
-	defer fsys.PostUnmount()
+	defer fsys.Destroy()
 
 	if opts.dryRun {
 		return dryWalkFS(fsys)
 	}
 
-	mountOpts := []fuse.MountOption{fuse.FSName("zipfuse"), fuse.ReadOnly()}
-	if opts.allowOther {
-		mountOpts = append(mountOpts, fuse.AllowOther())
-	}
-
-	c, err := fuse.Mount(opts.mountDir, mountOpts...)
+	conn, err := mountFilesystem(opts)
 	if err != nil {
-		return fmt.Errorf("fs mount error: %w", err)
+		return fmt.Errorf("failed to mount fs: %w", err)
 	}
-	defer c.Close()
-	defer fuse.Unmount(opts.mountDir) //nolint:errcheck
-	defer func() {
-		noErr := make(chan error, 1)
-		fsys.PreUnmount(noErr)
-		close(noErr)
-	}()
+	defer cleanupMount(opts.mountDir, conn, fsys)
 
-	setupSignalHandlers(fsys, opts.mountDir, rbuf)
-
-	var wg sync.WaitGroup
-	errChan := make(chan error, 1)
-	wg.Go(func() {
-		defer close(errChan)
-
-		var config *fs.Config
-		if opts.fuseVerbose {
-			config = &fs.Config{
-				Debug: func(msg interface{}) {
-					fmt.Fprintf(os.Stderr, "%s", msg)
-				},
-			}
-		}
-
-		srv := fs.New(c, config)
-		if err := srv.Serve(fsys); err != nil {
-			errChan <- fmt.Errorf("fs serve error: %w", err)
-		}
-	})
+	setupSignalHandlers(fsys, rbuf, opts.mountDir)
+	wg, errChan := serveFilesystem(conn, fsys, opts.fuseVerbose)
 
 	if opts.webserverAddr != "" {
-		dash, err := webserver.NewFSDashboard(fsys, rbuf, Version)
+		srv, err := serveDashboard(opts.webserverAddr, fsys, rbuf)
 		if err != nil {
-			return fmt.Errorf("failed to establish dashboard: %w", err)
+			return fmt.Errorf("failed to setup webserver: %w", err)
 		}
-
-		srv := dash.Serve(opts.webserverAddr)
 		defer srv.Close()
 	}
 

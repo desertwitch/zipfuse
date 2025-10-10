@@ -43,8 +43,9 @@ func (z *zipDirNode) Attr(_ context.Context, a *fuse.Attr) error {
 }
 
 func (z *zipDirNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
-	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
-	resp.Flags |= fuse.OpenKeepCache | fuse.OpenCacheDir
+	if !z.fsys.Options.StrictCache {
+		resp.Flags |= fuse.OpenKeepCache | fuse.OpenCacheDir
+	}
 
 	return z, nil
 }

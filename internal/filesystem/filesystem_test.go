@@ -28,9 +28,9 @@ func testFS(t *testing.T, out io.Writer) (string, *FS) {
 
 	t.Cleanup(func() {
 		noErr := make(chan error, 1)
-		fsys.PreUnmount(noErr)
+		fsys.PrepareUnmount(noErr)
 		close(noErr)
-		fsys.PostUnmount()
+		fsys.Destroy()
 	})
 
 	return tmp, fsys

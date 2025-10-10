@@ -54,8 +54,9 @@ type zipInMemoryFileNode struct {
 }
 
 func (z *zipInMemoryFileNode) Open(_ context.Context, _ *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
-	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
-	resp.Flags |= fuse.OpenKeepCache
+	if !z.fsys.Options.StrictCache {
+		resp.Flags |= fuse.OpenKeepCache
+	}
 
 	return z, nil
 }
@@ -104,8 +105,9 @@ func (z *zipDiskStreamFileNode) Open(_ context.Context, _ *fuse.OpenRequest, res
 		return nil, z.fsys.countError(toFuseErr(syscall.EINVAL))
 	}
 
-	// We consider a ZIP to be immutable if it exists, so we don't invalidate here.
-	resp.Flags |= fuse.OpenKeepCache
+	if !z.fsys.Options.StrictCache {
+		resp.Flags |= fuse.OpenKeepCache
+	}
 
 	return &zipDiskStreamFileHandle{
 		fsys:    z.fsys,
@@ -191,15 +193,21 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 
 	if cap(buf) < req.Size {
 		// Put back the pointer first, we won't use it.
-		*pBuf = (*pBuf)[:h.fsys.Options.PoolBufferSize]
+		*pBuf = (*pBuf)[:h.fsys.Options.StreamPoolSize]
 		h.fsys.bufpool.Put(pBuf)
 
 		buf = make([]byte, req.Size) // will be GC'ed.
+
+		h.fsys.Metrics.TotalStreamPoolMisses.Add(1)
+		h.fsys.Metrics.TotalStreamPoolMissBytes.Add(int64(req.Size))
 	} else {
 		defer func() {
-			*pBuf = (*pBuf)[:h.fsys.Options.PoolBufferSize]
+			*pBuf = (*pBuf)[:h.fsys.Options.StreamPoolSize]
 			h.fsys.bufpool.Put(pBuf)
 		}()
+
+		h.fsys.Metrics.TotalStreamPoolHits.Add(1)
+		h.fsys.Metrics.TotalStreamPoolHitBytes.Add(int64(req.Size))
 	}
 
 	buf = buf[:req.Size]
