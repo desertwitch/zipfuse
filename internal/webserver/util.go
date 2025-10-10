@@ -67,6 +67,19 @@ func (d *FSDashboard) streamPoolHitRatio() string {
 	return fmt.Sprintf("%.2f%%", perc)
 }
 
+func (d *FSDashboard) streamPoolHitAvgSize() string {
+	hits := d.fsys.Metrics.TotalStreamPoolHits.Load()
+	hitBytes := d.fsys.Metrics.TotalStreamPoolHitBytes.Load()
+
+	if hits == 0 {
+		return "0 B"
+	}
+
+	avg := hitBytes / hits
+
+	return humanize.IBytes(uint64(avg))
+}
+
 func (d *FSDashboard) streamPoolMissAvgSize() string {
 	misses := d.fsys.Metrics.TotalStreamPoolMisses.Load()
 	missBytes := d.fsys.Metrics.TotalStreamPoolMissBytes.Load()
@@ -78,20 +91,6 @@ func (d *FSDashboard) streamPoolMissAvgSize() string {
 	avg := missBytes / misses
 
 	return humanize.IBytes(uint64(avg))
-}
-
-func (d *FSDashboard) streamPoolUtilization() string {
-	hits := d.fsys.Metrics.TotalStreamPoolHits.Load()
-	hitBytes := d.fsys.Metrics.TotalStreamPoolHitBytes.Load()
-	poolSize := int64(d.fsys.Options.StreamPoolSize)
-
-	if hits == 0 || poolSize == 0 {
-		return "0.0%"
-	}
-
-	util := (float64(hitBytes) / float64(hits*poolSize)) * 100
-
-	return fmt.Sprintf("%.1f%%", util)
 }
 
 func enabledOrDisabled(v bool) string {

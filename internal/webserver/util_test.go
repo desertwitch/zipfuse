@@ -227,7 +227,23 @@ func Test_streamPoolHitRatio_Success(t *testing.T) {
 	}
 }
 
-// Expectation: streamPoolMissAvgSize should return average size or 0 B.
+// Expectation: streamPoolHitAvgSize should return average size or 0 B.
+func Test_streamPoolHitAvgSize_Success(t *testing.T) {
+	t.Parallel()
+	dash := testDashboard(t, io.Discard)
+
+	// No hits
+	dash.fsys.Metrics.TotalStreamPoolHits.Store(0)
+	dash.fsys.Metrics.TotalStreamPoolHitBytes.Store(1024)
+	require.Equal(t, "0 B", dash.streamPoolHitAvgSize())
+
+	// With hits
+	dash.fsys.Metrics.TotalStreamPoolHits.Store(2)
+	dash.fsys.Metrics.TotalStreamPoolHitBytes.Store(2048)
+	require.Equal(t, "1.0 KiB", dash.streamPoolHitAvgSize())
+}
+
+// Expectation: streamPoolHitAvgSize should return average size or 0 B.
 func Test_streamPoolMissAvgSize_Success(t *testing.T) {
 	t.Parallel()
 	dash := testDashboard(t, io.Discard)
@@ -241,25 +257,6 @@ func Test_streamPoolMissAvgSize_Success(t *testing.T) {
 	dash.fsys.Metrics.TotalStreamPoolMisses.Store(2)
 	dash.fsys.Metrics.TotalStreamPoolMissBytes.Store(2048)
 	require.Equal(t, "1.0 KiB", dash.streamPoolMissAvgSize())
-}
-
-// Expectation: streamPoolUtilization should return utilization or 0.0%.
-func Test_streamPoolUtilization_Success(t *testing.T) {
-	t.Parallel()
-	dash := testDashboard(t, io.Discard)
-
-	// No hits
-	dash.fsys.Metrics.TotalStreamPoolHits.Store(0)
-	dash.fsys.Metrics.TotalStreamPoolHitBytes.Store(1024)
-	dash.fsys.Options.StreamPoolSize = 128 * 1024
-	require.Equal(t, "0.0%", dash.streamPoolUtilization())
-
-	// With hits and usage
-	dash.fsys.Metrics.TotalStreamPoolHits.Store(2)
-	dash.fsys.Metrics.TotalStreamPoolHitBytes.Store(64 * 1024) // 64 KiB requested total
-	dash.fsys.Options.StreamPoolSize = 128 * 1024
-	got := dash.streamPoolUtilization()
-	require.Equal(t, "25.0%", got) // 64 KiB / (2*128 KiB) = 0.25
 }
 
 // Expectation: enabledOrDisabled should produce the correct string.
