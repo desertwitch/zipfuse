@@ -69,8 +69,8 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 | --fd-cache-size `<int>` | -c | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
 | --fd-cache-ttl `<duration>` | -t | 60s | Time-to-live before evicting cached file descriptors (that are not in use). |
 | --fd-cache-bypass `<bool>` | -b | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
-| --stream-threshold `<size>` | -s | 1MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
 | --stream-pool-size `<size>` | -p | 128KiB | Buffer size for the streamed read buffer pool (multiplies with concurrency). |
+| --stream-threshold `<size>` | -s | 1MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
 | --ring-buffer-size `<int>` | -r | 500 | Lines of the in-memory event ring-buffer (as served in the diagnostics dashboard). |
 | --force-unicode `<bool>` | -u | true | Unicode (or fallback to synthetic generated) paths for ZIPs; disabling garbles non-compliant ZIPs when trying to be interpreted as unicode. |
 | --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to standard error. |
