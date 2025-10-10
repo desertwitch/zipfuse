@@ -65,7 +65,7 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 | --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to standard output. |
 | --flatten-zips `<bool>` | -f | false | Flatten ZIP-contained subdirectories into one directory per ZIP archive. |
 | --must-crc32 `<bool>` | -m | false | Force integrity verification for non-compressed ZIP archives (slower). |
-| --stream-threshold `<size>` | -s | 10MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
+| --stream-threshold `<size>` | -s | 1MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
 | --fd-limit `<int>` | -l | (50% of OS soft limit) | Maximum total open file descriptors at any given time (must be > `fd-cache-size`). |
 | --fd-cache-size `<int>` | -c | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
 | --fd-cache-ttl `<duration>` | -t | 60s | Time-to-live before evicting cached file descriptors (that are not in use). |
