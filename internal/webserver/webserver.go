@@ -219,16 +219,20 @@ func (d *FSDashboard) gcHandler(w http.ResponseWriter, _ *http.Request) {
 
 func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
 	d.fsys.Metrics.Errors.Store(0)
+	d.fsys.Metrics.TotalOpenedZips.Store(0)
 	d.fsys.Metrics.TotalClosedZips.Store(0)
-	d.fsys.Metrics.TotalExtractBytes.Store(0)
-	d.fsys.Metrics.TotalExtractCount.Store(0)
+	d.fsys.Metrics.TotalReopenedEntries.Store(0)
+	d.fsys.Metrics.TotalMetadataReadTime.Store(0)
+	d.fsys.Metrics.TotalMetadataReadCount.Store(0)
 	d.fsys.Metrics.TotalExtractTime.Store(0)
+	d.fsys.Metrics.TotalExtractCount.Store(0)
+	d.fsys.Metrics.TotalExtractBytes.Store(0)
 	d.fsys.Metrics.TotalFDCacheHits.Store(0)
 	d.fsys.Metrics.TotalFDCacheMisses.Store(0)
-	d.fsys.Metrics.TotalMetadataReadCount.Store(0)
-	d.fsys.Metrics.TotalMetadataReadTime.Store(0)
-	d.fsys.Metrics.TotalOpenedZips.Store(0)
-	d.fsys.Metrics.TotalReopenedEntries.Store(0)
+	d.fsys.Metrics.TotalStreamPoolHits.Store(0)
+	d.fsys.Metrics.TotalStreamPoolMisses.Store(0)
+	d.fsys.Metrics.TotalStreamPoolHitBytes.Store(0)
+	d.fsys.Metrics.TotalStreamPoolMissBytes.Store(0)
 
 	d.rbuf.Println("Metrics reset via API.")
 
