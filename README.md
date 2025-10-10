@@ -17,6 +17,8 @@
 **Note: This software is under active development.**  
 CLI arguments and documentation may change until a stable (v1.0.0) release.
 
+<img alt="Example" src="assets/example.gif" width="650">
+
 ## ZipFUSE Filesystem
 
 `zipfuse` is a read-only FUSE filesystem that mirrors another filesystem, but
