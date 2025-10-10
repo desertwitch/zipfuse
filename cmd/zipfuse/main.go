@@ -153,7 +153,11 @@ func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS,
 }
 
 func mountFilesystem(opts cliOptions) (*fuse.Conn, error) {
-	mountOpts := []fuse.MountOption{fuse.FSName("zipfuse"), fuse.ReadOnly()}
+	mountOpts := []fuse.MountOption{
+		fuse.FSName("zipfuse"),
+		fuse.ReadOnly(),
+		fuse.MaxReadahead(uint32(opts.streamPoolSize)),
+	}
 	if opts.allowOther {
 		mountOpts = append(mountOpts, fuse.AllowOther())
 	}
