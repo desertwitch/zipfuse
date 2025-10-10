@@ -20,7 +20,7 @@ const (
 	dirBasePerm  = 0o555 // RO
 
 	defaultFDCacheBypass      = false
-	defaultFDCacheSize        = 350
+	defaultFDCacheSize        = 256
 	defaultFDCacheTTL         = 60 * time.Second
 	defaultFDLimit            = 512
 	defaultFlatMode           = false
