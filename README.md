@@ -1,4 +1,4 @@
-<div align="left" style="margin-bottom:10px;">
+<div align="left">
     <img alt="Logo" src="assets/zipfuse.png" width="150">
     <br><br>
     <img src="https://img.shields.io/badge/.zip-%E2%99%A5_FUSE-red">
@@ -12,7 +12,7 @@
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml" target="_blank"><img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg"></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml" target="_blank"><img alt="Tests" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml/badge.svg"></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml" target="_blank"><img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg"></a>
-</div>
+</div><br>
 
 >**Note: This software is under active development.**  
 > CLI arguments and documentation may change until a stable (v1.0.0) release.
