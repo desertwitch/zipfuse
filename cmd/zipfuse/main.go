@@ -65,10 +65,10 @@ type cliOptions struct {
 	fuseVerbose        bool
 	mountDir           string
 	mustCRC32          bool
-	poolBufferSize     uint64
-	poolBufferSizeRaw  string
 	ringBufferSize     int
 	rootDir            string
+	streamPoolSize     uint64
+	streamPoolSizeRaw  string
 	streamThreshold    uint64
 	streamThresholdRaw string
 	webserverAddr      string
@@ -101,7 +101,7 @@ func rootCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%w: failed to parse --stream-threshold: %w", errInvalidArgument, err)
 			}
-			opts.poolBufferSize, err = humanize.ParseBytes(opts.poolBufferSizeRaw)
+			opts.streamPoolSize, err = humanize.ParseBytes(opts.streamPoolSizeRaw)
 			if err != nil {
 				return fmt.Errorf("%w: failed to parse --pool-buffer-size: %w", errInvalidArgument, err)
 			}
@@ -124,7 +124,7 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().IntVarP(&opts.fdCacheSize, "fd-cache-size", "c", cacheLimit, "Max number of open file descriptors in the FD cache (must be < fd-limit)")
 	cmd.Flags().IntVarP(&opts.fdLimit, "fd-limit", "l", fsLimit, "Limit of total open file descriptors (> fd-cache-size; beware OS limits)")
 	cmd.Flags().IntVarP(&opts.ringBufferSize, "ring-buffer-size", "r", 500, "Buffer size for the event ring-buffer (displayed in diagnostics dashboard)")
-	cmd.Flags().StringVarP(&opts.poolBufferSizeRaw, "pool-buffer-size", "p", "128KiB", "Buffer size for the file read buffer pool (beware this multiplies)")
+	cmd.Flags().StringVarP(&opts.streamPoolSizeRaw, "stream-pool-size", "p", "128KiB", "Buffer size for the streamed read buffer pool (beware this multiplies)")
 	cmd.Flags().StringVarP(&opts.streamThresholdRaw, "stream-threshold", "s", "1MiB", "Size cutoff for loading a file fully into RAM (streaming instead)")
 	cmd.Flags().StringVarP(&opts.webserverAddr, "webserver", "w", "", "Address to serve the diagnostics dashboard on (e.g. :8000; but disabled when empty)")
 
@@ -138,7 +138,7 @@ func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS,
 		FDLimit:        opts.fdLimit,
 		FlatMode:       opts.flatMode,
 		ForceUnicode:   opts.forceUnicode,
-		PoolBufferSize: int(opts.poolBufferSize),
+		StreamPoolSize: int(opts.streamPoolSize),
 	}
 	fopts.FDCacheBypass.Store(opts.fdCacheBypass)
 	fopts.MustCRC32.Store(opts.mustCRC32)

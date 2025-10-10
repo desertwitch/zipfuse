@@ -191,15 +191,21 @@ func (h *zipDiskStreamFileHandle) Read(_ context.Context, req *fuse.ReadRequest,
 
 	if cap(buf) < req.Size {
 		// Put back the pointer first, we won't use it.
-		*pBuf = (*pBuf)[:h.fsys.Options.PoolBufferSize]
+		*pBuf = (*pBuf)[:h.fsys.Options.StreamPoolSize]
 		h.fsys.bufpool.Put(pBuf)
 
 		buf = make([]byte, req.Size) // will be GC'ed.
+
+		h.fsys.Metrics.TotalStreamPoolMisses.Add(1)
+		h.fsys.Metrics.TotalStreamPoolMissBytes.Add(int64(req.Size))
 	} else {
 		defer func() {
-			*pBuf = (*pBuf)[:h.fsys.Options.PoolBufferSize]
+			*pBuf = (*pBuf)[:h.fsys.Options.StreamPoolSize]
 			h.fsys.bufpool.Put(pBuf)
 		}()
+
+		h.fsys.Metrics.TotalStreamPoolHits.Add(1)
+		h.fsys.Metrics.TotalStreamPoolHitBytes.Add(int64(req.Size))
 	}
 
 	buf = buf[:req.Size]

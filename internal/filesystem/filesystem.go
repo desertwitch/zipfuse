@@ -26,8 +26,8 @@ const (
 	defaultFlatMode           = false
 	defaultForceUnicode       = true
 	defaultMustCRC32          = false
-	defaultPoolBufferSize     = 128 * 1024      // 128KiB
 	defaultStreamingThreshold = 1 * 1024 * 1024 // 1MiB
+	defaultStreamPoolSize     = 128 * 1024      // 128KiB
 )
 
 var (
@@ -57,9 +57,9 @@ type Options struct {
 	// If a file descriptor is no longer in use, it will be evicted after TTL.
 	FDCacheTTL time.Duration
 
-	// PoolBufferSize is the buffer size for the file read buffer pool.
+	// StreamPoolSize is the buffer size for the streamed read buffer pool.
 	// This value multiplies with concurrency, a common read size makes sense.
-	PoolBufferSize int
+	StreamPoolSize int
 
 	// ForceUnicode controls if unicode should be enforced for all ZIP paths.
 	// Beware: If disabled, non-compliant ZIPs may end up with garbled paths.
@@ -86,7 +86,7 @@ func DefaultOptions() *Options {
 		FDLimit:        defaultFDLimit,
 		FlatMode:       defaultFlatMode,
 		ForceUnicode:   defaultForceUnicode,
-		PoolBufferSize: defaultPoolBufferSize,
+		StreamPoolSize: defaultStreamPoolSize,
 	}
 	opts.FDCacheBypass.Store(defaultFDCacheBypass)
 	opts.MustCRC32.Store(defaultMustCRC32)
@@ -132,6 +132,18 @@ type Metrics struct {
 
 	// TotalFDCacheMisses is the amount of cache-misses for the FD cache
 	TotalFDCacheMisses atomic.Int64
+
+	// TotalStreamPoolHits is the amount of times pool buffers were used.
+	TotalStreamPoolHits atomic.Int64
+
+	// TotalStreamPoolMisses is the amount of times buffers were allocated.
+	TotalStreamPoolMisses atomic.Int64
+
+	// TotalStreamPoolHitBytes is the bytes actually used from pool buffers.
+	TotalStreamPoolHitBytes atomic.Int64
+
+	// TotalStreamPoolMissBytes is the bytes newly allocated outside the pool.
+	TotalStreamPoolMissBytes atomic.Int64
 }
 
 // FS is the core implementation of the filesystem.
@@ -180,7 +192,7 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 
 	fsys.bufpool = sync.Pool{
 		New: func() any {
-			b := make([]byte, opts.PoolBufferSize)
+			b := make([]byte, opts.StreamPoolSize)
 
 			return &b
 		},

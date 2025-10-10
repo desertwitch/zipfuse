@@ -215,6 +215,26 @@
                 <div class="metric-label">FD Cache Hit Ratio</div>
                 <div class="metric-value" data-metric="totalFdCacheRatio">{{.TotalFDCacheRatio}}</div>
             </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Hits</div>
+                <div class="metric-value" data-metric="streamPoolHits">{{.StreamPoolHits}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Misses</div>
+                <div class="metric-value" data-metric="streamPoolMisses">{{.StreamPoolMisses}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Hit Ratio</div>
+                <div class="metric-value" data-metric="streamPoolHitRatio">{{.StreamPoolHitRatio}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Utilization</div>
+                <div class="metric-value" data-metric="streamPoolUtilization">{{.StreamPoolUtilization}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Stream Pool Miss Average</div>
+                <div class="metric-value" data-metric="streamPoolMissAvg">{{.StreamPoolMissAvg}}</div>
+            </div>
         </div>
 
         <div class="section-label">Filesystem Settings</div>
@@ -248,8 +268,8 @@
                 <div class="metric-value" data-metric="fdLimit">{{.FDLimit}}</div>
             </div>
             <div class="metric-tile">
-                <div class="metric-label">Read Pool Buffer Size</div>
-                <div class="metric-value" data-metric="poolBufferSize">{{.PoolBufferSize}}</div>
+                <div class="metric-label">Stream Pool Buffer Size</div>
+                <div class="metric-value" data-metric="streamPoolSize">{{.StreamPoolSize}}</div>
             </div>
             <div class="metric-tile">
                 <div class="metric-label">Streaming Threshold</div>

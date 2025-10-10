@@ -100,36 +100,41 @@ func (d *FSDashboard) dashboardMux() *mux.Router {
 }
 
 type fsDashboardData struct {
-	AllocBytes          string   `json:"allocBytes"`
-	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
-	AvgExtractTime      string   `json:"avgExtractTime"`
-	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
-	ClosedZips          int64    `json:"closedZips"`
-	FDCacheBypass       string   `json:"fdCacheBypass"`
-	FDCacheSize         int      `json:"fdCacheSize"`
-	FDCacheTTL          string   `json:"fdCacheTtl"`
-	FDLimit             int      `json:"fdLimit"`
-	FlatMode            string   `json:"flatMode"`
-	ForceUnicode        string   `json:"forceUnicode"`
-	Logs                []string `json:"logs"`
-	MustCRC32           string   `json:"mustCrc32"`
-	NumGC               uint32   `json:"numGc"`
-	OpenedZips          int64    `json:"openedZips"`
-	OpenZips            int64    `json:"openZips"`
-	PoolBufferSize      string   `json:"poolBufferSize"`
-	ReopenedEntries     int64    `json:"reopenedEntries"`
-	RingBufferSize      int      `json:"ringBufferSize"`
-	StreamingThreshold  string   `json:"streamingThreshold"`
-	SysBytes            string   `json:"sysBytes"`
-	TotalAlloc          string   `json:"totalAlloc"`
-	TotalErrors         int64    `json:"totalErrors"`
-	TotalExtractBytes   string   `json:"totalExtractBytes"`
-	TotalExtracts       int64    `json:"totalExtracts"`
-	TotalFDCacheHits    int64    `json:"totalFdCacheHits"`
-	TotalFDCacheMisses  int64    `json:"totalFdCacheMisses"`
-	TotalFDCacheRatio   string   `json:"totalFdCacheRatio"`
-	TotalMetadatas      int64    `json:"totalMetadatas"`
-	Version             string   `json:"version"`
+	AllocBytes            string   `json:"allocBytes"`
+	AvgExtractSpeed       string   `json:"avgExtractSpeed"`
+	AvgExtractTime        string   `json:"avgExtractTime"`
+	AvgMetadataReadTime   string   `json:"avgMetadataReadTime"`
+	ClosedZips            int64    `json:"closedZips"`
+	FDCacheBypass         string   `json:"fdCacheBypass"`
+	FDCacheSize           int      `json:"fdCacheSize"`
+	FDCacheTTL            string   `json:"fdCacheTtl"`
+	FDLimit               int      `json:"fdLimit"`
+	FlatMode              string   `json:"flatMode"`
+	ForceUnicode          string   `json:"forceUnicode"`
+	Logs                  []string `json:"logs"`
+	MustCRC32             string   `json:"mustCrc32"`
+	NumGC                 uint32   `json:"numGc"`
+	OpenedZips            int64    `json:"openedZips"`
+	OpenZips              int64    `json:"openZips"`
+	ReopenedEntries       int64    `json:"reopenedEntries"`
+	RingBufferSize        int      `json:"ringBufferSize"`
+	StreamingThreshold    string   `json:"streamingThreshold"`
+	StreamPoolHitRatio    string   `json:"streamPoolHitRatio"`
+	StreamPoolHits        int64    `json:"streamPoolHits"`
+	StreamPoolMissAvg     string   `json:"streamPoolMissAvg"`
+	StreamPoolMisses      int64    `json:"streamPoolMisses"`
+	StreamPoolSize        string   `json:"streamPoolSize"`
+	StreamPoolUtilization string   `json:"streamPoolUtilization"`
+	SysBytes              string   `json:"sysBytes"`
+	TotalAlloc            string   `json:"totalAlloc"`
+	TotalErrors           int64    `json:"totalErrors"`
+	TotalExtractBytes     string   `json:"totalExtractBytes"`
+	TotalExtracts         int64    `json:"totalExtracts"`
+	TotalFDCacheHits      int64    `json:"totalFdCacheHits"`
+	TotalFDCacheMisses    int64    `json:"totalFdCacheMisses"`
+	TotalFDCacheRatio     string   `json:"totalFdCacheRatio"`
+	TotalMetadatas        int64    `json:"totalMetadatas"`
+	Version               string   `json:"version"`
 }
 
 func (d *FSDashboard) collectMetrics() fsDashboardData {
@@ -140,36 +145,41 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 	slices.Reverse(lines)
 
 	return fsDashboardData{
-		AllocBytes:          humanize.IBytes(m.Alloc),
-		AvgExtractSpeed:     d.avgExtractSpeed(),
-		AvgExtractTime:      d.avgExtractTime(),
-		AvgMetadataReadTime: d.avgMetadataReadTime(),
-		ClosedZips:          d.fsys.Metrics.TotalClosedZips.Load(),
-		FDCacheBypass:       enabledOrDisabled(d.fsys.Options.FDCacheBypass.Load()),
-		FDCacheSize:         d.fsys.Options.FDCacheSize,
-		FDCacheTTL:          d.fsys.Options.FDCacheTTL.String(),
-		FDLimit:             d.fsys.Options.FDLimit,
-		FlatMode:            enabledOrDisabled(d.fsys.Options.FlatMode),
-		ForceUnicode:        enabledOrDisabled(d.fsys.Options.ForceUnicode),
-		Logs:                lines,
-		MustCRC32:           enabledOrDisabled(d.fsys.Options.MustCRC32.Load()),
-		NumGC:               m.NumGC,
-		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
-		OpenZips:            d.fsys.Metrics.OpenZips.Load(),
-		PoolBufferSize:      humanize.IBytes(uint64(d.fsys.Options.PoolBufferSize)),
-		ReopenedEntries:     d.fsys.Metrics.TotalReopenedEntries.Load(),
-		RingBufferSize:      d.rbuf.Size(),
-		StreamingThreshold:  humanize.IBytes(d.fsys.Options.StreamingThreshold.Load()),
-		SysBytes:            humanize.IBytes(m.Sys),
-		TotalAlloc:          humanize.IBytes(m.TotalAlloc),
-		TotalErrors:         d.fsys.Metrics.Errors.Load(),
-		TotalExtractBytes:   d.totalExtractBytes(),
-		TotalExtracts:       d.fsys.Metrics.TotalExtractCount.Load(),
-		TotalFDCacheHits:    d.fsys.Metrics.TotalFDCacheHits.Load(),
-		TotalFDCacheMisses:  d.fsys.Metrics.TotalFDCacheMisses.Load(),
-		TotalFDCacheRatio:   d.totalFDCacheRatio(),
-		TotalMetadatas:      d.fsys.Metrics.TotalMetadataReadCount.Load(),
-		Version:             d.version,
+		AllocBytes:            humanize.IBytes(m.Alloc),
+		AvgExtractSpeed:       d.avgExtractSpeed(),
+		AvgExtractTime:        d.avgExtractTime(),
+		AvgMetadataReadTime:   d.avgMetadataReadTime(),
+		ClosedZips:            d.fsys.Metrics.TotalClosedZips.Load(),
+		FDCacheBypass:         enabledOrDisabled(d.fsys.Options.FDCacheBypass.Load()),
+		FDCacheSize:           d.fsys.Options.FDCacheSize,
+		FDCacheTTL:            d.fsys.Options.FDCacheTTL.String(),
+		FDLimit:               d.fsys.Options.FDLimit,
+		FlatMode:              enabledOrDisabled(d.fsys.Options.FlatMode),
+		ForceUnicode:          enabledOrDisabled(d.fsys.Options.ForceUnicode),
+		Logs:                  lines,
+		MustCRC32:             enabledOrDisabled(d.fsys.Options.MustCRC32.Load()),
+		NumGC:                 m.NumGC,
+		OpenedZips:            d.fsys.Metrics.TotalOpenedZips.Load(),
+		OpenZips:              d.fsys.Metrics.OpenZips.Load(),
+		ReopenedEntries:       d.fsys.Metrics.TotalReopenedEntries.Load(),
+		RingBufferSize:        d.rbuf.Size(),
+		StreamingThreshold:    humanize.IBytes(d.fsys.Options.StreamingThreshold.Load()),
+		StreamPoolHitRatio:    d.streamPoolHitRatio(),
+		StreamPoolHits:        d.fsys.Metrics.TotalStreamPoolHits.Load(),
+		StreamPoolMissAvg:     d.streamPoolMissAvgSize(),
+		StreamPoolMisses:      d.fsys.Metrics.TotalStreamPoolMisses.Load(),
+		StreamPoolSize:        humanize.IBytes(uint64(d.fsys.Options.StreamPoolSize)),
+		StreamPoolUtilization: d.streamPoolUtilization(),
+		SysBytes:              humanize.IBytes(m.Sys),
+		TotalAlloc:            humanize.IBytes(m.TotalAlloc),
+		TotalErrors:           d.fsys.Metrics.Errors.Load(),
+		TotalExtractBytes:     d.totalExtractBytes(),
+		TotalExtracts:         d.fsys.Metrics.TotalExtractCount.Load(),
+		TotalFDCacheHits:      d.fsys.Metrics.TotalFDCacheHits.Load(),
+		TotalFDCacheMisses:    d.fsys.Metrics.TotalFDCacheMisses.Load(),
+		TotalFDCacheRatio:     d.totalFDCacheRatio(),
+		TotalMetadatas:        d.fsys.Metrics.TotalMetadataReadCount.Load(),
+		Version:               d.version,
 	}
 }
 
