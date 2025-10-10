@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"runtime"
@@ -19,22 +20,31 @@ import (
 )
 
 //nolint:mnd,err113,nonamedreturns
-func fdLimits() (fsLimit int, cacheLimit int, e error) {
+func fdLimits() (fsLimit int, cacheLimit int, err error) {
 	var rlim unix.Rlimit
-	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim); err != nil {
-		return 0, 0, fmt.Errorf("failed to get rlimit: %w", err)
+
+	if e := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim); e != nil {
+		return 0, 0, fmt.Errorf("failed to get rlimit: %w", e)
+	}
+
+	if rlim.Cur == unix.RLIM_INFINITY {
+		rlim.Cur = 1 << 20
+	}
+
+	if rlim.Cur == 0 {
+		return 0, 0, fmt.Errorf("got invalid rlimit: %d", rlim.Cur)
+	}
+
+	if rlim.Cur > math.MaxInt {
+		return 0, 0, fmt.Errorf("rlimit too large: %d", rlim.Cur)
 	}
 
 	osLimit := int(rlim.Cur)
-	if osLimit <= 0 {
-		return 0, 0, fmt.Errorf("invalid os limit: %d", osLimit)
-	}
-
-	fsLimit = osLimit / 2                     // 50% of OS limit
-	cacheLimit = int(float64(fsLimit) * 0.70) // 70% of FS limit
+	fsLimit = osLimit / 2             // 50% of OS limit
+	cacheLimit = (fsLimit * 70) / 100 // 70% of FS limit
 
 	if fsLimit < 1 || cacheLimit < 1 {
-		return 0, 0, fmt.Errorf("calculated values too small (soft=%d)", osLimit)
+		return 0, 0, fmt.Errorf("calculations too small (soft=%d)", osLimit)
 	}
 
 	return fsLimit, cacheLimit, nil
