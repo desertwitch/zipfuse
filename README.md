@@ -14,8 +14,8 @@
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml" target="_blank"><img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg"></a>
 </div><br>
 
-**Note: This software is under active development.**  
-CLI arguments and documentation may change until a stable (v1.0.0) release.
+>**Note: This software is under active development.**  
+> CLI arguments and documentation may change until a stable (v1.0.0) release.
 
 <img alt="Example" src="assets/example.gif" width="650">
 
