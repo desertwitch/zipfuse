@@ -44,6 +44,7 @@ func setupSignalHandlers(fsys *filesystem.FS, rbuf *logging.RingBuffer, mountDir
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
+		defer recoverSignalsPanic()
 		for range sig {
 			rbuf.Println("Signal received, unmounting the filesystem...")
 
@@ -66,6 +67,7 @@ func setupSignalHandlers(fsys *filesystem.FS, rbuf *logging.RingBuffer, mountDir
 	sig1 := make(chan os.Signal, 1)
 	signal.Notify(sig1, syscall.SIGUSR1)
 	go func() {
+		defer recoverSignalsPanic()
 		for range sig1 {
 			rbuf.Println("Signal received, forcing garbage collection...")
 			runtime.GC()
@@ -76,6 +78,7 @@ func setupSignalHandlers(fsys *filesystem.FS, rbuf *logging.RingBuffer, mountDir
 	sig2 := make(chan os.Signal, 1)
 	signal.Notify(sig2, syscall.SIGUSR2)
 	go func() {
+		defer recoverSignalsPanic()
 		for range sig2 {
 			rbuf.Println("Signal received, printing stacktrace to standard error...")
 			buf := make([]byte, stackTraceBufferSize)
@@ -91,6 +94,7 @@ func dryWalkFS(fsys *filesystem.FS) error {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
+		defer recoverSignalsPanic()
 		for range sig {
 			log.Println("Signal received, cancelling the filesystem walk...")
 			cancel()
@@ -114,5 +118,13 @@ func dryWalkFS(fsys *filesystem.FS) error {
 			return fmt.Errorf("fs walk error: %w", err)
 		}
 		err = unwrapped
+	}
+}
+
+func recoverSignalsPanic() {
+	r := recover()
+	if r != nil {
+		fmt.Fprintf(os.Stderr, "(signals) PANIC: %v\n", r)
+		debug.PrintStack()
 	}
 }

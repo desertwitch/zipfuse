@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -47,6 +48,9 @@ var (
 
 	// errInvalidArgument is for an invalid CLI argument/value provided.
 	errInvalidArgument = errors.New("invalid argument")
+
+	// errPanicRecovered is for a goroutine panic that was recovered.
+	errPanicRecovered = errors.New("panic recovered")
 )
 
 type cliOptions struct {
@@ -167,7 +171,15 @@ func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.
 	errChan := make(chan error, 1)
 
 	wg.Go(func() {
-		defer close(errChan)
+		defer func() {
+			r := recover()
+			if r != nil {
+				fmt.Fprintf(os.Stderr, "(fs) PANIC: %v\n", r)
+				debug.PrintStack()
+				errChan <- fmt.Errorf("failed to serve fs: %w", errPanicRecovered)
+			}
+			close(errChan)
+		}()
 
 		var config *fs.Config
 		if verbose {

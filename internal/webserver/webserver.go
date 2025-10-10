@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"slices"
@@ -58,6 +59,13 @@ func (d *FSDashboard) Serve(addr string) *http.Server {
 	srv := &http.Server{Addr: addr, Handler: d.dashboardMux()}
 
 	go func() {
+		defer func() {
+			r := recover()
+			if r != nil {
+				fmt.Fprintf(os.Stderr, "(webserver) PANIC: %v\n", r)
+				debug.PrintStack()
+			}
+		}()
 		d.rbuf.Printf("serving dashboard on %s\n", addr)
 
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -235,7 +243,7 @@ func (d *FSDashboard) thresholdHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Streaming threshold set: %s.\n", humanize.IBytes(val))
 }
 
-func (d *FSDashboard) booleanHandler(descr string, target *atomic.Bool) http.HandlerFunc {
+func (d *FSDashboard) booleanHandler(desc string, target *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 
@@ -247,10 +255,10 @@ func (d *FSDashboard) booleanHandler(descr string, target *atomic.Bool) http.Han
 		}
 		target.Store(val)
 
-		d.rbuf.Printf("%s set via API: %t.\n", descr, val)
+		d.rbuf.Printf("%s set via API: %t.\n", desc, val)
 
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "%s set: %t.\n", descr, val)
+		fmt.Fprintf(w, "%s set: %t.\n", desc, val)
 	}
 }
