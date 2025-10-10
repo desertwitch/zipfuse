@@ -187,7 +187,7 @@ func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.
 	return &wg, errChan
 }
 
-func serveDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, addr string) (*http.Server, error) {
+func serveDashboard(addr string, fsys *filesystem.FS, rbuf *logging.RingBuffer) (*http.Server, error) {
 	dashboard, err := webserver.NewFSDashboard(fsys, rbuf, Version)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard error: %w", err)
@@ -196,7 +196,7 @@ func serveDashboard(fsys *filesystem.FS, rbuf *logging.RingBuffer, addr string) 
 	return dashboard.Serve(addr), nil
 }
 
-func cleanupMount(conn *fuse.Conn, fsys *filesystem.FS, mountDir string) {
+func cleanupMount(mountDir string, conn *fuse.Conn, fsys *filesystem.FS) {
 	defer conn.Close()
 	defer fuse.Unmount(mountDir) //nolint:errcheck
 	noErr := make(chan error, 1)
@@ -227,13 +227,13 @@ func run(opts cliOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to mount fs: %w", err)
 	}
-	defer cleanupMount(conn, fsys, opts.mountDir)
+	defer cleanupMount(opts.mountDir, conn, fsys)
 
-	setupSignalHandlers(fsys, opts.mountDir, rbuf)
+	setupSignalHandlers(fsys, rbuf, opts.mountDir)
 	wg, errChan := serveFilesystem(conn, fsys, opts.fuseVerbose)
 
 	if opts.webserverAddr != "" {
-		srv, err := serveDashboard(fsys, rbuf, opts.webserverAddr)
+		srv, err := serveDashboard(opts.webserverAddr, fsys, rbuf)
 		if err != nil {
 			return fmt.Errorf("failed to setup webserver: %w", err)
 		}
