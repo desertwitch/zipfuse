@@ -64,19 +64,19 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 | --allow-other `<bool>` | -a | true | Allow other system users to access the mounted filesystem. |
 | --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to standard output. |
 | --flatten-zips `<bool>` | -f | false | Flatten ZIP-contained subdirectories into one directory per ZIP archive. |
-| --must-crc32 `<bool>` | (none) | false | Force integrity verification for non-compressed ZIP archives (slower). |
-| --strict-cache `<bool>` | (none) | false | Do not treat ZIP files/contents as immutable (non-changing) for caching decisions. |
-| --fd-limit `<int>` | (none) | (50% of OS soft limit) | Maximum total open file descriptors at any given time (must be > `fd-cache-size`). |
-| --fd-cache-size `<int>` | (none) | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
-| --fd-cache-ttl `<duration>` | (none) | 60s | Time-to-live before evicting cached file descriptors (that are not in use). |
-| --fd-cache-bypass `<bool>` | (none) | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
-| --stream-pool-size `<size>` | (none) | 128KiB | Buffer size for the streamed read buffer pool (multiplies with concurrency). |
+| --must-crc32 `<bool>` |  | false | Force integrity verification for non-compressed ZIP archives (slower). |
+| --strict-cache `<bool>` |  | false | Do not treat ZIP files/contents as immutable (non-changing) for caching decisions. |
+| --fd-limit `<int>` |  | (50% of OS soft limit) | Maximum total open file descriptors at any given time (must be > `fd-cache-size`). |
+| --fd-cache-size `<int>` |  | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
+| --fd-cache-ttl `<duration>` |  | 60s | Time-to-live before evicting cached file descriptors (that are not in use). |
+| --fd-cache-bypass `<bool>` |  | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
+| --stream-pool-size `<size>` |  | 128KiB | Buffer size for the streamed read buffer pool (multiplies with concurrency). |
 | --stream-threshold `<size>` | -s | 1MiB | Files larger than this are streamed in chunks, instead of fully loaded into RAM. |
-| --ring-buffer-size `<int>` | (none) | 500 | Lines of the in-memory event ring-buffer (as served in the diagnostics dashboard). |
-| --force-unicode `<bool>` | (none) | true | Unicode (or fallback to synthetic generated) paths for ZIPs; disabling garbles non-compliant ZIPs when trying to be interpreted as unicode. |
+| --ring-buffer-size `<int>` |  | 500 | Lines of the in-memory event ring-buffer (as served in the diagnostics dashboard). |
+| --force-unicode `<bool>` |  | true | Unicode (or fallback to synthetic generated) paths for ZIPs; disabling garbles non-compliant ZIPs when trying to be interpreted as unicode. |
 | --verbose `<bool>` | -v | false | Print all FUSE communication and diagnostics to standard error. |
 | --webserver `<addr>` | -w | (empty) | Address for the diagnostics dashboard (e.g. `:8000`). If unset, the webserver is disabled. |
-| --version | (none) | false | Print the program version to standard output. |
+| --version |  | false | Print the program version to standard output. |
 
 Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`, `10MB`, or `10MiB`.  
 Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or combined values like `1h30m`.
