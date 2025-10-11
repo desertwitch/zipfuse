@@ -155,7 +155,7 @@ func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS,
 	return fsys, nil
 }
 
-func mountFilesystem(opts cliOptions) (*fuse.Conn, error) {
+func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	mountOpts := []fuse.MountOption{
 		fuse.FSName("zipfuse"),
 		fuse.ReadOnly(),
@@ -169,6 +169,7 @@ func mountFilesystem(opts cliOptions) (*fuse.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fuse error: %w", err)
 	}
+	fsys.MountTime = time.Now()
 
 	return conn, nil
 }
@@ -242,7 +243,7 @@ func run(opts cliOptions) error {
 		return dryWalkFS(fsys)
 	}
 
-	conn, err := mountFilesystem(opts)
+	conn, err := mountFilesystem(opts, fsys)
 	if err != nil {
 		return fmt.Errorf("failed to mount fs: %w", err)
 	}

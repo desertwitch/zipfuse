@@ -156,7 +156,8 @@ type Metrics struct {
 
 // FS is the core implementation of the filesystem.
 type FS struct {
-	RootDir string
+	RootDir   string
+	MountTime time.Time
 
 	Options *Options
 	Metrics *Metrics
