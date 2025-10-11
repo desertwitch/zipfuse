@@ -135,6 +135,7 @@ type fsDashboardData struct {
 	TotalFDCacheMisses  int64    `json:"totalFdCacheMisses"`
 	TotalFDCacheRatio   string   `json:"totalFdCacheRatio"`
 	TotalMetadatas      int64    `json:"totalMetadatas"`
+	Uptime              string   `json:"uptime"`
 	Version             string   `json:"version"`
 }
 
@@ -181,6 +182,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		TotalFDCacheMisses:  d.fsys.Metrics.TotalFDCacheMisses.Load(),
 		TotalFDCacheRatio:   d.totalFDCacheRatio(),
 		TotalMetadatas:      d.fsys.Metrics.TotalMetadataReadCount.Load(),
+		Uptime:              humanize.Time(d.fsys.MountTime),
 		Version:             d.version,
 	}
 }

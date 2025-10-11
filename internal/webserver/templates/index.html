@@ -287,6 +287,10 @@
         <div class="section-label">Runtime Metrics</div>
         <div class="metrics-grid">
             <div class="metric-tile">
+                <div class="metric-label">Started</div>
+                <div class="metric-value" data-metric="uptime">{{.Uptime}}</div>
+            </div>
+            <div class="metric-tile">
                 <div class="metric-label">Heap Allocated</div>
                 <div class="metric-value" data-metric="allocBytes">{{.AllocBytes}}</div>
             </div>
