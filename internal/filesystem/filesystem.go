@@ -117,8 +117,8 @@ type Metrics struct {
 	// TotalClosedZips is the amount of closed ZIP files.
 	TotalClosedZips atomic.Int64
 
-	// TotalReopenedEntries is the amount of reopened ZIP entries (rewinds).
-	TotalReopenedEntries atomic.Int64
+	// TotalStreamRewinds is the amount of reopened ZIP entries due to rewinds.
+	TotalStreamRewinds atomic.Int64
 
 	// TotalMetadataReadTime is time spent reading metadata from ZIP files.
 	TotalMetadataReadTime atomic.Int64
