@@ -55,17 +55,16 @@ Running `make all` produces two binaries:
 - `zipfuse` - binary of the FUSE filesystem
 - `mount.zipfuse` - binary of the FUSE mount helper
 
-The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.
-
-The [examples](./examples) folder contains possible integration examples.  
-Pre-compiled static binaries are planned to be offered starting from v1.0.0.
+The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.  
+**Pre-compiled static binaries are planned to be offered starting from v1.0.0.**
 
 ## Mounting the filesystem
 ### Mounting with `systemd` or command-line (recommended):
 
-The `zipfuse` filesystem binary runs as a foreground application and is ideal
-for wrapping with `systemd`, or use directly from CLI (read more below) as a
-foregrounded or also a backgrounded (paired with `nohup` and/or `&`) process.
+The `zipfuse` filesystem binary runs as a foreground process and is ideal for
+`systemd` wrapping, or use directly from command-line as either a foreground or
+a background (paired with `nohup` and/or `&`) process. For continous usage,
+integration into the larger `systemd` framework is recommended and preferable.
 
 **A basic `systemd` service example for mounting of the filesystem:**
 ```ini
