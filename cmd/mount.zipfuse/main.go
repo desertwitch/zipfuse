@@ -4,7 +4,7 @@ mount.zipfuse - FUSE mount helper
 This program is a helper for the mount/fstab mechanism.
 It is normally located in /sbin or another directory
 searched by mount(8) for filesystem helpers, and is
-not intended to be invoked directly by end users.
+not intended to be invoked directly by the end users.
 
 Usage:
   mount.zipfuse source mountpoint [-o key[=value],key[=value],...]
@@ -172,7 +172,7 @@ func (mh *MountHelper) deriveTypeFromArg(i *int, args []string) error {
 }
 
 func (mh *MountHelper) deriveTypeFromSource() error {
-	parts := strings.SplitN(mh.Source, "#", 2) //nolint:mnd
+	parts := strings.SplitN(mh.Source, "#", 2)
 
 	if len(parts) > 1 {
 		mh.Type = parts[0]
@@ -199,7 +199,7 @@ func main() {
 This program is a helper for the mount/fstab mechanism.
 It is normally located in /sbin or another directory
 searched by mount(8) for filesystem helpers, and is
-not intended to be invoked directly by end users.
+not intended to be invoked directly by the end users.
 
 Usage:
   %s source mountpoint [-o key[=value],key[=value],...]
