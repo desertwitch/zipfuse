@@ -5,8 +5,10 @@ import (
 	"testing"
 )
 
+// Expectation: The expected command should be built from the given arguments.
+//
 //nolint:maintidx
-func TestBuildCommand(t *testing.T) {
+func Test_MountHelper_BuildCommand_Success(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
