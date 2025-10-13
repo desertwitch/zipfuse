@@ -63,7 +63,7 @@ Pre-compiled static binaries are planned to be offered starting v1.0.0.
 
 | Flag | Shorthand | Default | Description |
 |------|-----------|---------|-------------|
-| --allow-other `<bool>` | -a | true | Allow other system users to access the mounted filesystem. |
+| --allow-other `<bool>` | -a | false | Allow other system users to access the mounted filesystem. |
 | --dry-run `<bool>` | -d | false | Do not mount; instead print all would-be inodes and paths to standard output. |
 | --fd-cache-bypass `<bool>` | (none) | false | Disable file descriptor caching; open/close a new file descriptor on every single request. |
 | --fd-cache-size `<int>` | (none) | (70% of `fd-limit`) | Maximum open file descriptors to retain in cache (for more performant re-accessing). |
