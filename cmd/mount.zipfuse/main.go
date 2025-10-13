@@ -18,8 +18,8 @@ Example (fstab entry):
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
-Mount helper events are logged to standard error (stderr).
-Filesystem events are logged to '/var/log/zipfuse.log' (if writeable).
+Mount helper events are printed to standard error (stderr).
+Filesystem events are printed to '/var/log/zipfuse.log' (if writeable).
 */
 //nolint:mnd,err113
 package main
@@ -213,8 +213,8 @@ Example (fstab entry):
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
-Mount helper events are logged to standard error (stderr).
-Filesystem events are logged to '%s' (if writeable).
+Mount helper events are printed to standard error (stderr).
+Filesystem events are printed to '%s' (if writeable).
 `, progName, Version, progName, progName, mountLog)
 		os.Exit(1)
 	}
