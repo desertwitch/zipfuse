@@ -55,19 +55,19 @@ Running `make all` produces two binaries:
 - `zipfuse` - binary of the FUSE filesystem
 - `mount.zipfuse` - binary of the FUSE mount helper
 
-The latter is needed only for `mount(8)` or `/etc/fstab` mounting.
+The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.
 
 The [examples](./examples) folder contains possible integration examples.  
-Pre-compiled static binaries are planned to be offered starting v1.0.0.
+Pre-compiled static binaries are planned to be offered starting from v1.0.0.
 
 ## Mounting the filesystem
 ### Mounting with `systemd` or command-line (recommended):
 
 The `zipfuse` filesystem binary runs as a foreground application and is ideal
 for wrapping with `systemd`, or use directly from CLI (read more below) as a
-foregrounded or also a backgrounded (paired with `nohup` and/or `&`) service.
+foregrounded or also a backgrounded (paired with `nohup` and/or `&`) process.
 
-**A basic `systemd` service example for mounting the filesystem:**
+**A basic `systemd` service example for mounting of the filesystem:**
 ```ini
 [Unit]
 Description=ZipFUSE
@@ -86,7 +86,7 @@ Group=alice
 [Install]
 WantedBy=multi-user.target
 ```
-For more complex orchestration with `systemd`, see the [examples](./examples) folder.
+For more complex orchestration with `systemd`, see also the [examples](./examples) folder.
 
 **The above is the recommended and modern approach for almost all use cases.**
 
@@ -114,8 +114,8 @@ sudo mount -t zipfuse /home/alice/zips /home/alice/zipfuse -o setuid=alice,allow
 **As you can see, program options (read more below) need format conversion:**  
 `--allow-other --webserver :8000` turning into `allow_other,webserver=:8000`
 
-Note that mount helper events are printed to standard error (`stderr`).  
-Filesystem events are printed to `/var/log/zipfuse.log` (if writeable).  
+Note that mount helper events are printed to standard error (`stderr`), and
+filesystem events are printed to `/var/log/zipfuse.log` (if it is writeable).
 
 ## Program usage and advanced configurables
 
