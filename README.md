@@ -119,7 +119,7 @@ Any filesystem events are printed to `/var/log/zipfuse.log` (if it is writeable)
 
     zipfuse <source> <mountpoint> [flags]
 
-`<source>` is the underlying filesystem root to expose.  
+`<source>` is the root of the underlying filesystem to expose.  
 `<mountpoint>` is the mountpoint where the FUSE filesystem will appear.
 
 | Flag | Shorthand | Default | Description |
