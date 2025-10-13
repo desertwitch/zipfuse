@@ -64,17 +64,17 @@ type cliOptions struct {
 	fdCacheTTL         time.Duration
 	fdLimit            int
 	flatMode           bool
-	strictCache        bool
 	forceUnicode       bool
 	fuseVerbose        bool
 	mountDir           string
 	mustCRC32          bool
 	ringBufferSize     int
-	rootDir            string
+	sourceDir          string
 	streamPoolSize     uint64
 	streamPoolSizeRaw  string
 	streamThreshold    uint64
 	streamThresholdRaw string
+	strictCache        bool
 	webserverAddr      string
 }
 
@@ -109,7 +109,7 @@ func rootCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%w: failed to parse --pool-buffer-size: %w", errInvalidArgument, err)
 			}
-			opts.rootDir = args[0]
+			opts.sourceDir = args[0]
 			opts.mountDir = args[1]
 
 			return run(opts)
@@ -150,7 +150,7 @@ func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS,
 	fopts.MustCRC32.Store(opts.mustCRC32)
 	fopts.StreamingThreshold.Store(opts.streamThreshold)
 
-	fsys, err := filesystem.NewFS(opts.rootDir, fopts, rbuf)
+	fsys, err := filesystem.NewFS(opts.sourceDir, fopts, rbuf)
 	if err != nil {
 		return nil, fmt.Errorf("fs error: %w", err)
 	}

@@ -51,15 +51,72 @@ make all
 ./zipfuse --help
 ```
 
+Running `make all` produces two binaries: a `zipfuse` binary for the filesystem,
+and a `mount.zipfuse` binary for the FUSE mount helper. The latter is only needed
+for `mount(8)`/`/etc/fstab` mounting of the filesystem (read more further below).
+
 The [examples](./examples) folder contains possible integration examples.  
 Pre-compiled static binaries are planned to be offered starting v1.0.0.
 
+### Mounting the filesystem:
+
+The `zipfuse` filesystem binary runs as a foreground application and is ideal
+for wrapping with `systemd`, or use directly from CLI (read more below) as a
+foregrounded or also a backgrounded (paired with `nohup` and/or `&`) service.
+
+**A basic `systemd` service example for mounting the filesystem:**
+```ini
+[Unit]
+Description=ZipFUSE
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/zipfuse /home/alice/zips /home/alice/zipfuse --webserver :8000
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=15
+KillSignal=SIGTERM
+User=alice
+Group=alice
+
+[Install]
+WantedBy=multi-user.target
+```
+For more complex orchestration with `systemd`, see the [examples](./examples) folder.
+
+**The above is the recommended and modern approach for almost all use cases.**
+
+For users not wishing to use `systemd`, a FUSE mount helper is provided, so that
+the `zipfuse` filesystem can be used with `mount(8)` or also `/etc/fstab` entry.
+This usually **requires putting the `mount.zipfuse` binary into `/sbin`** or
+another location that the `mount(8)` program examines for the filesystem helper
+binaries. Beware that this is more complex, so `systemd` is strongly preferable.
+
+**For mounting using the `mount(8)` program from CLI:**
+```
+sudo mount -t zipfuse /home/alice/zips /home/alice/zipfuse -o setuid=alice,allow_other,webserver=:8000
+```
+
+**For mounting using a basic entry in the `/etc/fstab` file:**
+```
+# <file system>   <mount point>   <type>   <options>   <dump>   <pass>
+/home/alice/zips   /home/alice/zipfuse   zipfuse   setuid=alice,allow_other,webserver=:8000   0  0
+```
+
+**As you can see, program options (read more below) need format conversion:**  
+`--allow-other --webserver :8000` turning into `allow_other,webserver=:8000`
+
+Note that mount helper events are printed to standard error (`stderr`).  
+Filesystem events are printed to `/var/log/zipfuse.log` (if writeable).  
+Beware: Above targets only apply when `mount(8)`/`/etc/fstab` mounting.
+
 ### Program usage and advanced configurables:
 
-    zipfuse <root-dir> <mount-dir> [flags]
+    zipfuse <source> <mountpoint> [flags]
 
-`<root-dir>` is the underlying filesystem root to expose.  
-`<mount-dir>` is the mountpoint where the FUSE filesystem will appear.
+`<source>` is the underlying filesystem root to expose.  
+`<mountpoint>` is the mountpoint where the FUSE filesystem will appear.
 
 | Flag | Shorthand | Default | Description |
 |------|-----------|---------|-------------|
@@ -85,13 +142,13 @@ Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or combin
 
 **Examples:**
 
-Mount `/data` onto `/mnt/zipfuse` and enable dashboard on port 8080:
+Mount `/home/alice/zips` onto `/home/alice/zipfuse` and enable dashboard on port 8080:
 
-    zipfuse /data /mnt/zipfuse --webserver :8080
+    zipfuse /home/alice/zips /home/alice/zipfuse --webserver :8080
 
 Dry-run to inspect would-be files and inodes without actual mounting:
 
-    zipfuse /data /mnt/zipfuse --dry-run
+    zipfuse /home/alice/zips /home/alice/zipfuse --dry-run
 
 ### Runtime routes and signals handling:
 

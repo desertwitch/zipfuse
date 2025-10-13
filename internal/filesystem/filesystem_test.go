@@ -103,36 +103,36 @@ func Test_NewFS_Errors(t *testing.T) {
 	tmp := t.TempDir()
 
 	tests := []struct {
-		name    string
-		rootDir string
-		opts    *Options
-		rbuf    *logging.RingBuffer
-		wantErr string
+		name      string
+		sourceDir string
+		opts      *Options
+		rbuf      *logging.RingBuffer
+		wantErr   string
 	}{
 		{
-			name:    "NilRingBuffer",
-			rootDir: tmp,
-			rbuf:    nil,
-			wantErr: "need a non-nil rbuf",
+			name:      "NilRingBuffer",
+			sourceDir: tmp,
+			rbuf:      nil,
+			wantErr:   "need a non-nil rbuf",
 		},
 		{
-			name:    "EmptyRootDir",
-			rootDir: "",
-			rbuf:    logging.NewRingBuffer(10, io.Discard),
-			wantErr: "need a non-empty rootDir",
+			name:      "EmptySourceDir",
+			sourceDir: "",
+			rbuf:      logging.NewRingBuffer(10, io.Discard),
+			wantErr:   "need a non-empty sourceDir",
 		},
 		{
-			name:    "MissingRootDir",
-			rootDir: filepath.Join(tmp, "does-not-exist"),
-			rbuf:    logging.NewRingBuffer(10, io.Discard),
-			wantErr: "failed to stat rootDir",
+			name:      "MissingSourceDir",
+			sourceDir: filepath.Join(tmp, "does-not-exist"),
+			rbuf:      logging.NewRingBuffer(10, io.Discard),
+			wantErr:   "failed to stat sourceDir",
 		},
 		{
-			name:    "InvalidFileDescriptorLimits",
-			rootDir: tmp,
-			rbuf:    logging.NewRingBuffer(10, io.Discard),
-			opts:    &Options{FDLimit: 10, FDCacheSize: 20},
-			wantErr: "fd limit cannot be <= fd cache size",
+			name:      "InvalidFileDescriptorLimits",
+			sourceDir: tmp,
+			rbuf:      logging.NewRingBuffer(10, io.Discard),
+			opts:      &Options{FDLimit: 10, FDCacheSize: 20},
+			wantErr:   "fd limit cannot be <= fd cache size",
 		},
 	}
 
@@ -140,7 +140,7 @@ func Test_NewFS_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fs, err := NewFS(tt.rootDir, tt.opts, tt.rbuf)
+			fs, err := NewFS(tt.sourceDir, tt.opts, tt.rbuf)
 			require.Nil(t, fs)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.wantErr)
@@ -148,7 +148,7 @@ func Test_NewFS_Errors(t *testing.T) {
 	}
 }
 
-// Expectation: RootDir should be returned as a [realDirNode].
+// Expectation: SourceDir should be returned as a [realDirNode].
 func Test_FS_Root_Success(t *testing.T) {
 	t.Parallel()
 	_, fsys := testFS(t, io.Discard)
@@ -160,7 +160,7 @@ func Test_FS_Root_Success(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, uint64(1), dn.inode)
-	require.Equal(t, dn.path, fsys.RootDir)
+	require.Equal(t, dn.path, fsys.SourceDir)
 	require.NotZero(t, dn.mtime)
 }
 
