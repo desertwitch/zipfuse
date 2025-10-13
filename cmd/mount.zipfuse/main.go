@@ -19,7 +19,7 @@ Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
 Mount helper events are printed to standard error (stderr).
-Filesystem events are printed to '/var/log/zipfuse.log' (if writeable).
+FS events are printed to '/var/log/zipfuse.log' (if writeable).
 */
 //nolint:mnd,err113
 package main
@@ -39,6 +39,7 @@ const (
 )
 
 var (
+	// Version is the program version (filled in from the Makefile).
 	Version string
 
 	allowedKeys = map[string]struct{}{
@@ -60,7 +61,7 @@ var (
 	}
 )
 
-type MountHelper struct {
+type mountHelper struct {
 	Program    string
 	Type       string
 	Source     string
@@ -69,8 +70,8 @@ type MountHelper struct {
 	Setuid     string
 }
 
-func NewMountHelper(args []string) (*MountHelper, error) {
-	mh := &MountHelper{
+func newMountHelper(args []string) (*mountHelper, error) {
+	mh := &mountHelper{
 		Program:    args[0],
 		Source:     args[1],
 		Type:       "zipfuse",
@@ -107,7 +108,7 @@ func NewMountHelper(args []string) (*MountHelper, error) {
 	return mh, nil
 }
 
-func (mh *MountHelper) parseOptions(args []string) error {
+func (mh *mountHelper) parseOptions(args []string) error {
 	for i := 0; i < len(args); i++ { //nolint:intrange
 		arg := args[i]
 
@@ -152,7 +153,7 @@ func (mh *MountHelper) parseOptions(args []string) error {
 	return nil
 }
 
-func (mh *MountHelper) deriveTypeFromArg(i *int, args []string) error {
+func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 	*i++
 	if *i >= len(args) {
 		return errors.New("missing value to argument '-t'")
@@ -171,7 +172,7 @@ func (mh *MountHelper) deriveTypeFromArg(i *int, args []string) error {
 	return nil
 }
 
-func (mh *MountHelper) deriveTypeFromSource() error {
+func (mh *mountHelper) deriveTypeFromSource() error {
 	parts := strings.SplitN(mh.Source, "#", 2)
 
 	if len(parts) > 1 {
@@ -214,11 +215,11 @@ Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
 Mount helper events are printed to standard error (stderr).
-Filesystem events are printed to '%s' (if writeable).
+FS events are printed to '%s' (if writeable).
 `, progName, Version, progName, progName, mountLog)
 		os.Exit(1)
 	}
-	helper, err := NewMountHelper(os.Args)
+	helper, err := newMountHelper(os.Args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

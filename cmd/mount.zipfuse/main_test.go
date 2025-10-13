@@ -281,7 +281,7 @@ func Test_MountHelper_BuildCommand_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mh, err := NewMountHelper(tt.args)
+			mh, err := newMountHelper(tt.args)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("NewMountHelper() error = %v, wantErr %v", err, tt.wantErr)
 			}

@@ -16,7 +16,7 @@ import (
 	"al.essio.dev/pkg/shellescape"
 )
 
-func (mh *MountHelper) BuildCommand() []string {
+func (mh *mountHelper) BuildCommand() []string {
 	var parts []string
 
 	parts = append(parts, mh.Type)
@@ -27,7 +27,7 @@ func (mh *MountHelper) BuildCommand() []string {
 	return parts
 }
 
-func (mh *MountHelper) BuildOptions() []string {
+func (mh *mountHelper) BuildOptions() []string {
 	parts := []string{}
 
 	if len(mh.Options) > 0 {
@@ -51,7 +51,7 @@ func (mh *MountHelper) BuildOptions() []string {
 	return parts
 }
 
-func (mh *MountHelper) Execute() error {
+func (mh *mountHelper) Execute() error {
 	mh.setupEnvironment()
 
 	cmdArgs := mh.BuildCommand()
@@ -101,7 +101,7 @@ func (mh *MountHelper) Execute() error {
 	return nil
 }
 
-func (mh *MountHelper) setupEnvironment() {
+func (mh *mountHelper) setupEnvironment() {
 	if mh.Setuid == "" && os.Getenv("HOME") == "" {
 		os.Setenv("HOME", "/root")
 	}
@@ -115,7 +115,7 @@ func (mh *MountHelper) setupEnvironment() {
 	}
 }
 
-func (mh *MountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs []string) (*exec.Cmd, *syscall.SysProcAttr) {
+func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs []string) (*exec.Cmd, *syscall.SysProcAttr) {
 	uid, gid, err := resolveUser(mh.Setuid)
 	if err == nil {
 		spa.Credential = &syscall.Credential{
@@ -136,7 +136,7 @@ func (mh *MountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs [
 	return cmd, spa
 }
 
-func (mh *MountHelper) waitForMount(r io.Reader) error {
+func (mh *mountHelper) waitForMount(r io.Reader) error {
 	signalDone := make(chan error, 1)
 	go func() {
 		defer close(signalDone)
@@ -176,7 +176,7 @@ func (mh *MountHelper) waitForMount(r io.Reader) error {
 	}
 }
 
-func (mh *MountHelper) checkMountTable() (bool, error) {
+func (mh *mountHelper) checkMountTable() (bool, error) {
 	f, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
 		return false, fmt.Errorf("cannot open /proc/self/mountinfo: %w", err)
