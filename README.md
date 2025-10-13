@@ -51,9 +51,11 @@ make all
 ./zipfuse --help
 ```
 
-Running `make all` produces two binaries: a `zipfuse` binary for the filesystem,
-and a `mount.zipfuse` binary for the FUSE mount helper. The latter is only needed
-for `mount(8)`/`/etc/fstab` mounting of the filesystem (read more further below).
+Running `make all` produces two binaries:
+- `zipfuse` - binary of the FUSE filesystem
+- `mount.zipfuse` - binary of the FUSE mount helper
+
+The latter is needed only for `mount(8)` or `/etc/fstab` mounting.
 
 The [examples](./examples) folder contains possible integration examples.  
 Pre-compiled static binaries are planned to be offered starting v1.0.0.
@@ -114,7 +116,6 @@ sudo mount -t zipfuse /home/alice/zips /home/alice/zipfuse -o setuid=alice,allow
 
 Note that mount helper events are printed to standard error (`stderr`).  
 Filesystem events are printed to `/var/log/zipfuse.log` (if writeable).  
-Beware: Above targets only apply when `mount(8)`/`/etc/fstab` mounting.
 
 ## Program usage and advanced configurables
 
