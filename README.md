@@ -85,7 +85,10 @@ Group=alice
 [Install]
 WantedBy=multi-user.target
 ```
-For more complex orchestration with `systemd`, see also the [examples](./examples) folder.
+
+**It is not recommended to use a `.mount` unit over a `.service` unit.**  
+The reason is that a `.mount` unit would again rely on the FUSE mount helper.  
+For more complex orchestration with `systemd`, see also inside the [examples](./examples) folder.
 
 **The above is the recommended and modern approach for almost all use cases.**
 
