@@ -110,10 +110,10 @@ sudo mount -t zipfuse /home/alice/zips /home/alice/zipfuse -o setuid=alice,allow
 ```
 
 **As you can see, program options (read more below) need format conversion:**  
-`--allow-other --webserver :8000` turning into `allow_other,webserver=:8000`
+`--allow-other --webserver :8000` is turning into `allow_other,webserver=:8000`
 
-Note that mount helper events are printed to standard error (`stderr`), and
-filesystem events are printed to `/var/log/zipfuse.log` (if it is writeable).
+Note that FUSE mount helper events are printed to standard error (`stderr`), and
+any filesystem events are printed to `/var/log/zipfuse.log` (if it is writeable).
 
 ## Program usage and advanced configurables
 
