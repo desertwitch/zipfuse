@@ -28,7 +28,7 @@ func (mh *mountHelper) BuildCommand() []string {
 }
 
 func (mh *mountHelper) BuildOptions() []string {
-	parts := []string{}
+	var parts []string
 
 	if len(mh.Options) > 0 {
 		keys := make([]string, 0, len(mh.Options))
@@ -171,7 +171,7 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 				return nil
 			}
 
-			return errors.New("timed out: mountpoint not found")
+			return errors.New("timed out: mountpoint was never mounted")
 		}
 	}
 }

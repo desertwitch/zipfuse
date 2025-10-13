@@ -7,7 +7,8 @@ import (
 )
 
 func resolveUser(spec string) (uint32, uint32, error) {
-	if uidNum, err := strconv.ParseUint(spec, 10, 32); err == nil {
+	uidNum, err := strconv.ParseUint(spec, 10, 32)
+	if err == nil {
 		uid := uint32(uidNum)
 
 		return uid, uid, nil

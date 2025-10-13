@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	mountTimeout = 20 * time.Second
 	mountLog     = "/var/log/zipfuse.log"
+	mountTimeout = 20 * time.Second
 )
 
 var (
@@ -219,6 +219,7 @@ FS events are printed to '%s' (if writeable).
 `, progName, Version, progName, progName, mountLog)
 		os.Exit(1)
 	}
+
 	helper, err := newMountHelper(os.Args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
