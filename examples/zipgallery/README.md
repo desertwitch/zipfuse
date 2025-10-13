@@ -1,4 +1,4 @@
-## ZipGallery Project
+# ZipGallery Project
 
 `zipgallery` is a `systemd` stack to realize a data storage setup where any
 self-hosted gallery software may be used in combination with a photo collection
@@ -31,7 +31,7 @@ sudo systemctl enable --now zipgallery.target
 
 In the example above the target is started immediately and also at system boot.
 
-### Path Flattening Mode
+## Path Flattening Mode
 
 Some users may specifically want the `--flatten-zips` argument when mounting
 their filesystem, so it does not waste resources in recreating structures from
