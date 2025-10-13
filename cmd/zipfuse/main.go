@@ -1,4 +1,6 @@
 /*
+zipfuse - FUSE filesystem
+
 zipfuse is a read-only FUSE filesystem that mirrors another filesystem, but
 exposing only its contained ZIP archives as files and folders. It handles
 in-memory enumeration, chunked streaming and on-the-fly extraction - so that
@@ -26,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 
@@ -174,6 +177,29 @@ func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	return conn, nil
 }
 
+func notifyMountHelper() {
+	fdStr := os.Getenv("ZIPFUSE_HELPER_FD")
+	if fdStr == "" {
+		return
+	}
+
+	fd, err := strconv.Atoi(fdStr)
+	if err != nil {
+		return
+	}
+
+	f := os.NewFile(uintptr(fd), "helper-pipe")
+	if f == nil {
+		return
+	}
+	defer f.Close()
+
+	_, err = f.Write([]byte{1})
+	if err != nil {
+		return
+	}
+}
+
 func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.WaitGroup, <-chan error) {
 	var wg sync.WaitGroup
 	errChan := make(chan error, 1)
@@ -248,6 +274,8 @@ func run(opts cliOptions) error {
 		return fmt.Errorf("failed to mount fs: %w", err)
 	}
 	defer cleanupMount(opts.mountDir, conn, fsys)
+
+	notifyMountHelper()
 
 	setupSignalHandlers(fsys, rbuf, opts.mountDir)
 	wg, errChan := serveFilesystem(conn, fsys, opts.fuseVerbose)

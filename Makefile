@@ -1,37 +1,46 @@
 # Makefile
 
-BINARY = zipfuse
-SRC_DIR = ./cmd/zipfuse
+ZIPFUSE = zipfuse
+ZIPFUSE_DIR = ./cmd/zipfuse
+
+HELPER = mount.zipfuse
+HELPER_DIR = ./cmd/mount.zipfuse
 
 VERSION := $(shell \
   tag=$$(git describe --tags --exact-match 2>/dev/null); \
   if [ -n "$$tag" ]; then echo $$tag | sed 's/^v//'; \
   else git rev-parse --short=7 HEAD; fi)
 
-.PHONY: all $(BINARY) check clean debug help info lint test test-coverage vendor
+.PHONY: all $(ZIPFUSE) $(HELPER) check clean debug help info lint test test-coverage vendor
 
-all: vendor $(BINARY) ## Runs the entire build chain for the application
+all: vendor $(ZIPFUSE) $(HELPER) ## Runs the entire build chain for the application
 
-$(BINARY): ## Builds the application
-	CGO_ENABLED=0 GOFLAGS="-mod=vendor" go build -ldflags="-w -s -X main.Version=$(VERSION) -buildid=" -trimpath -o $(BINARY) $(SRC_DIR)
+$(ZIPFUSE): ## Builds the application
+	CGO_ENABLED=0 GOFLAGS="-mod=vendor" go build -ldflags="-w -s -X main.Version=$(VERSION) -buildid=" -trimpath -o $(ZIPFUSE) $(ZIPFUSE_DIR)
+
+$(HELPER): ## Builds the helper application
+	CGO_ENABLED=0 GOFLAGS="-mod=vendor" go build -ldflags="-w -s -X main.Version=$(VERSION) -buildid=" -trimpath -o $(HELPER) $(HELPER_DIR)
 
 check: ## Runs all static analysis and tests on the application code
 	@$(MAKE) lint
 	@$(MAKE) test
 
 clean: ## Returns the application build stage to its original state (deleting files)
-	@rm -vf $(BINARY) || true
+	@rm -vf $(ZIPFUSE) $(HELPER) || true
 
 debug: ## Builds the application in debug mode (with symbols, race checks, ...)
-	CGO_ENABLED=1 GOFLAGS="-mod=vendor" go build -ldflags="-X main.Version=$(VERSION)-DBG" -trimpath -race -o $(BINARY) $(SRC_DIR)
+	CGO_ENABLED=1 GOFLAGS="-mod=vendor" go build -ldflags="-X main.Version=$(VERSION)-DBG" -trimpath -race -o $(ZIPFUSE) $(ZIPFUSE_DIR)
+	CGO_ENABLED=1 GOFLAGS="-mod=vendor" go build -ldflags="-X main.Version=$(VERSION)-DBG" -trimpath -race -o $(HELPER) $(HELPER_DIR)
 	@$(MAKE) info
 
 help: ## Shows all build related commands of the Makefile
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 info: ## Shows information about the application binaries that were built
-	@ldd $(BINARY) || true
-	@file $(BINARY)
+	@file $(ZIPFUSE) || true
+	@ldd $(ZIPFUSE) || true
+	@file $(HELPER) || true
+	@ldd $(HELPER) || true
 
 lint: ## Runs the linter on the application code
 	@golangci-lint cache clean
