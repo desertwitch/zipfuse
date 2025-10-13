@@ -63,10 +63,10 @@ The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.
 
 The `zipfuse` filesystem binary runs as a foreground process and is ideal for
 `systemd` wrapping, or use directly from command-line as either a foreground or
-a background (paired with `nohup` and/or `&`) process. For continous usage,
+background (paired with `nohup` and/or `&`) process. For continous usage,
 integration into the larger `systemd` framework is recommended and preferable.
 
-**A basic `systemd` service example for mounting of the filesystem:**
+**A basic `systemd` service for mounting the filesystem:**
 ```ini
 [Unit]
 Description=ZipFUSE
@@ -93,11 +93,10 @@ For more complex orchestration with `systemd`, see also the [examples](./example
 
 ### Mounting with `mount(8)` and `/etc/fstab`:
 
-For users not wishing to use `systemd`, a FUSE mount helper is provided, so that
-the `zipfuse` filesystem can be used with `mount(8)` or also `/etc/fstab` entry.
-This usually **requires putting the `mount.zipfuse` binary into `/sbin`** or
-another location that the `mount(8)` program examines for the filesystem helper
-binaries. Beware that this is more complex, so `systemd` is strongly preferable.
+For users not able to use `systemd`, a FUSE mount helper is provided, so the
+filesystem can be used with `mount(8)` or also `/etc/fstab` entry. This usually
+**requires putting the `mount.zipfuse` binary into `/sbin`** or another location
+that the `mount(8)` program examines for the filesystem helper binaries.
 
 **For mounting using the `mount(8)` program from CLI:**
 ```
