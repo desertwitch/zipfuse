@@ -17,6 +17,9 @@ Example (fstab entry):
 
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
+
+Mount helper events are logged to standard error (stderr).
+Filesystem events are logged to '/var/log/zipfuse.log' (if writeable).
 */
 //nolint:mnd,err113
 package main
@@ -30,7 +33,10 @@ import (
 	"time"
 )
 
-const mountTimeout = 20 * time.Second
+const (
+	mountTimeout = 20 * time.Second
+	mountLog     = "/var/log/zipfuse.log"
+)
 
 var (
 	Version string
@@ -206,7 +212,10 @@ Example (fstab entry):
 
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
-`, progName, Version, progName, progName)
+
+Mount helper events are logged to standard error (stderr).
+Filesystem events are logged to '%s' (if writeable).
+`, progName, Version, progName, progName, mountLog)
 		os.Exit(1)
 	}
 	helper, err := NewMountHelper(os.Args)

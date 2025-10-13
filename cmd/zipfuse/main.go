@@ -177,27 +177,26 @@ func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	return conn, nil
 }
 
-func notifyMountHelper() {
+func notifyMountHelper() error {
 	fdStr := os.Getenv("ZIPFUSE_HELPER_FD")
 	if fdStr == "" {
-		return
+		return nil
 	}
 
 	fd, err := strconv.Atoi(fdStr)
 	if err != nil {
-		return
+		return fmt.Errorf("fd conversion failed: %w", err)
 	}
 
 	f := os.NewFile(uintptr(fd), "helper-pipe")
-	if f == nil {
-		return
-	}
 	defer f.Close()
 
 	_, err = f.Write([]byte{1})
 	if err != nil {
-		return
+		return fmt.Errorf("write to pipe failed: %w", err)
 	}
+
+	return nil
 }
 
 func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.WaitGroup, <-chan error) {
@@ -275,7 +274,10 @@ func run(opts cliOptions) error {
 	}
 	defer cleanupMount(opts.mountDir, conn, fsys)
 
-	notifyMountHelper()
+	err = notifyMountHelper()
+	if err != nil {
+		rbuf.Printf("failed to notify mount helper: %v\n", err)
+	}
 
 	setupSignalHandlers(fsys, rbuf, opts.mountDir)
 	wg, errChan := serveFilesystem(conn, fsys, opts.fuseVerbose)

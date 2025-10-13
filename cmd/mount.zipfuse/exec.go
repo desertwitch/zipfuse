@@ -59,30 +59,24 @@ func (mh *MountHelper) Execute() error {
 
 	spa := &syscall.SysProcAttr{Setsid: true}
 	if mh.Setuid != "" {
-		uid, gid, err := resolveUser(mh.Setuid)
-		if err == nil {
-			spa.Credential = &syscall.Credential{
-				Uid: uid,
-				Gid: gid,
-			}
-		} else {
-			safeCmdArgs := make([]string, len(cmdArgs))
-			for i, arg := range cmdArgs {
-				safeCmdArgs[i] = shellescape.Quote(arg)
-			}
-			innerCmdLine := strings.Join(safeCmdArgs, " ")
-			outerCmdLine := fmt.Sprintf("su - %s -c %s", shellescape.Quote(mh.Setuid), shellescape.Quote(innerCmdLine))
-			cmd = exec.Command("/bin/sh", "-c", outerCmdLine)
-		}
+		cmd, spa = mh.setUID(spa, cmd, cmdArgs)
 	}
 	cmd.SysProcAttr = spa
 
-	fd, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
+	fdnull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
 	if err != nil {
 		return fmt.Errorf("failed to open /dev/null: %w", err)
 	}
-	defer fd.Close()
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = fd, fd, fd
+	defer fdnull.Close()
+
+	fdlog, err := os.OpenFile(mountLog, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to open %q: %v (falling back to '/dev/null')\n", mountLog, err)
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = fdnull, fdnull, fdnull
+	} else {
+		defer fdlog.Close()
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = fdnull, fdlog, fdlog
+	}
 
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -93,6 +87,8 @@ func (mh *MountHelper) Execute() error {
 	cmd.ExtraFiles = []*os.File{w}
 
 	if err := cmd.Start(); err != nil {
+		w.Close()
+
 		return fmt.Errorf("process error: %w", err)
 	}
 	_ = cmd.Process.Release()
@@ -117,6 +113,27 @@ func (mh *MountHelper) setupEnvironment() {
 	} else {
 		os.Setenv("PATH", currentPath+":"+additionalPath)
 	}
+}
+
+func (mh *MountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs []string) (*exec.Cmd, *syscall.SysProcAttr) {
+	uid, gid, err := resolveUser(mh.Setuid)
+	if err == nil {
+		spa.Credential = &syscall.Credential{
+			Uid: uid,
+			Gid: gid,
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "warning: failed to resolve setuid %q: %v (falling back to 'su')\n", mh.Setuid, err)
+		safeCmdArgs := make([]string, len(cmdArgs))
+		for i, arg := range cmdArgs {
+			safeCmdArgs[i] = shellescape.Quote(arg)
+		}
+		innerCmdLine := strings.Join(safeCmdArgs, " ")
+		outerCmdLine := fmt.Sprintf("su - %s -c %s", shellescape.Quote(mh.Setuid), shellescape.Quote(innerCmdLine))
+		cmd = exec.Command("/bin/sh", "-c", outerCmdLine)
+	}
+
+	return cmd, spa
 }
 
 func (mh *MountHelper) waitForMount(r io.Reader) error {
