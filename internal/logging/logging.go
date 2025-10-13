@@ -80,8 +80,8 @@ func (b *RingBuffer) Println(args ...any) {
 	msg := fmt.Sprintln(args...)
 	full := fmt.Sprintf("%s %s", timestamp, strings.TrimRight(msg, "\n"))
 
-	b.add(full)                    // add to buffer with timestamp
-	fmt.Fprintf(b.out, "%s", full) // also goes to stream
+	b.add(full)                      // add to buffer with timestamp
+	fmt.Fprintf(b.out, "%s\n", full) // also goes to stream
 }
 
 func (b *RingBuffer) add(msg string) {
