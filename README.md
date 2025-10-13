@@ -59,7 +59,7 @@ The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.
 **Pre-compiled static binaries are planned to be offered starting from v1.0.0.**
 
 ## Mounting the filesystem
-### Mounting with `systemd` or command-line (recommended):
+### Mounting with command-line or `systemd` service (recommended):
 
 The `zipfuse` filesystem binary runs as a foreground process and is ideal for
 `systemd` wrapping, or use directly from command-line as either a foreground or
