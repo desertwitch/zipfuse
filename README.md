@@ -98,12 +98,12 @@ filesystem can be used with `mount(8)` or also `/etc/fstab` entry. This usually
 **requires putting the `mount.zipfuse` binary into `/sbin`** or another location
 that the `mount(8)` program examines for the filesystem helper binaries.
 
-**For mounting using the `mount(8)` program from CLI:**
+**For mounting using the `mount(8)` program:**
 ```
 sudo mount -t zipfuse /home/alice/zips /home/alice/zipfuse -o setuid=alice,allow_other,webserver=:8000
 ```
 
-**For mounting using a basic entry in the `/etc/fstab` file:**
+**For mounting using an entry in the `/etc/fstab` file:**
 ```
 # <file system>   <mount point>   <type>   <options>   <dump>   <pass>
 /home/alice/zips   /home/alice/zipfuse   zipfuse   setuid=alice,allow_other,webserver=:8000   0  0
