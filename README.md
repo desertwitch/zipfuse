@@ -17,9 +17,9 @@
 >**Note: This software is under active development.**  
 > CLI arguments and documentation may change until a stable (v1.0.0) release.
 
-<img alt="Example" src="assets/example.gif" width="650">
+<img alt="Example" src="assets/example.gif" width="650"><br>
 
-## ZipFUSE Filesystem
+# ZipFUSE Filesystem
 
 `zipfuse` is a read-only FUSE filesystem that mirrors another filesystem, but
 exposing only its contained ZIP archives as files and folders. It handles
@@ -36,7 +36,7 @@ While initially developed entirely for a personal need and being [used with
 photo albums](./examples/zipgallery), it is organically growing into a far more
 general-purpose direction, so that it can be useful for other applications also.
 
-### Building from source:
+## Building from source
 
 To build from source, a `Makefile` is included with the project's source code.
 Running `make all` will compile the application and pull in any necessary
@@ -58,7 +58,8 @@ for `mount(8)`/`/etc/fstab` mounting of the filesystem (read more further below)
 The [examples](./examples) folder contains possible integration examples.  
 Pre-compiled static binaries are planned to be offered starting v1.0.0.
 
-### Mounting the filesystem:
+## Mounting the filesystem
+### Mounting with `systemd` or command-line (recommended):
 
 The `zipfuse` filesystem binary runs as a foreground application and is ideal
 for wrapping with `systemd`, or use directly from CLI (read more below) as a
@@ -87,6 +88,10 @@ For more complex orchestration with `systemd`, see the [examples](./examples) fo
 
 **The above is the recommended and modern approach for almost all use cases.**
 
+---
+
+### Mounting with `mount(8)` and `/etc/fstab`:
+
 For users not wishing to use `systemd`, a FUSE mount helper is provided, so that
 the `zipfuse` filesystem can be used with `mount(8)` or also `/etc/fstab` entry.
 This usually **requires putting the `mount.zipfuse` binary into `/sbin`** or
@@ -111,7 +116,7 @@ Note that mount helper events are printed to standard error (`stderr`).
 Filesystem events are printed to `/var/log/zipfuse.log` (if writeable).  
 Beware: Above targets only apply when `mount(8)`/`/etc/fstab` mounting.
 
-### Program usage and advanced configurables:
+## Program usage and advanced configurables
 
     zipfuse <source> <mountpoint> [flags]
 
@@ -140,7 +145,7 @@ Beware: Above targets only apply when `mount(8)`/`/etc/fstab` mounting.
 Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`, `10MB`, or `10MiB`.  
 Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or combined values like `1h30m`.
 
-**Examples:**
+### Examples:
 
 Mount `/home/alice/zips` onto `/home/alice/zipfuse` and enable dashboard on port 8080:
 
@@ -150,7 +155,7 @@ Dry-run to inspect would-be files and inodes without actual mounting:
 
     zipfuse /home/alice/zips /home/alice/zipfuse --dry-run
 
-### Runtime routes and signals handling:
+## Runtime routes and signals handling
 
 When enabled, the diagnostics server exposes the following routes:
 - `/` for filesystem dashboard and event ring-buffer
