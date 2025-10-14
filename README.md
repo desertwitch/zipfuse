@@ -66,7 +66,7 @@ The `zipfuse` filesystem binary runs as a foreground process and is ideal for
 background (paired with `nohup` and/or `&`) process. For continous usage,
 integration into the larger `systemd` framework is recommended and preferable.
 
-**Mounting the filesystem from command-line:**
+**For mounting using the command-line:**
 ```
 zipfuse <source> <mountpoint> [flags]
 ```
@@ -74,7 +74,7 @@ zipfuse <source> <mountpoint> [flags]
 `<source>` is the root of the underlying filesystem to expose.  
 `<mountpoint>` is the mountpoint where the FUSE filesystem will appear.
 
-**A basic `systemd` service for mounting the filesystem:**
+**For mounting using a `systemd` service unit:**
 ```ini
 [Unit]
 Description=ZipFUSE
