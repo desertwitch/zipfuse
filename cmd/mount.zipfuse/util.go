@@ -6,28 +6,33 @@ import (
 	"strconv"
 )
 
-func resolveUser(spec string) (uint32, uint32, error) {
-	uidNum, err := strconv.ParseUint(spec, 10, 32)
-	if err == nil {
-		uid := uint32(uidNum)
+func resolveUser(spec string) (string, uint32, uint32, error) {
+	var resolvedUser *user.User
 
-		return uid, uid, nil
+	_, err := strconv.ParseUint(spec, 10, 32)
+	if err == nil { // UID
+		u, err := user.LookupId(spec)
+		if err != nil {
+			return "", 0, 0, fmt.Errorf("lookup user %q failed: %w", spec, err)
+		}
+		resolvedUser = u
+	} else { // Username
+		u, err := user.Lookup(spec)
+		if err != nil {
+			return "", 0, 0, fmt.Errorf("lookup user %q failed: %w", spec, err)
+		}
+		resolvedUser = u
 	}
 
-	u, err := user.Lookup(spec)
+	uid, err := strconv.ParseUint(resolvedUser.Uid, 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("lookup user %q failed: %w", spec, err)
+		return "", 0, 0, fmt.Errorf("invalid uid %q: %w", resolvedUser.Uid, err)
 	}
 
-	uid, err := strconv.ParseUint(u.Uid, 10, 32)
+	gid, err := strconv.ParseUint(resolvedUser.Gid, 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("invalid uid %q: %w", u.Uid, err)
+		return "", 0, 0, fmt.Errorf("invalid gid %q: %w", resolvedUser.Gid, err)
 	}
 
-	gid, err := strconv.ParseUint(u.Gid, 10, 32)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid gid %q: %w", u.Gid, err)
-	}
-
-	return uint32(uid), uint32(gid), nil
+	return resolvedUser.HomeDir, uint32(uid), uint32(gid), nil
 }

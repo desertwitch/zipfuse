@@ -52,10 +52,11 @@ func (mh *mountHelper) BuildOptions() []string {
 }
 
 func (mh *mountHelper) Execute() error {
-	mh.setupEnvironment()
-
 	cmdArgs := mh.BuildCommand()
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+
+	mh.setupEnvironment()
+	cmd.Env = os.Environ()
 
 	spa := &syscall.SysProcAttr{Setsid: true}
 	if mh.Setuid != "" {
@@ -83,7 +84,7 @@ func (mh *mountHelper) Execute() error {
 		return fmt.Errorf("pipe error: %w", err)
 	}
 	defer r.Close()
-	cmd.Env = append(os.Environ(), "ZIPFUSE_HELPER_FD=3")
+	cmd.Env = append(cmd.Env, "ZIPFUSE_HELPER_FD=3")
 	cmd.ExtraFiles = []*os.File{w}
 
 	if err := cmd.Start(); err != nil {
@@ -102,10 +103,6 @@ func (mh *mountHelper) Execute() error {
 }
 
 func (mh *mountHelper) setupEnvironment() {
-	if mh.Setuid == "" && os.Getenv("HOME") == "" {
-		os.Setenv("HOME", "/root")
-	}
-
 	currentPath := os.Getenv("PATH")
 	additionalPath := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 	if currentPath == "" {
@@ -113,24 +110,37 @@ func (mh *mountHelper) setupEnvironment() {
 	} else {
 		os.Setenv("PATH", currentPath+":"+additionalPath)
 	}
+
+	if mh.Setuid == "" && os.Getenv("HOME") == "" {
+		os.Setenv("HOME", "/root")
+	}
 }
 
 func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs []string) (*exec.Cmd, *syscall.SysProcAttr) {
-	uid, gid, err := resolveUser(mh.Setuid)
+	home, uid, gid, err := resolveUser(mh.Setuid)
 	if err == nil {
+		if home != "" {
+			cmd.Env = append(cmd.Env, "HOME="+home)
+		}
 		spa.Credential = &syscall.Credential{
 			Uid: uid,
 			Gid: gid,
 		}
 	} else {
 		fmt.Fprintf(os.Stderr, "warning: failed to resolve setuid %q: %v (falling back to 'su')\n", mh.Setuid, err)
+
 		safeCmdArgs := make([]string, len(cmdArgs))
 		for i, arg := range cmdArgs {
 			safeCmdArgs[i] = shellescape.Quote(arg)
 		}
 		innerCmdLine := strings.Join(safeCmdArgs, " ")
 		outerCmdLine := fmt.Sprintf("su - %s -c %s", shellescape.Quote(mh.Setuid), shellescape.Quote(innerCmdLine))
+
+		restoreEnv := make([]string, len(cmd.Env))
+		copy(restoreEnv, cmd.Env)
+
 		cmd = exec.Command("/bin/sh", "-c", outerCmdLine)
+		cmd.Env = restoreEnv
 	}
 
 	return cmd, spa
