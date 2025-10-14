@@ -13,7 +13,7 @@ ExecStart=/usr/local/bin/zipfuse /mnt/media-adx2 /mnt/zipgallery --allow-other -
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=30
-TimeoutStopSec=15
+TimeoutStopSec=30
 KillSignal=SIGTERM
 
 [Install]
