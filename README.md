@@ -98,7 +98,7 @@ WantedBy=multi-user.target
 The reason is that a `.mount` unit would again rely on the FUSE mount helper.  
 For more complex orchestration with `systemd`, see also inside the [examples](./examples) folder.
 
-**The above is the recommended and modern approach for almost all use cases.**
+**The above are the recommended and modern approaches for almost all use cases.**
 
 ---
 
