@@ -24,3 +24,5 @@ jobs:
         run: make vendor
       - name: Build the application for production
         run: make zipfuse
+      - name: Build the application helper for production
+        run: make mount.zipfuse
