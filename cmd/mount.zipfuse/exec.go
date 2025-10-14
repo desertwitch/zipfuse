@@ -1,4 +1,4 @@
-//nolint:mnd,err113,noctx
+//nolint:mnd,noctx
 package main
 
 import (
