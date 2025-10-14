@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -63,6 +64,7 @@ var (
 
 type mountHelper struct {
 	Program    string
+	Binary     string
 	Type       string
 	Source     string
 	Mountpoint string
@@ -137,7 +139,9 @@ func (mh *mountHelper) parseOptions(args []string) error {
 				key := parts[0]
 				val := parts[1]
 
-				if key == "setuid" {
+				if key == "bin" {
+					mh.Binary = val
+				} else if key == "setuid" {
 					mh.Setuid = val
 				} else if _, ok := allowedKeys[key]; ok {
 					mh.Options[key] = val
@@ -222,13 +226,28 @@ FS events are printed to '%s' (if writeable).
 
 	helper, err := newMountHelper(os.Args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "mount.zipfuse error: %v\n", err)
 		os.Exit(1)
 	}
 
 	err = helper.Execute()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		switch {
+		case errors.Is(err, exec.ErrNotFound):
+			fmt.Fprintln(os.Stderr, `mount.zipfuse error: zipfuse not found within $PATH dirs.
+Perhaps you installed it into some non-standard directory?
+Some operating systems also mangle the environment variable.
+Do try to pass 'bin=/full/path/to/binary' as a mount option.`)
+
+		case errors.Is(err, errMountTimeout):
+			fmt.Fprintf(os.Stderr, `mount.zipfuse error: mount did not appear within %d seconds.
+Do try checking '/var/log/zipfuse.log' for more information.
+`, int(mountTimeout.Seconds()))
+
+		default:
+			fmt.Fprintf(os.Stderr, "mount.zipfuse error: %v\n", err)
+		}
+
 		os.Exit(1)
 	}
 }

@@ -236,6 +236,11 @@ func Test_MountHelper_BuildCommand_Success(t *testing.T) {
 			want: []string{"zipfuse", "./source", "./dest"},
 		},
 		{
+			name: "explicit binary path",
+			args: []string{"mount.zipfuse", "./source", "./dest", "-o", "bin=/bin/zipfuze"},
+			want: []string{"/bin/zipfuze", "./source", "./dest"},
+		},
+		{
 			name:    "explicit -t fuse. with empty suffix errors",
 			args:    []string{"mount", "/mnt/a", "/mnt/b", "-t", "fuse."},
 			wantErr: true,

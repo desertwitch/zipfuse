@@ -16,10 +16,17 @@ import (
 	"al.essio.dev/pkg/shellescape"
 )
 
+var errMountTimeout = errors.New("mount timeout")
+
 func (mh *mountHelper) BuildCommand() []string {
 	var parts []string
 
-	parts = append(parts, mh.Type)
+	if mh.Binary == "" {
+		parts = append(parts, mh.Type)
+	} else {
+		parts = append(parts, mh.Binary)
+	}
+
 	parts = append(parts, mh.Source)
 	parts = append(parts, mh.Mountpoint)
 	parts = append(parts, mh.BuildOptions()...)
@@ -52,10 +59,12 @@ func (mh *mountHelper) BuildOptions() []string {
 }
 
 func (mh *mountHelper) Execute() error {
+	// We must always set up our "parent" environment first,
+	// because [exec.Command] internally requires a sane $PATH.
+	mh.setupEnvironment()
+
 	cmdArgs := mh.BuildCommand()
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-
-	mh.setupEnvironment()
 	cmd.Env = os.Environ()
 
 	spa := &syscall.SysProcAttr{Setsid: true}
@@ -181,7 +190,7 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 				return nil
 			}
 
-			return errors.New("timed out: mountpoint was never mounted")
+			return errMountTimeout
 		}
 	}
 }
