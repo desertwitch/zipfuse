@@ -1,4 +1,6 @@
 /*
+zipfuse - FUSE filesystem
+
 zipfuse is a read-only FUSE filesystem that mirrors another filesystem, but
 exposing only its contained ZIP archives as files and folders. It handles
 in-memory enumeration, chunked streaming and on-the-fly extraction - so that
@@ -26,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 
@@ -61,17 +64,17 @@ type cliOptions struct {
 	fdCacheTTL         time.Duration
 	fdLimit            int
 	flatMode           bool
-	strictCache        bool
 	forceUnicode       bool
 	fuseVerbose        bool
 	mountDir           string
 	mustCRC32          bool
 	ringBufferSize     int
-	rootDir            string
+	sourceDir          string
 	streamPoolSize     uint64
 	streamPoolSizeRaw  string
 	streamThreshold    uint64
 	streamThresholdRaw string
+	strictCache        bool
 	webserverAddr      string
 }
 
@@ -106,7 +109,7 @@ func rootCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%w: failed to parse --pool-buffer-size: %w", errInvalidArgument, err)
 			}
-			opts.rootDir = args[0]
+			opts.sourceDir = args[0]
 			opts.mountDir = args[1]
 
 			return run(opts)
@@ -118,7 +121,7 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.forceUnicode, "force-unicode", true, "Unicode (or generated) paths for ZIPs; disabling garbles non-compliant ZIPs")
 	cmd.Flags().BoolVar(&opts.mustCRC32, "must-crc32", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
 	cmd.Flags().BoolVar(&opts.strictCache, "strict-cache", false, "Do not treat ZIP files/contents as immutable (non-changing) for caching decisions")
-	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", true, "Allow other users to access the filesystem")
+	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", false, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print all verbose FUSE communication and diagnostics to standard error (stderr)")
@@ -147,7 +150,7 @@ func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS,
 	fopts.MustCRC32.Store(opts.mustCRC32)
 	fopts.StreamingThreshold.Store(opts.streamThreshold)
 
-	fsys, err := filesystem.NewFS(opts.rootDir, fopts, rbuf)
+	fsys, err := filesystem.NewFS(opts.sourceDir, fopts, rbuf)
 	if err != nil {
 		return nil, fmt.Errorf("fs error: %w", err)
 	}
@@ -172,6 +175,28 @@ func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	fsys.MountTime = time.Now()
 
 	return conn, nil
+}
+
+func notifyMountHelper() error {
+	fdStr := os.Getenv("ZIPFUSE_HELPER_FD")
+	if fdStr == "" {
+		return nil
+	}
+
+	fd, err := strconv.Atoi(fdStr)
+	if err != nil {
+		return fmt.Errorf("fd conversion failed: %w", err)
+	}
+
+	f := os.NewFile(uintptr(fd), "helper-pipe")
+	defer f.Close()
+
+	_, err = f.Write([]byte{1})
+	if err != nil {
+		return fmt.Errorf("write to pipe failed: %w", err)
+	}
+
+	return nil
 }
 
 func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.WaitGroup, <-chan error) {
@@ -248,6 +273,11 @@ func run(opts cliOptions) error {
 		return fmt.Errorf("failed to mount fs: %w", err)
 	}
 	defer cleanupMount(opts.mountDir, conn, fsys)
+
+	err = notifyMountHelper()
+	if err != nil {
+		rbuf.Printf("failed to notify mount helper: %v\n", err)
+	}
 
 	setupSignalHandlers(fsys, rbuf, opts.mountDir)
 	wg, errChan := serveFilesystem(conn, fsys, opts.fuseVerbose)

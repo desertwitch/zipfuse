@@ -3,6 +3,7 @@ module github.com/desertwitch/zipfuse
 go 1.25.1
 
 require (
+	al.essio.dev/pkg/shellescape v1.6.0
 	bazil.org/fuse v0.0.0-20230120002735-62a210ff1fd5
 	github.com/dustin/go-humanize v1.0.1
 	github.com/gorilla/mux v1.8.1

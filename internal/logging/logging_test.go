@@ -191,5 +191,5 @@ func Test_Println_Success(t *testing.T) {
 	lines := buf.Lines()
 	require.Len(t, lines, 1)
 	require.Contains(t, lines[0], "test message")
-	require.Contains(t, out.String(), "test message")
+	require.Contains(t, out.String(), "test message\n")
 }

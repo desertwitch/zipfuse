@@ -117,8 +117,8 @@ type Metrics struct {
 	// TotalClosedZips is the amount of closed ZIP files.
 	TotalClosedZips atomic.Int64
 
-	// TotalReopenedEntries is the amount of reopened ZIP entries (rewinds).
-	TotalReopenedEntries atomic.Int64
+	// TotalStreamRewinds is the amount of reopened ZIP entries due to rewinds.
+	TotalStreamRewinds atomic.Int64
 
 	// TotalMetadataReadTime is time spent reading metadata from ZIP files.
 	TotalMetadataReadTime atomic.Int64
@@ -156,7 +156,7 @@ type Metrics struct {
 
 // FS is the core implementation of the filesystem.
 type FS struct {
-	RootDir   string
+	SourceDir string
 	MountTime time.Time
 
 	Options *Options
@@ -171,15 +171,15 @@ type FS struct {
 
 // NewFS returns a pointer to a new [FS].
 // You must call PrepareUnmount() before unmount, Destroy() after unmount.
-func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error) {
+func NewFS(sourceDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error) {
 	if rbuf == nil {
 		return nil, fmt.Errorf("%w: need a non-nil rbuf", errInvalidArgument)
 	}
-	if rootDir == "" {
-		return nil, fmt.Errorf("%w: need a non-empty rootDir", errInvalidArgument)
+	if sourceDir == "" {
+		return nil, fmt.Errorf("%w: need a non-empty sourceDir", errInvalidArgument)
 	}
-	if _, err := os.Stat(rootDir); err != nil {
-		return nil, fmt.Errorf("%w: failed to stat rootDir: %w", errInvalidArgument, err)
+	if _, err := os.Stat(sourceDir); err != nil {
+		return nil, fmt.Errorf("%w: failed to stat sourceDir: %w", errInvalidArgument, err)
 	}
 	if opts == nil {
 		opts = DefaultOptions()
@@ -190,10 +190,10 @@ func NewFS(rootDir string, opts *Options, rbuf *logging.RingBuffer) (*FS, error)
 	}
 
 	fsys := &FS{
-		RootDir: rootDir,
-		Options: opts,
-		Metrics: &Metrics{},
-		rbuf:    rbuf,
+		SourceDir: sourceDir,
+		Options:   opts,
+		Metrics:   &Metrics{},
+		rbuf:      rbuf,
 	}
 
 	fsys.fdlimit = make(chan struct{}, opts.FDLimit)
@@ -228,7 +228,7 @@ func (fsys *FS) Root() (fs.Node, error) {
 	return &realDirNode{
 		fsys:  fsys,
 		inode: 1,
-		path:  fsys.RootDir,
+		path:  fsys.SourceDir,
 		mtime: time.Now(),
 	}, nil
 }

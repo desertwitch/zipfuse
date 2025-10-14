@@ -165,26 +165,26 @@
             </div>
             <div class="metric-tile">
                 <div class="metric-label">Total Archives Opened</div>
-                <div class="metric-value" data-metric="openedZips">{{.OpenedZips}}</div>
+                <div class="metric-value" data-metric="totalOpenedZips">{{.TotalOpenedZips}}</div>
             </div>
             <div class="metric-tile">
                 <div class="metric-label">Total Archives Closed</div>
-                <div class="metric-value" data-metric="closedZips">{{.ClosedZips}}</div>
-            </div>
-            <div class="metric-tile">
-                <div class="metric-label">Total Entries Reopened</div>
-                <div class="metric-value" data-metric="reopenedEntries">{{.ReopenedEntries}}</div>
+                <div class="metric-value" data-metric="totalClosedZips">{{.TotalClosedZips}}</div>
             </div>
             <div class="metric-tile">
                 <div class="metric-label">Total Errors Returned</div>
                 <div class="metric-value" data-metric="totalErrors">{{.TotalErrors}}</div>
             </div>
             <div class="metric-tile">
-                <div class="metric-label">Total Metadata Reads</div>
+                <div class="metric-label">Total Stream Rewinds</div>
+                <div class="metric-value" data-metric="totalStreamRewinds">{{.TotalStreamRewinds}}</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label">Total Metadata Operations</div>
                 <div class="metric-value" data-metric="totalMetadatas">{{.TotalMetadatas}}</div>
             </div>
             <div class="metric-tile">
-                <div class="metric-label">Total File Extractions</div>
+                <div class="metric-label">Total Extraction Operations</div>
                 <div class="metric-value" data-metric="totalExtracts">{{.TotalExtracts}}</div>
             </div>
             <div class="metric-tile">
@@ -192,15 +192,15 @@
                 <div class="metric-value" data-metric="totalExtractBytes">{{.TotalExtractBytes}}</div>
             </div>
             <div class="metric-tile">
-                <div class="metric-label">Average Metadata Read Time</div>
+                <div class="metric-label">Average Metadata Latency</div>
                 <div class="metric-value" data-metric="avgMetadataReadTime">{{.AvgMetadataReadTime}}</div>
             </div>
             <div class="metric-tile">
-                <div class="metric-label">Average Extraction Time</div>
+                <div class="metric-label">Average Extraction Latency</div>
                 <div class="metric-value" data-metric="avgExtractTime">{{.AvgExtractTime}}</div>
             </div>
             <div class="metric-tile">
-                <div class="metric-label">Average Extraction Speed</div>
+                <div class="metric-label">Average Extraction Throughput</div>
                 <div class="metric-value" data-metric="avgExtractSpeed">{{.AvgExtractSpeed}}</div>
             </div>
         </div>

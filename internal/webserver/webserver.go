@@ -104,7 +104,6 @@ type fsDashboardData struct {
 	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
 	AvgExtractTime      string   `json:"avgExtractTime"`
 	AvgMetadataReadTime string   `json:"avgMetadataReadTime"`
-	ClosedZips          int64    `json:"closedZips"`
 	FDCacheBypass       string   `json:"fdCacheBypass"`
 	FDCacheSize         int      `json:"fdCacheSize"`
 	FDCacheTTL          string   `json:"fdCacheTtl"`
@@ -114,9 +113,7 @@ type fsDashboardData struct {
 	Logs                []string `json:"logs"`
 	MustCRC32           string   `json:"mustCrc32"`
 	NumGC               uint32   `json:"numGc"`
-	OpenedZips          int64    `json:"openedZips"`
 	OpenZips            int64    `json:"openZips"`
-	ReopenedEntries     int64    `json:"reopenedEntries"`
 	RingBufferSize      int      `json:"ringBufferSize"`
 	StreamingThreshold  string   `json:"streamingThreshold"`
 	StreamPoolHitAvg    string   `json:"streamPoolHitAvg"`
@@ -128,6 +125,7 @@ type fsDashboardData struct {
 	StrictCache         string   `json:"strictCache"`
 	SysBytes            string   `json:"sysBytes"`
 	TotalAlloc          string   `json:"totalAlloc"`
+	TotalClosedZips     int64    `json:"totalClosedZips"`
 	TotalErrors         int64    `json:"totalErrors"`
 	TotalExtractBytes   string   `json:"totalExtractBytes"`
 	TotalExtracts       int64    `json:"totalExtracts"`
@@ -135,6 +133,8 @@ type fsDashboardData struct {
 	TotalFDCacheMisses  int64    `json:"totalFdCacheMisses"`
 	TotalFDCacheRatio   string   `json:"totalFdCacheRatio"`
 	TotalMetadatas      int64    `json:"totalMetadatas"`
+	TotalOpenedZips     int64    `json:"totalOpenedZips"`
+	TotalStreamRewinds  int64    `json:"totalStreamRewinds"`
 	Uptime              string   `json:"uptime"`
 	Version             string   `json:"version"`
 }
@@ -151,7 +151,6 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		AvgExtractSpeed:     d.avgExtractSpeed(),
 		AvgExtractTime:      d.avgExtractTime(),
 		AvgMetadataReadTime: d.avgMetadataReadTime(),
-		ClosedZips:          d.fsys.Metrics.TotalClosedZips.Load(),
 		FDCacheBypass:       enabledOrDisabled(d.fsys.Options.FDCacheBypass.Load()),
 		FDCacheSize:         d.fsys.Options.FDCacheSize,
 		FDCacheTTL:          d.fsys.Options.FDCacheTTL.String(),
@@ -161,9 +160,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		Logs:                lines,
 		MustCRC32:           enabledOrDisabled(d.fsys.Options.MustCRC32.Load()),
 		NumGC:               m.NumGC,
-		OpenedZips:          d.fsys.Metrics.TotalOpenedZips.Load(),
 		OpenZips:            d.fsys.Metrics.OpenZips.Load(),
-		ReopenedEntries:     d.fsys.Metrics.TotalReopenedEntries.Load(),
 		RingBufferSize:      d.rbuf.Size(),
 		StreamingThreshold:  humanize.IBytes(d.fsys.Options.StreamingThreshold.Load()),
 		StreamPoolHitAvg:    d.streamPoolHitAvgSize(),
@@ -175,6 +172,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		StrictCache:         enabledOrDisabled(d.fsys.Options.StrictCache),
 		SysBytes:            humanize.IBytes(m.Sys),
 		TotalAlloc:          humanize.IBytes(m.TotalAlloc),
+		TotalClosedZips:     d.fsys.Metrics.TotalClosedZips.Load(),
 		TotalErrors:         d.fsys.Metrics.Errors.Load(),
 		TotalExtractBytes:   d.totalExtractBytes(),
 		TotalExtracts:       d.fsys.Metrics.TotalExtractCount.Load(),
@@ -182,6 +180,8 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 		TotalFDCacheMisses:  d.fsys.Metrics.TotalFDCacheMisses.Load(),
 		TotalFDCacheRatio:   d.totalFDCacheRatio(),
 		TotalMetadatas:      d.fsys.Metrics.TotalMetadataReadCount.Load(),
+		TotalOpenedZips:     d.fsys.Metrics.TotalOpenedZips.Load(),
+		TotalStreamRewinds:  d.fsys.Metrics.TotalStreamRewinds.Load(),
 		Uptime:              humanize.Time(d.fsys.MountTime),
 		Version:             d.version,
 	}
@@ -223,7 +223,7 @@ func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request
 	d.fsys.Metrics.Errors.Store(0)
 	d.fsys.Metrics.TotalOpenedZips.Store(0)
 	d.fsys.Metrics.TotalClosedZips.Store(0)
-	d.fsys.Metrics.TotalReopenedEntries.Store(0)
+	d.fsys.Metrics.TotalStreamRewinds.Store(0)
 	d.fsys.Metrics.TotalMetadataReadTime.Store(0)
 	d.fsys.Metrics.TotalMetadataReadCount.Store(0)
 	d.fsys.Metrics.TotalExtractTime.Store(0)
