@@ -1,0 +1,84 @@
+Installing the filesystem
+==========================
+
+You will need to ensure that you have FUSE (libfuse, fuse3...) installed on
+the system that you are planning to use zipfuse on. The only hard dependency
+of zipfuse is the fusermount3 binary, so ensure that it exists in your $PATH.
+
+The recommended location to install FUSE filesystems to can differ between Linux
+distributions. Most important is that you install the binaries to a location
+that is covered in your $PATH environment variable. A common and relatively
+portable solution would be installing the zipfuse binary into /bin and the
+mount.zipfuse binary into /sbin on your system. You have to ensure that the
+files have the appropriate permissions set for users intending to execute them,
+specifically the executable bit needs to be set on both binaries (chmod +x).
+
+As can be derived from the recommended paths above, the zipfuse binary itself
+does not need elevated permissions. In contrast, the mount.zipfuse is usually
+executed by the system as root (when processing /etc/fstab), but will (when
+configured to do so) execute the filesystem binary as a given unprivileged user.
+
+Mounting the filesystem
+========================
+
+Mounting with command-line or systemd service (recommended):
+-------------------------------------------------------------
+
+The zipfuse filesystem binary runs as a foreground process and is ideal for
+systemd wrapping, or use directly from command-line as either a foreground or
+background (paired with nohup and/or &) process. For continous usage,
+integration into the larger systemd framework is recommended and preferable.
+
+For mounting using the command-line:
+
+    zipfuse <source> <mountpoint> [flags]
+
+<source> is the root of the underlying filesystem to expose.
+<mountpoint> is the mountpoint where the FUSE filesystem will appear.
+
+For mounting using a systemd service unit:
+
+    [Unit]
+    Description=ZipFUSE
+    [Service]
+    Type=simple
+    ExecStart=/usr/local/bin/zipfuse /home/alice/zips /home/alice/zipfuse --webserver :8000
+    Restart=on-failure
+    RestartSec=5
+    TimeoutStartSec=30
+    TimeoutStopSec=30
+    KillSignal=SIGTERM
+    User=alice
+    Group=alice
+    [Install]
+    WantedBy=multi-user.target
+
+It is not recommended to use a .mount unit over a .service unit.
+The reason is that a .mount unit would again rely on the FUSE mount helper.
+For more complex orchestration with systemd, see also inside the examples folder.
+
+The above are the recommended and modern approaches for almost all use cases.
+
+Mounting with mount(8) and /etc/fstab:
+---------------------------------------
+
+For users not able to use systemd, a FUSE mount helper is provided, so the
+filesystem can be used with mount(8) or also /etc/fstab entry. This usually
+requires putting the mount.zipfuse binary into /sbin or another location
+that the mount(8) program examines for the filesystem helper binaries.
+
+For mounting using the mount(8) program:
+
+    sudo mount -t zipfuse /home/alice/zips /home/alice/zipfuse -o setuid=alice,allow_other,webserver=:8000
+
+For mounting using an entry in the /etc/fstab file:
+
+    # <file system>   <mount point>   <type>   <options>   <dump>   <pass>
+    /home/alice/zips   /home/alice/zipfuse   zipfuse   setuid=alice,allow_other,webserver=:8000   0  0
+
+As you can see, program options (read more in README) need format conversion:
+
+    --allow-other --webserver :8000 => allow_other,webserver=:8000
+
+Note that FUSE mount helper events are printed to standard error (stderr).
+Any filesystem events are printed to /var/log/zipfuse.log (if it is writeable).

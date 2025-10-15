@@ -56,7 +56,25 @@ Running `make all` produces two binaries:
 - `mount.zipfuse` - binary of the FUSE mount helper
 
 The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.  
-**Pre-compiled static binaries are planned to be offered starting from v1.0.0.**
+
+## Installing the filesystem
+
+You will need to ensure that you have FUSE (`libfuse`, `fuse3`...) installed on
+the system that you are planning to use `zipfuse` on. The **only hard dependency**
+of `zipfuse` **is the `fusermount3` binary**, so ensure it exists in your `$PATH`.
+
+The recommended location to install FUSE filesystems to can differ between Linux
+distributions. Most important is that you install the binaries to a location
+that is covered in your `$PATH` environment variable. A common and relatively
+portable solution would be installing the `zipfuse` binary into `/bin` and the
+`mount.zipfuse` binary into `/sbin` on your system. You have to ensure that the
+files have the appropriate permissions set for users intending to execute them,
+specifically the executable bit needs to be set on both binaries (`chmod +x`).
+
+As can be derived from the recommended paths above, the `zipfuse` binary itself
+does not need elevated permissions. In contrast, the `mount.zipfuse` is usually
+executed by the system as `root` (when processing `/etc/fstab`), but will (when
+configured to do so) execute the filesystem binary as a given unprivileged user.
 
 ## Mounting the filesystem
 ### Mounting with command-line or `systemd` service (recommended):
