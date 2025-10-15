@@ -60,6 +60,10 @@ The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.
 
 ## Installing the filesystem
 
+You will need to ensure that you have FUSE (`libfuse`, `fuse3`...) installed on
+the system that you are planning to use `zipfuse` on. The **only hard dependency**
+of `zipfuse` **is the `fusermount3` binary**, so ensure it exists in your `$PATH`.
+
 The recommended location to install FUSE filesystems to can differ between Linux
 distributions. Most important is that you install the binaries to a location
 that is covered in your `$PATH` environment variable. A common and relatively
