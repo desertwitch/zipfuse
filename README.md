@@ -58,7 +58,7 @@ Running `make all` produces two binaries:
 The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.  
 **Pre-compiled static binaries are planned to be offered starting from v1.0.0.**
 
-# Installing the filesystem
+## Installing the filesystem
 
 The recommended location to install FUSE filesystems to can differ between Linux
 distributions. Most important is that you install the binaries to a location
