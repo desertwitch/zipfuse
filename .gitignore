@@ -1,3 +1,4 @@
 /mount.zipfuse
 /vendor
 /zipfuse
+dist/

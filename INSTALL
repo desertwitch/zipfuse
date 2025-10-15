@@ -77,7 +77,8 @@ For mounting using an entry in the /etc/fstab file:
     /home/alice/zips   /home/alice/zipfuse   zipfuse   setuid=alice,allow_other,webserver=:8000   0  0
 
 As you can see, program options (read more in README) need format conversion:
---allow-other --webserver :8000 is turning into allow_other,webserver=:8000
+
+    --allow-other --webserver :8000 => allow_other,webserver=:8000
 
 Note that FUSE mount helper events are printed to standard error (stderr).
 Any filesystem events are printed to /var/log/zipfuse.log (if it is writeable).
