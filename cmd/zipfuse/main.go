@@ -162,6 +162,7 @@ func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	mountOpts := []fuse.MountOption{
 		fuse.FSName("zipfuse"),
 		fuse.ReadOnly(),
+		fuse.DefaultPermissions(),
 		fuse.MaxReadahead(uint32(opts.streamPoolSize)),
 	}
 	if opts.allowOther {
