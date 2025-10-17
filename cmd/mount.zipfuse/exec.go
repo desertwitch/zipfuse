@@ -79,9 +79,11 @@ func (mh *mountHelper) Execute() error {
 	}
 	defer fdnull.Close()
 
-	fdlog, err := os.OpenFile(mountLog, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
+	fdlog, err := os.OpenFile(mh.Logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to open %q: %v (falling back to '/dev/null')\n", mountLog, err)
+		fmt.Fprintf(os.Stderr, `mount.zipfuse warning: failed to open %q: %v (falling back to '/dev/null').
+Do try to pass 'log=/full/path/to/writeable/logfile' as a mount option.
+`, mh.Logfile, err)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = fdnull, fdnull, fdnull
 	} else {
 		defer fdlog.Close()
@@ -136,7 +138,8 @@ func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs [
 			Gid: gid,
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "warning: failed to resolve setuid %q: %v (falling back to 'su')\n", mh.Setuid, err)
+		fmt.Fprintf(os.Stderr, "mount.zipfuse warning: failed to resolve user %q: %v (falling back to 'su')\n",
+			mh.Setuid, err)
 
 		safeCmdArgs := make([]string, len(cmdArgs))
 		for i, arg := range cmdArgs {
@@ -171,7 +174,7 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
-	totalTimeout := time.After(mountTimeout)
+	totalTimeout := time.After(defaultTimeout)
 	for {
 		select {
 		case signalErr := <-signalDone:

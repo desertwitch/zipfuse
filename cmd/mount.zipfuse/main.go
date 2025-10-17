@@ -35,8 +35,8 @@ import (
 )
 
 const (
-	mountLog     = "/var/log/zipfuse.log"
-	mountTimeout = 20 * time.Second
+	defaultLogfile = "/var/log/zipfuse.log"
+	defaultTimeout = 20 * time.Second
 )
 
 var (
@@ -70,6 +70,7 @@ type mountHelper struct {
 	Mountpoint string
 	Options    map[string]string
 	Setuid     string
+	Logfile    string
 }
 
 func newMountHelper(args []string) (*mountHelper, error) {
@@ -79,6 +80,7 @@ func newMountHelper(args []string) (*mountHelper, error) {
 		Type:       "zipfuse",
 		Mountpoint: args[2],
 		Options:    make(map[string]string),
+		Logfile:    defaultLogfile,
 	}
 
 	if mh.Source == "" {
@@ -139,11 +141,16 @@ func (mh *mountHelper) parseOptions(args []string) error {
 				key := parts[0]
 				val := parts[1]
 
-				if key == "bin" {
+				_, ok := allowedKeys[key]
+
+				switch {
+				case key == "bin":
 					mh.Binary = val
-				} else if key == "setuid" {
+				case key == "log":
+					mh.Logfile = val
+				case key == "setuid":
 					mh.Setuid = val
-				} else if _, ok := allowedKeys[key]; ok {
+				case ok:
 					mh.Options[key] = val
 				}
 			} else { // key
@@ -218,9 +225,13 @@ Example (fstab entry):
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
+Additional mount options to control mount helper behavior itself:
+  bin=/full/path/to/zipfuse/binary (overrides FS binary)
+  log=/full/path/to/writeable/logfile (overrides FS logfile)
+
 Mount helper events are printed to standard error (stderr).
 FS events are printed to '%s' (if writeable).
-`, progName, Version, progName, progName, mountLog)
+`, progName, Version, progName, progName, defaultLogfile)
 		os.Exit(1)
 	}
 
@@ -241,8 +252,8 @@ Do try to pass 'bin=/full/path/to/binary' as a mount option.`)
 
 		case errors.Is(err, errMountTimeout):
 			fmt.Fprintf(os.Stderr, `mount.zipfuse error: mount did not appear within %d seconds.
-Do try checking '/var/log/zipfuse.log' for more information.
-`, int(mountTimeout.Seconds()))
+Do try checking %q for more information.
+`, int(defaultTimeout.Seconds()), helper.Logfile)
 
 		default:
 			fmt.Fprintf(os.Stderr, "mount.zipfuse error: %v\n", err)
