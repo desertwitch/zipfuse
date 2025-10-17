@@ -1,4 +1,4 @@
-//nolint:mnd,noctx
+//nolint:mnd,noctx,err113
 package main
 
 import (
@@ -16,7 +16,10 @@ import (
 	"al.essio.dev/pkg/shellescape"
 )
 
-var errMountTimeout = errors.New("mount timeout")
+var (
+	errMountTimeout = errors.New("mount timeout")
+	errMountFailed  = errors.New("mount failed")
+)
 
 func (mh *mountHelper) BuildCommand() []string {
 	var parts []string
@@ -159,17 +162,7 @@ func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs [
 }
 
 func (mh *mountHelper) waitForMount(r io.Reader) error {
-	signalDone := make(chan error, 1)
-	go func() {
-		defer close(signalDone)
-		buf := make([]byte, 1)
-		_, err := r.Read(buf)
-		if err == nil {
-			signalDone <- nil
-		} else {
-			signalDone <- err
-		}
-	}()
+	signalDone := mh.waitForSignal(r)
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -180,6 +173,8 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 		case signalErr := <-signalDone:
 			if signalErr == nil {
 				return nil
+			} else if errors.Is(signalErr, errMountFailed) {
+				return signalErr
 			}
 			signalDone = nil
 
@@ -196,6 +191,46 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 			return errMountTimeout
 		}
 	}
+}
+
+func (mh *mountHelper) waitForSignal(r io.Reader) <-chan error {
+	signalChan := make(chan error, 1)
+
+	go func() {
+		defer func() {
+			rec := recover()
+			if rec != nil {
+				select {
+				case signalChan <- fmt.Errorf("panic recovered: %v", rec):
+				default:
+				}
+			}
+			close(signalChan)
+		}()
+
+		status := make([]byte, 1)
+		_, err := r.Read(status)
+		if err != nil {
+			signalChan <- fmt.Errorf("failed to read from pipe: %w", err)
+
+			return
+		}
+
+		if status[0] == 0 {
+			signalChan <- nil
+		} else {
+			scanner := bufio.NewScanner(r)
+			if scanner.Scan() {
+				signalChan <- fmt.Errorf("%w: %s", errMountFailed, scanner.Text())
+			} else if err := scanner.Err(); err != nil {
+				signalChan <- fmt.Errorf("failed to read from pipe: %w", err)
+			} else {
+				signalChan <- errors.New("failed to parse message from pipe")
+			}
+		}
+	}()
+
+	return signalChan
 }
 
 func (mh *mountHelper) checkMountTable() (bool, error) {

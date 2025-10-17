@@ -49,6 +49,9 @@ var (
 	// Version is the program version (filled in from the Makefile).
 	Version string
 
+	// mountHelperNotified is for when the FUSE mount helper was notified.
+	mountHelperNotified bool
+
 	// errInvalidArgument is for an invalid CLI argument/value provided.
 	errInvalidArgument = errors.New("invalid argument")
 
@@ -178,9 +181,14 @@ func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	return conn, nil
 }
 
-// The FUSE mount helper passes the write end of a [os.Pipe] as file descriptor,
-// so we can signal that the filesystem was mounted and it can exit with code 0.
-func notifyMountHelper() error {
+// The FUSE mount helper passes the write end of a [os.Pipe] as file descriptor.
+// We use the pipe to signal either success or failure to the FUSE mount helper.
+// The argument is the error (or nil = success) that will be sent over the pipe.
+func notifyMountHelper(e error) error {
+	if mountHelperNotified {
+		return nil
+	}
+
 	fdStr := os.Getenv("ZIPFUSE_HELPER_FD")
 	if fdStr == "" {
 		return nil
@@ -188,16 +196,29 @@ func notifyMountHelper() error {
 
 	fd, err := strconv.Atoi(fdStr)
 	if err != nil {
-		return fmt.Errorf("fd conversion failed: %w", err)
+		return fmt.Errorf("fd conversion failed for %q: %w", fdStr, err)
 	}
 
 	f := os.NewFile(uintptr(fd), "helper-pipe")
+	if f == nil {
+		return fmt.Errorf("fd conversion got nil for %q: %d", fdStr, fd) //nolint:err113
+	}
 	defer f.Close()
 
-	_, err = f.Write([]byte{1})
-	if err != nil {
-		return fmt.Errorf("write to pipe failed: %w", err)
+	if e == nil {
+		if _, err := f.Write([]byte{0}); err != nil {
+			return fmt.Errorf("write success status to pipe failed: %w", err)
+		}
+	} else {
+		if _, err := f.Write([]byte{1}); err != nil {
+			return fmt.Errorf("write error status to pipe failed: %w", err)
+		}
+		if _, err := fmt.Fprintf(f, "%s\n", e.Error()); err != nil {
+			return fmt.Errorf("write error message to pipe failed: %w", err)
+		}
 	}
+
+	mountHelperNotified = true
 
 	return nil
 }
@@ -256,10 +277,12 @@ func main() {
 	for _, arg := range os.Args {
 		if arg == "-o" {
 			fmt.Fprintln(os.Stderr, helpErrOptionsArg)
+			_ = notifyMountHelper(fmt.Errorf("%w: \"-o\" is not supported", errInvalidArgument))
 			os.Exit(1)
 		}
 	}
 	if err := rootCmd().Execute(); err != nil {
+		_ = notifyMountHelper(err)
 		os.Exit(1)
 	}
 }
@@ -283,7 +306,7 @@ func run(opts cliOptions) error {
 	}
 	defer cleanupMount(opts.mountDir, conn, fsys)
 
-	err = notifyMountHelper()
+	err = notifyMountHelper(nil)
 	if err != nil {
 		rbuf.Printf("failed to notify mount helper: %v\n", err)
 	}
