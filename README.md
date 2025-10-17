@@ -11,7 +11,7 @@
     <a href="https://codecov.io/gh/desertwitch/zipfuse" target="_blank"><img src="https://codecov.io/gh/desertwitch/zipfuse/graph/badge.svg?token=SENW4W2GQL"/></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml" target="_blank"><img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg"></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml" target="_blank"><img alt="Tests" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml/badge.svg"></a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml" target="_blank"><img alt="Build" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-build.yml/badge.svg"></a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-fstab.yml" target="_blank"><img alt="Integration" src="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-fstab.yml/badge.svg"></a>
 </div><br>
 
 >**Note: This software is under active development.**  
