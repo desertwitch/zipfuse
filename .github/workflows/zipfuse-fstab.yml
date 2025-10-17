@@ -1,0 +1,222 @@
+name: zipfuse-fstab
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  zipfuse:
+    name: fstab
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25.1'
+
+    - name: Install FUSE
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y fuse3
+        sudo sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
+
+    - name: Build binaries
+      run: |
+        make vendor
+        make debug
+
+    - name: Install binaries
+      run: |
+        sudo cp zipfuse /bin/zipfuse
+        sudo chmod +x /bin/zipfuse
+        sudo cp mount.zipfuse /sbin/mount.zipfuse
+        sudo chmod +x /sbin/mount.zipfuse
+
+    - name: Create test environment
+      run: |
+        mkdir -p source
+        mkdir -p mountpoint
+
+        mkdir -p test1/subdir1/subdir2
+        echo "Hello from test1.txt" > test1/test1.txt
+        echo "Second file in test1" > test1/file2.txt
+        echo "File in subdir1" > test1/subdir1/nested1.txt
+        echo "File in subdir2" > test1/subdir1/subdir2/nested2.txt
+        (cd test1 && zip -r ../source/archive1.zip .)
+
+        mkdir -p test2/docs/reports
+        echo "Hello from test2.txt" > test2/test2.txt
+        echo "Another file in test2" > test2/another.txt
+        echo "Document file" > test2/docs/document.txt
+        echo "Report file" > test2/docs/reports/report.txt
+        (cd test2 && zip -r ../source/archive2.zip .)
+
+        rm -rf test1 test2
+
+    - name: Mount filesystem
+      run: |
+        if ! sudo mount -t zipfuse source mountpoint -o allow_other; then
+          echo "ERROR: Filesystem mount has failed"
+          exit 1
+        fi
+
+        for i in {1..20}; do
+          if mountpoint -q mountpoint; then
+            echo "Filesystem mounted successfully"
+            break
+          fi
+          if [ $i -eq 30 ]; then
+            echo "Mount timeout"
+            exit 1
+          fi
+          sleep 0.5
+        done
+
+        mount | grep zipfuse || true
+        ls -la mountpoint/
+
+    - name: Test filesystem
+      run: |
+        echo "Testing archive1..."
+        if [ ! -f "mountpoint/archive1/test1.txt" ]; then
+          echo "ERROR: test1.txt not found in archive1"
+          exit 1
+        fi
+
+        CONTENT1=$(cat mountpoint/archive1/test1.txt)
+        if [ "$CONTENT1" != "Hello from test1.txt" ]; then
+          echo "ERROR: Content mismatch in test1.txt"
+          echo "Expected: 'Hello from test1.txt'"
+          echo "Got: '$CONTENT1'"
+          exit 1
+        fi
+        echo "archive1/test1.txt content verified"
+
+        CONTENT2=$(cat mountpoint/archive1/file2.txt)
+        if [ "$CONTENT2" != "Second file in test1" ]; then
+          echo "ERROR: Content mismatch in file2.txt"
+          echo "Expected: 'Second file in test1'"
+          echo "Got: '$CONTENT2'"
+          exit 1
+        fi
+        echo "archive1/file2.txt content verified"
+
+        CONTENT3=$(cat mountpoint/archive1/subdir1/nested1.txt)
+        if [ "$CONTENT3" != "File in subdir1" ]; then
+          echo "ERROR: Content mismatch in subdir1/nested1.txt"
+          echo "Expected: 'File in subdir1'"
+          echo "Got: '$CONTENT3'"
+          exit 1
+        fi
+        echo "archive1/subdir1/nested1.txt content verified"
+
+        CONTENT4=$(cat mountpoint/archive1/subdir1/subdir2/nested2.txt)
+        if [ "$CONTENT4" != "File in subdir2" ]; then
+          echo "ERROR: Content mismatch in subdir1/subdir2/nested2.txt"
+          echo "Expected: 'File in subdir2'"
+          echo "Got: '$CONTENT4'"
+          exit 1
+        fi
+        echo "archive1/subdir1/subdir2/nested2.txt content verified"
+
+        echo "Testing archive2..."
+        if [ ! -f "mountpoint/archive2/test2.txt" ]; then
+          echo "ERROR: test2.txt not found in archive2"
+          exit 1
+        fi
+
+        CONTENT5=$(cat mountpoint/archive2/test2.txt)
+        if [ "$CONTENT5" != "Hello from test2.txt" ]; then
+          echo "ERROR: Content mismatch in test2.txt"
+          echo "Expected: 'Hello from test2.txt'"
+          echo "Got: '$CONTENT5'"
+          exit 1
+        fi
+        echo "archive2/test2.txt content verified"
+
+        CONTENT6=$(cat mountpoint/archive2/another.txt)
+        if [ "$CONTENT6" != "Another file in test2" ]; then
+          echo "ERROR: Content mismatch in another.txt"
+          echo "Expected: 'Another file in test2'"
+          echo "Got: '$CONTENT6'"
+          exit 1
+        fi
+        echo "archive2/another.txt content verified"
+
+        CONTENT7=$(cat mountpoint/archive2/docs/document.txt)
+        if [ "$CONTENT7" != "Document file" ]; then
+          echo "ERROR: Content mismatch in docs/document.txt"
+          echo "Expected: 'Document file'"
+          echo "Got: '$CONTENT7'"
+          exit 1
+        fi
+        echo "archive2/docs/document.txt content verified"
+
+        CONTENT8=$(cat mountpoint/archive2/docs/reports/report.txt)
+        if [ "$CONTENT8" != "Report file" ]; then
+          echo "ERROR: Content mismatch in docs/reports/report.txt"
+          echo "Expected: 'Report file'"
+          echo "Got: '$CONTENT8'"
+          exit 1
+        fi
+        echo "archive2/docs/reports/report.txt content verified"
+
+        echo "All file content tests passed!"
+
+    - name: Unmount filesystem
+      if: always()
+      run: |
+        sudo killall zipfuse || true
+
+        for i in {1..10}; do
+          if ! mountpoint -q mountpoint; then
+            echo "Filesystem unmounted successfully"
+            break
+          fi
+          sleep 0.5
+        done
+
+    - name: Verify unmounted
+      if: always()
+      run: |
+        if mountpoint -q mountpoint; then
+          echo "ERROR: Filesystem still mounted after killall"
+          mount | grep zipfuse || true
+          exit 1
+        fi
+
+        if [ -f "mountpoint/archive1/test1.txt" ]; then
+          echo "ERROR: Files still accessible after unmount"
+          exit 1
+        fi
+
+        echo "Filesystem properly unmounted"
+
+    - name: Show logs on failure
+      if: failure()
+      run: |
+        echo "=== Mount points ==="
+        mount | grep zipfuse || echo "No zipfuse mounts found"
+        echo ""
+
+        echo "=== Mountpoint directory ==="
+        ls -la mountpoint/ || true
+        echo ""
+
+        echo "=== Process list ==="
+        ps aux | grep zipfuse || echo "No zipfuse processes found"
+        echo ""
+
+        echo "=== Dmesg (last 25 lines) ==="
+        sudo dmesg | tail -n 25 || true
+        echo ""
+
+        echo "=== ZipFUSE Events (last 25 lines) ==="
+        sudo cat /var/log/zipfuse.log | tail -n 25 || true
