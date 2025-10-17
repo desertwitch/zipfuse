@@ -44,7 +44,7 @@ func fdLimits() (fsLimit int, cacheLimit int, err error) {
 	cacheLimit = (fsLimit * 70) / 100 // 70% of FS limit
 
 	if fsLimit < 1 || cacheLimit < 1 {
-		return 0, 0, fmt.Errorf("calculations too small (soft=%d)", osLimit)
+		return 0, 0, fmt.Errorf("calculations too small (os=%d)", osLimit)
 	}
 
 	return fsLimit, cacheLimit, nil

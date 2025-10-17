@@ -23,4 +23,10 @@ When enabled, the diagnostics dashboard exposes the following routes:
 - "/set/must-crc32/<bool>" for adapting forced integrity checking
 - "/set/fd-cache-bypass/<bool>" for bypassing the file descriptor cache
 - "/set/stream-threshold/<string>" for adapting of the streaming threshold`
+
+	helpErrOptionsArg = `You have invoked this program with an "-o" flag, which is not supported.
+Most likely you tried mounting as "fuse.zipfuse" using mount(8) or fstab?
+If you wish to mount using mount(8) or fstab, use only "zipfuse" as type.
+However that requires the helper "mount.zipfuse" be installed in "/sbin".
+For more information, please read the INSTALL instructions or the README.`
 )
