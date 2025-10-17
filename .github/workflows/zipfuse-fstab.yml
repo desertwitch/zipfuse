@@ -174,7 +174,10 @@ jobs:
     - name: Unmount filesystem
       if: always()
       run: |
-        sudo killall zipfuse || true
+        if ! sudo fusermount3 -u mountpoint; then
+          echo "ERROR: Filesystem unmount has failed"
+          exit 1
+        fi
 
         for i in {1..10}; do
           if ! mountpoint -q mountpoint; then
@@ -183,6 +186,18 @@ jobs:
           fi
           sleep 0.5
         done
+
+        for i in {1..10}; do
+          if ! pgrep -fa zipfuse &>/dev/null; then
+            echo "Filesystem exited successfully"
+            exit 0
+          fi
+          sleep 0.5
+        done
+
+        echo "ERROR: Filesystem alive after unmount"
+        pgrep -fa zipfuse || true
+        exit 1
 
     - name: Verify unmounted
       if: always()

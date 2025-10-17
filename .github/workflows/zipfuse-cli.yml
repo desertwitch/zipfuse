@@ -181,6 +181,18 @@ jobs:
           sleep 0.5
         done
 
+        for i in {1..10}; do
+          if ! pgrep -fa zipfuse &>/dev/null; then
+            echo "Filesystem exited successfully"
+            exit 0
+          fi
+          sleep 0.5
+        done
+
+        echo "ERROR: Filesystem alive after unmount"
+        pgrep -fa zipfuse || true
+        exit 1
+
     - name: Verify unmounted
       if: always()
       run: |
