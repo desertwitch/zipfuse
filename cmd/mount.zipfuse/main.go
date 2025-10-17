@@ -42,6 +42,7 @@ import (
 )
 
 const (
+	defaultType    = "zipfuse"
 	defaultLogfile = "/var/log/zipfuse.log"
 	defaultTimeout = 20 * time.Second
 )
@@ -85,7 +86,7 @@ func newMountHelper(args []string) (*mountHelper, error) {
 	mh := &mountHelper{
 		Program:    args[0],
 		Source:     args[1],
-		Type:       "zipfuse",
+		Type:       defaultType,
 		Mountpoint: args[2],
 		Options:    make(map[string]string),
 		Logfile:    defaultLogfile,
@@ -162,10 +163,10 @@ func (mh *mountHelper) parseOptions(args []string) error {
 				case key == "mtmo":
 					secs, err := strconv.Atoi(val)
 					if err != nil {
-						return fmt.Errorf("failed to parse mtmo value %q: %w", val, err)
+						return fmt.Errorf("failed to parse %q value %q: %w", key, val, err)
 					}
 					if secs <= 0 {
-						return fmt.Errorf("failed to use mtmo value %q: must be > 0", val)
+						return fmt.Errorf("failed to use %q value %q: must be > 0", key, val)
 					}
 					mh.Timeout = time.Duration(secs) * time.Second
 
@@ -189,7 +190,7 @@ func (mh *mountHelper) parseOptions(args []string) error {
 func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 	*i++
 	if *i >= len(args) {
-		return errors.New("missing value to argument \"-t\"")
+		return errors.New("missing type value to argument \"-t\"")
 	}
 	t := args[*i]
 	if after, ok := strings.CutPrefix(t, "fuse."); ok {
@@ -198,7 +199,7 @@ func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 		t = after0
 	}
 	if t == "" {
-		return errors.New("missing value to argument \"-t\"")
+		return errors.New("empty type value to argument \"-t\"")
 	}
 	mh.Type = t
 
@@ -216,10 +217,10 @@ func (mh *mountHelper) deriveTypeFromSource() error {
 	}
 
 	if mh.Type == "" {
-		return errors.New("empty type before '#' in source argument")
+		return errors.New("empty type value before '#' in source argument")
 	}
 	if mh.Source == "" {
-		return errors.New("empty source after '#' in source argument")
+		return errors.New("empty source value after '#' in source argument")
 	}
 
 	return nil
