@@ -85,7 +85,7 @@ func (mh *mountHelper) Execute() error {
 	fdlog, err := os.OpenFile(mh.Logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `mount.zipfuse warning: failed to open %q: %v (falling back to "/dev/null").
-Do try to pass "mlog=/full/path/to/writeable/logfile" as a mount option.
+Do try to pass "xlog=/full/path/to/writeable/logfile" as a mount option.
 `, mh.Logfile, err)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = fdnull, fdnull, fdnull
 	} else {

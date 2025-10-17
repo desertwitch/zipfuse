@@ -237,7 +237,7 @@ func Test_MountHelper_BuildCommand_Success(t *testing.T) {
 		},
 		{
 			name: "explicit binary path",
-			args: []string{"mount.zipfuse", "./source", "./dest", "-o", "mbin=/bin/zipfuze"},
+			args: []string{"mount.zipfuse", "./source", "./dest", "-o", "xbin=/bin/zipfuze"},
 			want: []string{"/bin/zipfuze", "./source", "./dest"},
 		},
 		{
@@ -281,8 +281,8 @@ func Test_MountHelper_BuildCommand_Success(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "invalid mtmo value",
-			args:    []string{"mount", "/mnt/a", "/mnt/b", "-o", "mtmo=0"},
+			name:    "invalid xtim value",
+			args:    []string{"mount", "/mnt/a", "/mnt/b", "-o", "xtim=0"},
 			wantErr: true,
 		},
 	}

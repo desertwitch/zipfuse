@@ -17,9 +17,9 @@ Example (fstab entry):
 
 Additional mount options to control mount helper behavior itself:
   setuid=USER (as username or UID; overrides executing user)
-  mbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
-  mlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
-  mtmo=SECS (numeric and in seconds; overrides filesystem mount timeout)
+  xbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
+  xlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
+  xtim=SECS (numeric and in seconds; overrides filesystem mount timeout)
 
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
@@ -154,13 +154,13 @@ func (mh *mountHelper) parseOptions(args []string) error {
 				_, ok := allowedKeys[key]
 
 				switch {
-				case key == "mbin":
+				case key == "xbin":
 					mh.Binary = val
 
-				case key == "mlog":
+				case key == "xlog":
 					mh.Logfile = val
 
-				case key == "mtmo":
+				case key == "xtim":
 					secs, err := strconv.Atoi(val)
 					if err != nil {
 						return fmt.Errorf("failed to parse %q value %q: %w", key, val, err)

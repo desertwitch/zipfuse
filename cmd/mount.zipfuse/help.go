@@ -19,9 +19,9 @@ Example (fstab entry):
 
 Additional mount options to control mount helper behavior itself:
   setuid=USER (as username or UID; overrides executing user)
-  mbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
-  mlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
-  mtmo=SECS (numeric and in seconds; overrides filesystem mount timeout)
+  xbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
+  xlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
+  xtim=SECS (numeric and in seconds; overrides filesystem mount timeout)
 
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
@@ -32,10 +32,10 @@ Filesystem events are printed to %q (if it is writeable).`
 	helpErrNotFound = `mount.zipfuse error: zipfuse not found within $PATH dirs.
 Perhaps you installed it into some non-standard directory?
 Some operating systems also mangle the environment variable.
-Do try to pass "mbin=/full/path/to/binary" as a mount option.`
+Do try to pass "xbin=/full/path/to/binary" as a mount option.`
 
 	helpErrMountTimeout = `mount.zipfuse error: mount did not appear within %d seconds.
-You can raise this timeout by passing "mtmo=SECS" as a mount option.
+You can raise this timeout by passing "xtim=SECS" as a mount option.
 But beware default timeouts usually suffice and indicate error conditions.
 So first do try checking %q for more (error) information.`
 )

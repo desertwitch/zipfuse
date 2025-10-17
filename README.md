@@ -141,9 +141,9 @@ sudo mount -t zipfuse /home/alice/zips /home/alice/zipfuse -o setuid=alice,allow
 **Additional mount options to control mount helper behavior itself:**
 ```
 setuid=USER (as username or UID; overrides executing user)
-mbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
-mlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
-mtmo=SECS (numeric and in seconds; overrides filesystem mount timeout)
+xbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
+xlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
+xtim=SECS (numeric and in seconds; overrides filesystem mount timeout)
 ```
 
 **As you can see, program options (read more below) need format conversion:**  
