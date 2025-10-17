@@ -229,34 +229,8 @@ func (mh *mountHelper) deriveTypeFromSource() error {
 func main() {
 	if len(os.Args) < 3 {
 		progName := filepath.Base(os.Args[0])
-		fmt.Fprintf(os.Stderr, `%s (%s) - FUSE mount helper
-
-This program is a helper for the mount/fstab mechanism.
-It is normally located in /sbin or another directory
-searched by mount(8) for filesystem helpers, and is
-not intended to be invoked directly by the end users.
-
-Usage:
-  %s source mountpoint [-o key[=value],key[=value],...]
-
-For running the filesystem as another (e.g. unprivileged) user:
-  %s source mountpoint -o setuid=USER[,key[=value],...]
-
-Example (fstab entry):
-  /mnt/zips   /mnt/zipfuse   zipfuse   allow_other,webserver=:8000   0  0
-
-Additional mount options to control mount helper behavior itself:
-  setuid=USER (as username or UID; overrides executing user)
-  mbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
-  mlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
-  mtmo=SECS (numeric and in seconds; overrides filesystem mount timeout)
-
-Filesystem-specific options need to be adapted into this format:
-  --webserver :8000 --strict-cache => webserver=:8000,strict_cache
-
-Note that FUSE mount helper events are printed to standard error (stderr).
-Filesystem events are printed to %q (if it is writeable).
-`, progName, Version, progName, progName, defaultLogfile)
+		fmt.Fprintf(os.Stderr, helpTextLong+"\n",
+			progName, Version, progName, progName, defaultLogfile)
 		os.Exit(1)
 	}
 
@@ -270,17 +244,11 @@ Filesystem events are printed to %q (if it is writeable).
 	if err != nil {
 		switch {
 		case errors.Is(err, exec.ErrNotFound):
-			fmt.Fprintln(os.Stderr, `mount.zipfuse error: zipfuse not found within $PATH dirs.
-Perhaps you installed it into some non-standard directory?
-Some operating systems also mangle the environment variable.
-Do try to pass "mbin=/full/path/to/binary" as a mount option.`)
+			fmt.Fprintln(os.Stderr, helpErrNotFound)
 
 		case errors.Is(err, errMountTimeout):
-			fmt.Fprintf(os.Stderr, `mount.zipfuse error: mount did not appear within %d seconds.
-You can raise this timeout by passing "mtmo=SECS" as a mount option.
-But beware default timeouts usually suffice and indicate error conditions.
-So first do try checking %q for more (error) information.
-`, int(helper.Timeout.Seconds()), helper.Logfile)
+			fmt.Fprintf(os.Stderr, helpErrMountTimeout+"\n",
+				int(helper.Timeout.Seconds()), helper.Logfile)
 
 		default:
 			fmt.Fprintf(os.Stderr, "mount.zipfuse error: %v\n", err)
