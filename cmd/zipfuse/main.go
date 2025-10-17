@@ -277,12 +277,18 @@ func main() {
 	for _, arg := range os.Args {
 		if arg == "-o" {
 			fmt.Fprintln(os.Stderr, helpErrOptionsArg)
-			_ = notifyMountHelper(fmt.Errorf("%w: \"-o\" is not supported", errInvalidArgument))
+			err := notifyMountHelper(fmt.Errorf("%w: \"-o\" is not supported", errInvalidArgument))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to notify mount helper: %v\n", err)
+			}
 			os.Exit(1)
 		}
 	}
 	if err := rootCmd().Execute(); err != nil {
-		_ = notifyMountHelper(err)
+		err := notifyMountHelper(err)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to notify mount helper: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }
