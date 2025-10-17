@@ -82,7 +82,7 @@ func (mh *mountHelper) Execute() error {
 	fdlog, err := os.OpenFile(mh.Logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `mount.zipfuse warning: failed to open %q: %v (falling back to '/dev/null').
-Do try to pass 'log=/full/path/to/writeable/logfile' as a mount option.
+Do try to pass 'mlog=/full/path/to/writeable/logfile' as a mount option.
 `, mh.Logfile, err)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = fdnull, fdnull, fdnull
 	} else {
@@ -174,7 +174,7 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
-	totalTimeout := time.After(defaultTimeout)
+	totalTimeout := time.After(mh.Timeout)
 	for {
 		select {
 		case signalErr := <-signalDone:

@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -71,6 +72,7 @@ type mountHelper struct {
 	Options    map[string]string
 	Setuid     string
 	Logfile    string
+	Timeout    time.Duration
 }
 
 func newMountHelper(args []string) (*mountHelper, error) {
@@ -81,6 +83,7 @@ func newMountHelper(args []string) (*mountHelper, error) {
 		Mountpoint: args[2],
 		Options:    make(map[string]string),
 		Logfile:    defaultLogfile,
+		Timeout:    defaultTimeout,
 	}
 
 	if mh.Source == "" {
@@ -144,12 +147,25 @@ func (mh *mountHelper) parseOptions(args []string) error {
 				_, ok := allowedKeys[key]
 
 				switch {
-				case key == "bin":
+				case key == "mbin":
 					mh.Binary = val
-				case key == "log":
+
+				case key == "mlog":
 					mh.Logfile = val
+
+				case key == "mtmo":
+					secs, err := strconv.Atoi(val)
+					if err != nil {
+						return fmt.Errorf("failed to parse mtmo value %q: %w", val, err)
+					}
+					if secs <= 0 {
+						return fmt.Errorf("failed to use mtmo value %q: must be > 0", val)
+					}
+					mh.Timeout = time.Duration(secs) * time.Second
+
 				case key == "setuid":
 					mh.Setuid = val
+
 				case ok:
 					mh.Options[key] = val
 				}
@@ -226,8 +242,9 @@ Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
 Additional mount options to control mount helper behavior itself:
-  bin=/full/path/to/zipfuse/binary (overrides FS binary)
-  log=/full/path/to/writeable/logfile (overrides FS logfile)
+  mbin=/full/path/to/zipfuse/binary (overrides FS binary)
+  mlog=/full/path/to/writeable/logfile (overrides FS logfile)
+  mtmo=SECS (numeric and in seconds; overrides FS mount timeout)
 
 Mount helper events are printed to standard error (stderr).
 FS events are printed to '%s' (if writeable).
@@ -248,12 +265,14 @@ FS events are printed to '%s' (if writeable).
 			fmt.Fprintln(os.Stderr, `mount.zipfuse error: zipfuse not found within $PATH dirs.
 Perhaps you installed it into some non-standard directory?
 Some operating systems also mangle the environment variable.
-Do try to pass 'bin=/full/path/to/binary' as a mount option.`)
+Do try to pass 'mbin=/full/path/to/binary' as a mount option.`)
 
 		case errors.Is(err, errMountTimeout):
 			fmt.Fprintf(os.Stderr, `mount.zipfuse error: mount did not appear within %d seconds.
-Do try checking %q for more information.
-`, int(defaultTimeout.Seconds()), helper.Logfile)
+You can raise this timeout by passing 'mtmo=SECS' as a mount option.
+But beware default timeouts usually suffice and indicate error conditions.
+So first do try checking %q for more (error) information.
+`, int(helper.Timeout.Seconds()), helper.Logfile)
 
 		default:
 			fmt.Fprintf(os.Stderr, "mount.zipfuse error: %v\n", err)

@@ -138,6 +138,13 @@ sudo mount -t zipfuse /home/alice/zips /home/alice/zipfuse -o setuid=alice,allow
 /home/alice/zips   /home/alice/zipfuse   zipfuse   setuid=alice,allow_other,webserver=:8000   0  0
 ```
 
+**Additional mount options to control mount helper behavior itself:**
+```
+mbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
+mlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
+mtmo=SECS (numeric and in seconds; overrides filesystem mount timeout)
+```
+
 **As you can see, program options (read more below) need format conversion:**  
 `--allow-other --webserver :8000` is turning into `allow_other,webserver=:8000`
 
