@@ -27,6 +27,7 @@ var (
 	errMountFailed  = errors.New("mount failed")
 )
 
+// BuildCommand constructs the full command slice from the parsed mount options.
 func (mh *mountHelper) BuildCommand() []string {
 	var parts []string
 
@@ -43,6 +44,7 @@ func (mh *mountHelper) BuildCommand() []string {
 	return parts
 }
 
+// BuildOptions constructs the full options slice from the parsed mount options.
 func (mh *mountHelper) BuildOptions() []string {
 	var parts []string
 
@@ -67,6 +69,10 @@ func (mh *mountHelper) BuildOptions() []string {
 	return parts
 }
 
+// Execute handles the execution of the ZipFUSE filesystem binary.
+// It handles setting up the environment, forking, and executing the
+// filesystem process - waiting for a mount success or failure signal.
+// The signaling is realized with an [io.Pipe] to the filesystem binary.
 func (mh *mountHelper) Execute() error {
 	// We must always set up our "parent" environment first,
 	// because [exec.Command] internally requires a sane $PATH.
@@ -122,6 +128,8 @@ Do try to pass "xlog=/full/path/to/writeable/logfile" as a mount option.
 	return nil
 }
 
+// setupEnvironment establishes the environment for the FUSE mount helper,
+// later to be inherited by the executed ZipFUSE filesystem binary itself.
 func (mh *mountHelper) setupEnvironment() {
 	currentPath := os.Getenv("PATH")
 	additionalPath := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -136,6 +144,8 @@ func (mh *mountHelper) setupEnvironment() {
 	}
 }
 
+// setUID handles the execution of the ZipFUSE filesystem binary under another
+// configured user account and fallback if the user account cannot be resolved.
 func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs []string) (*exec.Cmd, *syscall.SysProcAttr) {
 	home, uid, gid, err := resolveUser(mh.Setuid)
 	if err == nil {
@@ -167,6 +177,9 @@ func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs [
 	return cmd, spa
 }
 
+// waitForMount takes the read-end of an [io.Pipe] and waits for the mount
+// success or failure signal communicated by the ZipFUSE filesystem binary.
+// "/proc/self/mountinfo" is also observed under "first-come, first-serve".
 func (mh *mountHelper) waitForMount(r io.Reader) error {
 	signalDone := mh.waitForSignal(r)
 
@@ -200,6 +213,8 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 	}
 }
 
+// waitForSignal observes the [io.Reader] (as read-end of the [io.Pipe])
+// for the mount success or mount failure signal of the filesystem binary.
 func (mh *mountHelper) waitForSignal(r io.Reader) <-chan error {
 	signalChan := make(chan error, 1)
 
@@ -251,6 +266,7 @@ func (mh *mountHelper) waitForSignal(r io.Reader) <-chan error {
 	return signalChan
 }
 
+// checkMountTable checks "/proc/self/mountinfo" for the configured mountpoint.
 func (mh *mountHelper) checkMountTable() (bool, error) {
 	f, err := os.Open("/proc/self/mountinfo")
 	if err != nil {

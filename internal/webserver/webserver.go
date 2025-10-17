@@ -76,6 +76,7 @@ func (d *FSDashboard) Serve(addr string) *http.Server {
 	return srv
 }
 
+// dashboardMux implements all routes served by the dashboard.
 func (d *FSDashboard) dashboardMux() *mux.Router {
 	mux := mux.NewRouter()
 
@@ -99,6 +100,7 @@ func (d *FSDashboard) dashboardMux() *mux.Router {
 	return mux
 }
 
+// fsDashboardData describes all data that is served on the [FSDashboard].
 type fsDashboardData struct {
 	AllocBytes          string   `json:"allocBytes"`
 	AvgExtractSpeed     string   `json:"avgExtractSpeed"`
@@ -139,6 +141,7 @@ type fsDashboardData struct {
 	Version             string   `json:"version"`
 }
 
+// collectMetrics is the principal method to fetch fresh [fsDashboardData].
 func (d *FSDashboard) collectMetrics() fsDashboardData {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -187,6 +190,7 @@ func (d *FSDashboard) collectMetrics() fsDashboardData {
 	}
 }
 
+// dashboardHandler handles the front-page of the dashboard.
 func (d *FSDashboard) dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 	data := d.collectMetrics()
 
@@ -196,6 +200,7 @@ func (d *FSDashboard) dashboardHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// metricsHandler handles the metrics endpoint of the dashboard.
 func (d *FSDashboard) metricsHandler(w http.ResponseWriter, _ *http.Request) {
 	data := d.collectMetrics()
 
@@ -205,6 +210,7 @@ func (d *FSDashboard) metricsHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// gcHandler handles the garbage collection endpoint of the dashboard.
 func (d *FSDashboard) gcHandler(w http.ResponseWriter, _ *http.Request) {
 	runtime.GC()
 	debug.FreeOSMemory()
@@ -219,6 +225,7 @@ func (d *FSDashboard) gcHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "GC forced, current heap: %s.\n", humanize.IBytes(m.Alloc))
 }
 
+// resetMetricsHandler handles the reset metrics endpoint of the dashboard.
 func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request) {
 	d.fsys.Metrics.Errors.Store(0)
 	d.fsys.Metrics.TotalOpenedZips.Store(0)
@@ -243,6 +250,7 @@ func (d *FSDashboard) resetMetricsHandler(w http.ResponseWriter, _ *http.Request
 	fmt.Fprintln(w, "Metrics reset.")
 }
 
+// thresholdHandler handles setting the streaming threshold by endpoint.
 func (d *FSDashboard) thresholdHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
@@ -261,6 +269,7 @@ func (d *FSDashboard) thresholdHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Streaming threshold set: %s.\n", humanize.IBytes(val))
 }
 
+// booleanHandler handles setting target atomic booleans by endpoint.
 func (d *FSDashboard) booleanHandler(desc string, target *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)

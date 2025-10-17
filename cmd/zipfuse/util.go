@@ -19,6 +19,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// fdLimits calculates the file descriptor limits for the program.
+// The values are derived from the operating system's soft FD limit.
+//
 //nolint:mnd,err113,nonamedreturns
 func fdLimits() (fsLimit int, cacheLimit int, err error) {
 	var rlim unix.Rlimit
@@ -50,6 +53,13 @@ func fdLimits() (fsLimit int, cacheLimit int, err error) {
 	return fsLimit, cacheLimit, nil
 }
 
+// setupSignalHandlers sets up the listeners for operating system signals.
+//
+//   - SIGTERM or SIGINT (CTRL+C) gracefully unmounts the filesystem
+//   - SIGUSR1 forces a garbage collection (within Go)
+//   - SIGUSR2 dumps a diagnostic stacktrace to standard error (stderr)
+//
+// Unmount failures are handled and the filesystem restored to working order.
 func setupSignalHandlers(fsys *filesystem.FS, rbuf *logging.RingBuffer, mountDir string) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -98,6 +108,9 @@ func setupSignalHandlers(fsys *filesystem.FS, rbuf *logging.RingBuffer, mountDir
 	}()
 }
 
+// dryWalkFS implements the dry-run mode of the program.
+// It does a virtual walk of the would-be filesystem, without mounting.
+// As the filesystem is walked, all would-be inodes and paths are printed out.
 func dryWalkFS(fsys *filesystem.FS) error {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -131,6 +144,8 @@ func dryWalkFS(fsys *filesystem.FS) error {
 	}
 }
 
+// recoverSignalsPanic is a helper function to be used in the signal handlers,
+// deferred functions invoke it to recover internally from any goroutine panics.
 func recoverSignalsPanic() {
 	r := recover()
 	if r != nil {

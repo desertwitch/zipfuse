@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Expectation: The expected command should be built from the given arguments.
+// Expectation: The command slice should be built from the given argument slice.
 //
 //nolint:maintidx
 func Test_MountHelper_BuildCommand_Success(t *testing.T) {

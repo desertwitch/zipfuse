@@ -51,6 +51,7 @@ var (
 	// Version is the program version (filled in from the Makefile).
 	Version string
 
+	// allowedKeys is a map of known arguments to the ZipFUSE program.
 	allowedKeys = map[string]struct{}{
 		"fd-cache-bypass":  {},
 		"force-unicode":    {},
@@ -70,6 +71,7 @@ var (
 	}
 )
 
+// mountHelper is the principal implementation of the FUSE mount helper.
 type mountHelper struct {
 	Program    string
 	Binary     string
@@ -82,6 +84,7 @@ type mountHelper struct {
 	Timeout    time.Duration
 }
 
+// newMountHelper parses arguments and returns a new [mountHelper] on success.
 func newMountHelper(args []string) (*mountHelper, error) {
 	mh := &mountHelper{
 		Program:    args[0],
@@ -122,6 +125,7 @@ func newMountHelper(args []string) (*mountHelper, error) {
 	return mh, nil
 }
 
+// parseOptions parses the mount options from the provided argument slice.
 func (mh *mountHelper) parseOptions(args []string) error {
 	for i := 0; i < len(args); i++ { //nolint:intrange
 		arg := args[i]
@@ -187,6 +191,7 @@ func (mh *mountHelper) parseOptions(args []string) error {
 	return nil
 }
 
+// deriveTypeFromArg tries to deduct the filesystem type from a "-t" argument.
 func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 	*i++
 	if *i >= len(args) {
@@ -206,6 +211,7 @@ func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 	return nil
 }
 
+// deriveTypeFromSource tries to deduct the filesystem type from the source.
 func (mh *mountHelper) deriveTypeFromSource() error {
 	parts := strings.SplitN(mh.Source, "#", 2)
 
