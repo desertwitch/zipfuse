@@ -1,17 +1,17 @@
 <div align="left">
     <img alt="Logo" src="assets/zipfuse.png" width="150">
     <br><br>
-    <img src="https://img.shields.io/badge/.zip-%E2%99%A5_FUSE-red">
     <a href="https://github.com/desertwitch/zipfuse/releases" target="_blank"><img alt="Release" src="https://img.shields.io/github/release/desertwitch/zipfuse.svg"></a>
+    <a href="https://codecov.io/gh/desertwitch/zipfuse" target="_blank"><img src="https://codecov.io/gh/desertwitch/zipfuse/graph/badge.svg?token=SENW4W2GQL"/></a>
     <a href="https://go.dev/"><img alt="Go Version" src="https://img.shields.io/badge/go-%3E%3D%201.25.1-%23007d9c" target="_blank"></a>
     <a href="https://pkg.go.dev/github.com/desertwitch/zipfuse" target="_blank"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/desertwitch/zipfuse.svg"></a>
     <a href="https://goreportcard.com/report/github.com/desertwitch/zipfuse" target="_blank"><img alt="Go Report" src="https://goreportcard.com/badge/github.com/desertwitch/zipfuse"></a>
     <a href="./LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/github/license/desertwitch/zipfuse"></a>
     <br>
-    <a href="https://codecov.io/gh/desertwitch/zipfuse" target="_blank"><img src="https://codecov.io/gh/desertwitch/zipfuse/graph/badge.svg?token=SENW4W2GQL"/></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml" target="_blank"><img alt="Lint" src="https://github.com/desertwitch/zipfuse/actions/workflows/golangci-lint.yml/badge.svg"></a>
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml" target="_blank"><img alt="Tests" src="https://github.com/desertwitch/zipfuse/actions/workflows/golang-tests.yml/badge.svg"></a>
-    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-fstab.yml" target="_blank"><img alt="Integration" src="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-fstab.yml/badge.svg"></a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-cli.yml" target="_blank"><img alt="Integration CLI" src="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-cli.yml/badge.svg"></a>
+    <a href="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-fstab.yml" target="_blank"><img alt="Integration Fstab" src="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-fstab.yml/badge.svg"></a>
 </div><br>
 
 >**Note: This software is under active development.**  
