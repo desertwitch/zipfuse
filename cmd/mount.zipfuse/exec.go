@@ -1,8 +1,9 @@
-//nolint:mnd,noctx
+//nolint:mnd,noctx,err113
 package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +17,15 @@ import (
 	"al.essio.dev/pkg/shellescape"
 )
 
-var errMountTimeout = errors.New("mount timeout")
+const (
+	signalMountSuccess byte = 0
+	signalMountFailed  byte = 1
+)
+
+var (
+	errMountTimeout = errors.New("mount timeout")
+	errMountFailed  = errors.New("mount failed")
+)
 
 func (mh *mountHelper) BuildCommand() []string {
 	var parts []string
@@ -75,13 +84,15 @@ func (mh *mountHelper) Execute() error {
 
 	fdnull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
 	if err != nil {
-		return fmt.Errorf("failed to open /dev/null: %w", err)
+		return fmt.Errorf("failed to open \"/dev/null\": %w", err)
 	}
 	defer fdnull.Close()
 
-	fdlog, err := os.OpenFile(mountLog, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
+	fdlog, err := os.OpenFile(mh.Logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to open %q: %v (falling back to '/dev/null')\n", mountLog, err)
+		fmt.Fprintf(os.Stderr, `mount.zipfuse warning: failed to open %q: %v (falling back to "/dev/null").
+Do try to pass "xlog=/full/path/to/writeable/logfile" as a mount option.
+`, mh.Logfile, err)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = fdnull, fdnull, fdnull
 	} else {
 		defer fdlog.Close()
@@ -136,7 +147,8 @@ func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs [
 			Gid: gid,
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "warning: failed to resolve setuid %q: %v (falling back to 'su')\n", mh.Setuid, err)
+		fmt.Fprintf(os.Stderr, "mount.zipfuse warning: failed to resolve user %q: %v (falling back to \"su\")\n",
+			mh.Setuid, err)
 
 		safeCmdArgs := make([]string, len(cmdArgs))
 		for i, arg := range cmdArgs {
@@ -156,28 +168,21 @@ func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs [
 }
 
 func (mh *mountHelper) waitForMount(r io.Reader) error {
-	signalDone := make(chan error, 1)
-	go func() {
-		defer close(signalDone)
-		buf := make([]byte, 1)
-		_, err := r.Read(buf)
-		if err == nil {
-			signalDone <- nil
-		} else {
-			signalDone <- err
-		}
-	}()
+	signalDone := mh.waitForSignal(r)
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
-	totalTimeout := time.After(mountTimeout)
+	totalTimeout := time.After(mh.Timeout)
 	for {
 		select {
 		case signalErr := <-signalDone:
 			if signalErr == nil {
 				return nil
+			} else if errors.Is(signalErr, errMountFailed) {
+				return signalErr
 			}
+			fmt.Fprintf(os.Stderr, "mount.zipfuse warning: %v\n", signalErr)
 			signalDone = nil
 
 		case <-ticker.C:
@@ -195,10 +200,61 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 	}
 }
 
+func (mh *mountHelper) waitForSignal(r io.Reader) <-chan error {
+	signalChan := make(chan error, 1)
+
+	go func() {
+		defer func() {
+			rec := recover()
+			if rec != nil {
+				select {
+				case signalChan <- fmt.Errorf("panic recovered: %v", rec):
+				default:
+				}
+			}
+			close(signalChan)
+		}()
+
+		status := make([]byte, 1)
+		if _, err := io.ReadFull(r, status); err != nil {
+			signalChan <- fmt.Errorf("failed to read from pipe: %w", err)
+
+			return
+		}
+
+		switch status[0] {
+		case signalMountSuccess:
+			signalChan <- nil
+
+		case signalMountFailed:
+			scanner := bufio.NewScanner(r)
+			if scanner.Scan() {
+				var msg string
+				err := json.Unmarshal(scanner.Bytes(), &msg)
+				if err != nil {
+					signalChan <- fmt.Errorf("failed to unmarshal from pipe: %w", err)
+
+					return
+				}
+				signalChan <- fmt.Errorf("%w: %s", errMountFailed, msg)
+			} else if err := scanner.Err(); err != nil {
+				signalChan <- fmt.Errorf("failed to parse from pipe: %w", err)
+			} else {
+				signalChan <- errors.New("malformed signal from pipe: unknown error")
+			}
+
+		default:
+			signalChan <- errors.New("malformed signal from pipe: unknown status")
+		}
+	}()
+
+	return signalChan
+}
+
 func (mh *mountHelper) checkMountTable() (bool, error) {
 	f, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
-		return false, fmt.Errorf("cannot open /proc/self/mountinfo: %w", err)
+		return false, fmt.Errorf("cannot open \"/proc/self/mountinfo\": %w", err)
 	}
 	defer f.Close()
 
@@ -211,7 +267,7 @@ func (mh *mountHelper) checkMountTable() (bool, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return false, fmt.Errorf("error reading /proc/self/mountinfo: %w", err)
+		return false, fmt.Errorf("error reading \"/proc/self/mountinfo\": %w", err)
 	}
 
 	return false, nil

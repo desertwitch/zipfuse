@@ -23,6 +23,7 @@ When enabled, the diagnostics server exposes the following routes over HTTP:
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -42,12 +43,18 @@ import (
 )
 
 const (
-	stackTraceBufferSize = 1 << 24
+	stackTraceBufferSize int  = 1 << 24
+	signalMountSuccess   byte = 0
+	signalMountFailed    byte = 1
+	signalDelimiter      byte = '\n'
 )
 
 var (
 	// Version is the program version (filled in from the Makefile).
 	Version string
+
+	// mountHelperNotified is for when the FUSE mount helper was notified.
+	mountHelperNotified bool
 
 	// errInvalidArgument is for an invalid CLI argument/value provided.
 	errInvalidArgument = errors.New("invalid argument")
@@ -162,6 +169,7 @@ func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	mountOpts := []fuse.MountOption{
 		fuse.FSName("zipfuse"),
 		fuse.ReadOnly(),
+		fuse.DefaultPermissions(),
 		fuse.MaxReadahead(uint32(opts.streamPoolSize)),
 	}
 	if opts.allowOther {
@@ -177,7 +185,14 @@ func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	return conn, nil
 }
 
-func notifyMountHelper() error {
+// The FUSE mount helper passes the write end of a [os.Pipe] as file descriptor.
+// We use the pipe to signal either success or failure to the FUSE mount helper.
+// The argument is the error (or nil = success) that will be sent over the pipe.
+func notifyMountHelper(e error) error {
+	if mountHelperNotified {
+		return nil
+	}
+
 	fdStr := os.Getenv("ZIPFUSE_HELPER_FD")
 	if fdStr == "" {
 		return nil
@@ -185,16 +200,33 @@ func notifyMountHelper() error {
 
 	fd, err := strconv.Atoi(fdStr)
 	if err != nil {
-		return fmt.Errorf("fd conversion failed: %w", err)
+		return fmt.Errorf("fd conversion failed for %q: %w", fdStr, err)
 	}
 
 	f := os.NewFile(uintptr(fd), "helper-pipe")
+	if f == nil {
+		return fmt.Errorf("opening pipe failed for %q (fd=%d): (nil)", fdStr, fd) //nolint:err113
+	}
 	defer f.Close()
 
-	_, err = f.Write([]byte{1})
-	if err != nil {
-		return fmt.Errorf("write to pipe failed: %w", err)
+	if e == nil {
+		if _, err := f.Write([]byte{signalMountSuccess}); err != nil {
+			return fmt.Errorf("write success status to pipe failed: %w", err)
+		}
+	} else {
+		if _, err := f.Write([]byte{signalMountFailed}); err != nil {
+			return fmt.Errorf("write error status to pipe failed: %w", err)
+		}
+		msg, err := json.Marshal(e.Error())
+		if err != nil {
+			return fmt.Errorf("marshal error message for pipe failed: %w", err)
+		}
+		if _, err := f.Write(append(msg, signalDelimiter)); err != nil {
+			return fmt.Errorf("write error message to pipe failed: %w", err)
+		}
 	}
+
+	mountHelperNotified = true
 
 	return nil
 }
@@ -250,7 +282,21 @@ func cleanupMount(mountDir string, conn *fuse.Conn, fsys *filesystem.FS) {
 }
 
 func main() {
+	for _, arg := range os.Args {
+		if arg == "-o" {
+			fmt.Fprintln(os.Stderr, helpErrOptionsArg)
+			err := notifyMountHelper(fmt.Errorf("%w: \"-o\" is not supported", errInvalidArgument))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to notify mount helper: %v\n", err)
+			}
+			os.Exit(1)
+		}
+	}
 	if err := rootCmd().Execute(); err != nil {
+		err := notifyMountHelper(err)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to notify mount helper: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -274,7 +320,7 @@ func run(opts cliOptions) error {
 	}
 	defer cleanupMount(opts.mountDir, conn, fsys)
 
-	err = notifyMountHelper()
+	err = notifyMountHelper(nil)
 	if err != nil {
 		rbuf.Printf("failed to notify mount helper: %v\n", err)
 	}

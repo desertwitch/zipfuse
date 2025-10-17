@@ -15,11 +15,17 @@ For running the filesystem as another (e.g. unprivileged) user:
 Example (fstab entry):
   /mnt/zips   /mnt/zipfuse   zipfuse   allow_other,webserver=:8000   0  0
 
+Additional mount options to control mount helper behavior itself:
+  setuid=USER (as username or UID; overrides executing user)
+  xbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
+  xlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
+  xtim=SECS (numeric and in seconds; overrides filesystem mount timeout)
+
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
-Mount helper events are printed to standard error (stderr).
-FS events are printed to '/var/log/zipfuse.log' (if writeable).
+Note that FUSE mount helper events are printed to standard error (stderr).
+Filesystem events are printed to "/var/log/zipfuse.log" (if it is writeable).
 */
 //nolint:mnd,err113
 package main
@@ -30,13 +36,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	mountLog     = "/var/log/zipfuse.log"
-	mountTimeout = 20 * time.Second
+	defaultType    = "zipfuse"
+	defaultLogfile = "/var/log/zipfuse.log"
+	defaultTimeout = 20 * time.Second
 )
 
 var (
@@ -70,15 +78,19 @@ type mountHelper struct {
 	Mountpoint string
 	Options    map[string]string
 	Setuid     string
+	Logfile    string
+	Timeout    time.Duration
 }
 
 func newMountHelper(args []string) (*mountHelper, error) {
 	mh := &mountHelper{
 		Program:    args[0],
 		Source:     args[1],
-		Type:       "zipfuse",
+		Type:       defaultType,
 		Mountpoint: args[2],
 		Options:    make(map[string]string),
+		Logfile:    defaultLogfile,
+		Timeout:    defaultTimeout,
 	}
 
 	if mh.Source == "" {
@@ -139,11 +151,29 @@ func (mh *mountHelper) parseOptions(args []string) error {
 				key := parts[0]
 				val := parts[1]
 
-				if key == "bin" {
+				_, ok := allowedKeys[key]
+
+				switch {
+				case key == "xbin":
 					mh.Binary = val
-				} else if key == "setuid" {
+
+				case key == "xlog":
+					mh.Logfile = val
+
+				case key == "xtim":
+					secs, err := strconv.Atoi(val)
+					if err != nil {
+						return fmt.Errorf("failed to parse %q value %q: %w", key, val, err)
+					}
+					if secs <= 0 {
+						return fmt.Errorf("failed to use %q value %q: must be > 0", key, val)
+					}
+					mh.Timeout = time.Duration(secs) * time.Second
+
+				case key == "setuid":
 					mh.Setuid = val
-				} else if _, ok := allowedKeys[key]; ok {
+
+				case ok:
 					mh.Options[key] = val
 				}
 			} else { // key
@@ -160,7 +190,7 @@ func (mh *mountHelper) parseOptions(args []string) error {
 func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 	*i++
 	if *i >= len(args) {
-		return errors.New("missing value to argument '-t'")
+		return errors.New("missing type value to argument \"-t\"")
 	}
 	t := args[*i]
 	if after, ok := strings.CutPrefix(t, "fuse."); ok {
@@ -169,7 +199,7 @@ func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 		t = after0
 	}
 	if t == "" {
-		return errors.New("missing value to argument '-t'")
+		return errors.New("empty type value to argument \"-t\"")
 	}
 	mh.Type = t
 
@@ -183,14 +213,14 @@ func (mh *mountHelper) deriveTypeFromSource() error {
 		mh.Type = parts[0]
 		mh.Source = parts[1]
 	} else {
-		return errors.New("source argument is not in format 'type#source'")
+		return errors.New("source argument is not in format \"type#source\"")
 	}
 
 	if mh.Type == "" {
-		return errors.New("empty type before '#' in source argument")
+		return errors.New("empty type value before '#' in source argument")
 	}
 	if mh.Source == "" {
-		return errors.New("empty source after '#' in source argument")
+		return errors.New("empty source value after '#' in source argument")
 	}
 
 	return nil
@@ -199,28 +229,8 @@ func (mh *mountHelper) deriveTypeFromSource() error {
 func main() {
 	if len(os.Args) < 3 {
 		progName := filepath.Base(os.Args[0])
-		fmt.Fprintf(os.Stderr, `%s (%s) - FUSE mount helper
-
-This program is a helper for the mount/fstab mechanism.
-It is normally located in /sbin or another directory
-searched by mount(8) for filesystem helpers, and is
-not intended to be invoked directly by the end users.
-
-Usage:
-  %s source mountpoint [-o key[=value],key[=value],...]
-
-For running the filesystem as another (e.g. unprivileged) user:
-  %s source mountpoint -o setuid=USER[,key[=value],...]
-
-Example (fstab entry):
-  /mnt/zips   /mnt/zipfuse   zipfuse   allow_other,webserver=:8000   0  0
-
-Filesystem-specific options need to be adapted into this format:
-  --webserver :8000 --strict-cache => webserver=:8000,strict_cache
-
-Mount helper events are printed to standard error (stderr).
-FS events are printed to '%s' (if writeable).
-`, progName, Version, progName, progName, mountLog)
+		fmt.Fprintf(os.Stderr, helpTextLong+"\n",
+			progName, Version, progName, progName, defaultLogfile)
 		os.Exit(1)
 	}
 
@@ -234,15 +244,11 @@ FS events are printed to '%s' (if writeable).
 	if err != nil {
 		switch {
 		case errors.Is(err, exec.ErrNotFound):
-			fmt.Fprintln(os.Stderr, `mount.zipfuse error: zipfuse not found within $PATH dirs.
-Perhaps you installed it into some non-standard directory?
-Some operating systems also mangle the environment variable.
-Do try to pass 'bin=/full/path/to/binary' as a mount option.`)
+			fmt.Fprintln(os.Stderr, helpErrNotFound)
 
 		case errors.Is(err, errMountTimeout):
-			fmt.Fprintf(os.Stderr, `mount.zipfuse error: mount did not appear within %d seconds.
-Do try checking '/var/log/zipfuse.log' for more information.
-`, int(mountTimeout.Seconds()))
+			fmt.Fprintf(os.Stderr, helpErrMountTimeout+"\n",
+				int(helper.Timeout.Seconds()), helper.Logfile)
 
 		default:
 			fmt.Fprintf(os.Stderr, "mount.zipfuse error: %v\n", err)
