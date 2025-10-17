@@ -205,7 +205,7 @@ func notifyMountHelper(e error) error {
 
 	f := os.NewFile(uintptr(fd), "helper-pipe")
 	if f == nil {
-		return fmt.Errorf("opening file failed for %q (fd=%d): (nil)", fdStr, fd) //nolint:err113
+		return fmt.Errorf("opening pipe failed for %q (fd=%d): (nil)", fdStr, fd) //nolint:err113
 	}
 	defer f.Close()
 
