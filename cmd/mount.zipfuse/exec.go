@@ -176,6 +176,7 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 			} else if errors.Is(signalErr, errMountFailed) {
 				return signalErr
 			}
+			fmt.Fprintf(os.Stderr, "mount.zipfuse warning: %v\n", signalErr)
 			signalDone = nil
 
 		case <-ticker.C:
