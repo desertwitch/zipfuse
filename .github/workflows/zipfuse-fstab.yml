@@ -189,22 +189,27 @@ jobs:
 
         for i in {1..10}; do
           if ! pgrep -fa zipfuse &>/dev/null; then
-            echo "Filesystem exited successfully"
+            echo "Filesystem binary exited successfully"
             exit 0
           fi
           sleep 0.5
         done
 
-        echo "ERROR: Filesystem alive after unmount"
-        pgrep -fa zipfuse || true
+        echo "ERROR: Filesystem binary seems stuck after unmount"
         exit 1
 
     - name: Verify unmounted
       if: always()
       run: |
         if mountpoint -q mountpoint; then
-          echo "ERROR: Filesystem still mounted after killall"
+          echo "ERROR: Filesystem still mounted after fusermount3"
           mount | grep zipfuse || true
+          exit 1
+        fi
+
+        if pgrep -fa zipfuse &>/dev/null; then
+          echo "ERROR: Filesystem binary still alive after unmount"
+          pgrep -fa zipfuse || true
           exit 1
         fi
 
