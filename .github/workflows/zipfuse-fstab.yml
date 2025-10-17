@@ -27,12 +27,13 @@ jobs:
         sudo apt-get install -y fuse3
         sudo sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
 
-    - name: Build binaries
-      run: |
-        make vendor
-        make debug
+    - name: Vendor dependencies
+      run: make vendor
 
-    - name: Install binaries
+    - name: Build debug binaries
+      run: make debug
+
+    - name: Install debug binaries
       run: |
         sudo cp zipfuse /bin/zipfuse
         sudo chmod +x /bin/zipfuse
