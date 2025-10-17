@@ -253,10 +253,10 @@ func cleanupMount(mountDir string, conn *fuse.Conn, fsys *filesystem.FS) {
 func main() {
 	for _, arg := range os.Args {
 		if arg == "-o" {
-			fmt.Fprintln(os.Stderr, `You have invoked this program with an '-o' flag, which is not supported.
-Most likely you tried mounting as 'fuse.zipfuse' using mount(8) or fstab?
-If you wish to mount using mount(8) or fstab, use only 'zipfuse' as type.
-However that requires our helper 'mount.zipfuse' be installed in '/sbin'.
+			fmt.Fprintln(os.Stderr, `You have invoked this program with an "-o" flag, which is not supported.
+Most likely you tried mounting as "fuse.zipfuse" using mount(8) or fstab?
+If you wish to mount using mount(8) or fstab, use only "zipfuse" as type.
+However that requires the helper "mount.zipfuse" be installed in "/sbin".
 For more information, please read the INSTALL instructions or the README.`)
 			os.Exit(1)
 		}

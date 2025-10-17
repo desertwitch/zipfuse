@@ -75,14 +75,14 @@ func (mh *mountHelper) Execute() error {
 
 	fdnull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
 	if err != nil {
-		return fmt.Errorf("failed to open /dev/null: %w", err)
+		return fmt.Errorf("failed to open \"/dev/null\": %w", err)
 	}
 	defer fdnull.Close()
 
 	fdlog, err := os.OpenFile(mh.Logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, `mount.zipfuse warning: failed to open %q: %v (falling back to '/dev/null').
-Do try to pass 'mlog=/full/path/to/writeable/logfile' as a mount option.
+		fmt.Fprintf(os.Stderr, `mount.zipfuse warning: failed to open %q: %v (falling back to "/dev/null").
+Do try to pass "mlog=/full/path/to/writeable/logfile" as a mount option.
 `, mh.Logfile, err)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = fdnull, fdnull, fdnull
 	} else {
@@ -138,7 +138,7 @@ func (mh *mountHelper) setUID(spa *syscall.SysProcAttr, cmd *exec.Cmd, cmdArgs [
 			Gid: gid,
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "mount.zipfuse warning: failed to resolve user %q: %v (falling back to 'su')\n",
+		fmt.Fprintf(os.Stderr, "mount.zipfuse warning: failed to resolve user %q: %v (falling back to \"su\")\n",
 			mh.Setuid, err)
 
 		safeCmdArgs := make([]string, len(cmdArgs))
@@ -201,7 +201,7 @@ func (mh *mountHelper) waitForMount(r io.Reader) error {
 func (mh *mountHelper) checkMountTable() (bool, error) {
 	f, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
-		return false, fmt.Errorf("cannot open /proc/self/mountinfo: %w", err)
+		return false, fmt.Errorf("cannot open \"/proc/self/mountinfo\": %w", err)
 	}
 	defer f.Close()
 
@@ -214,7 +214,7 @@ func (mh *mountHelper) checkMountTable() (bool, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return false, fmt.Errorf("error reading /proc/self/mountinfo: %w", err)
+		return false, fmt.Errorf("error reading \"/proc/self/mountinfo\": %w", err)
 	}
 
 	return false, nil

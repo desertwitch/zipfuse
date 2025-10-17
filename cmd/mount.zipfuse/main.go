@@ -15,11 +15,17 @@ For running the filesystem as another (e.g. unprivileged) user:
 Example (fstab entry):
   /mnt/zips   /mnt/zipfuse   zipfuse   allow_other,webserver=:8000   0  0
 
+Additional mount options to control mount helper behavior itself:
+  setuid=USER (as username or UID; overrides executing user)
+  mbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
+  mlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
+  mtmo=SECS (numeric and in seconds; overrides filesystem mount timeout)
+
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
-Mount helper events are printed to standard error (stderr).
-FS events are printed to '/var/log/zipfuse.log' (if writeable).
+Note that FUSE mount helper events are printed to standard error (stderr).
+Filesystem events are printed to "/var/log/zipfuse.log" (if it is writeable).
 */
 //nolint:mnd,err113
 package main
@@ -183,7 +189,7 @@ func (mh *mountHelper) parseOptions(args []string) error {
 func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 	*i++
 	if *i >= len(args) {
-		return errors.New("missing value to argument '-t'")
+		return errors.New("missing value to argument \"-t\"")
 	}
 	t := args[*i]
 	if after, ok := strings.CutPrefix(t, "fuse."); ok {
@@ -192,7 +198,7 @@ func (mh *mountHelper) deriveTypeFromArg(i *int, args []string) error {
 		t = after0
 	}
 	if t == "" {
-		return errors.New("missing value to argument '-t'")
+		return errors.New("missing value to argument \"-t\"")
 	}
 	mh.Type = t
 
@@ -206,7 +212,7 @@ func (mh *mountHelper) deriveTypeFromSource() error {
 		mh.Type = parts[0]
 		mh.Source = parts[1]
 	} else {
-		return errors.New("source argument is not in format 'type#source'")
+		return errors.New("source argument is not in format \"type#source\"")
 	}
 
 	if mh.Type == "" {
@@ -238,16 +244,17 @@ For running the filesystem as another (e.g. unprivileged) user:
 Example (fstab entry):
   /mnt/zips   /mnt/zipfuse   zipfuse   allow_other,webserver=:8000   0  0
 
+Additional mount options to control mount helper behavior itself:
+  setuid=USER (as username or UID; overrides executing user)
+  mbin=/full/path/to/zipfuse/binary (overrides filesystem binary)
+  mlog=/full/path/to/writeable/logfile (overrides filesystem logfile)
+  mtmo=SECS (numeric and in seconds; overrides filesystem mount timeout)
+
 Filesystem-specific options need to be adapted into this format:
   --webserver :8000 --strict-cache => webserver=:8000,strict_cache
 
-Additional mount options to control mount helper behavior itself:
-  mbin=/full/path/to/zipfuse/binary (overrides FS binary)
-  mlog=/full/path/to/writeable/logfile (overrides FS logfile)
-  mtmo=SECS (numeric and in seconds; overrides FS mount timeout)
-
-Mount helper events are printed to standard error (stderr).
-FS events are printed to '%s' (if writeable).
+Note that FUSE mount helper events are printed to standard error (stderr).
+Filesystem events are printed to %q (if it is writeable).
 `, progName, Version, progName, progName, defaultLogfile)
 		os.Exit(1)
 	}
@@ -265,11 +272,11 @@ FS events are printed to '%s' (if writeable).
 			fmt.Fprintln(os.Stderr, `mount.zipfuse error: zipfuse not found within $PATH dirs.
 Perhaps you installed it into some non-standard directory?
 Some operating systems also mangle the environment variable.
-Do try to pass 'mbin=/full/path/to/binary' as a mount option.`)
+Do try to pass "mbin=/full/path/to/binary" as a mount option.`)
 
 		case errors.Is(err, errMountTimeout):
 			fmt.Fprintf(os.Stderr, `mount.zipfuse error: mount did not appear within %d seconds.
-You can raise this timeout by passing 'mtmo=SECS' as a mount option.
+You can raise this timeout by passing "mtmo=SECS" as a mount option.
 But beware default timeouts usually suffice and indicate error conditions.
 So first do try checking %q for more (error) information.
 `, int(helper.Timeout.Seconds()), helper.Logfile)
