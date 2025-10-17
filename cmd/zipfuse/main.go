@@ -43,7 +43,10 @@ import (
 )
 
 const (
-	stackTraceBufferSize = 1 << 24
+	stackTraceBufferSize int  = 1 << 24
+	signalMountSuccess   byte = 0
+	signalMountFailed    byte = 1
+	signalDelimiter      byte = '\n'
 )
 
 var (
@@ -202,23 +205,23 @@ func notifyMountHelper(e error) error {
 
 	f := os.NewFile(uintptr(fd), "helper-pipe")
 	if f == nil {
-		return fmt.Errorf("fd conversion got nil for %q: %d", fdStr, fd) //nolint:err113
+		return fmt.Errorf("opening file failed for %q (fd=%d): (nil)", fdStr, fd) //nolint:err113
 	}
 	defer f.Close()
 
 	if e == nil {
-		if _, err := f.Write([]byte{0}); err != nil {
+		if _, err := f.Write([]byte{signalMountSuccess}); err != nil {
 			return fmt.Errorf("write success status to pipe failed: %w", err)
 		}
 	} else {
-		if _, err := f.Write([]byte{1}); err != nil {
+		if _, err := f.Write([]byte{signalMountFailed}); err != nil {
 			return fmt.Errorf("write error status to pipe failed: %w", err)
 		}
 		msg, err := json.Marshal(e.Error())
 		if err != nil {
 			return fmt.Errorf("marshal error message for pipe failed: %w", err)
 		}
-		if _, err := f.Write(append(msg, '\n')); err != nil {
+		if _, err := f.Write(append(msg, signalDelimiter)); err != nil {
 			return fmt.Errorf("write error message to pipe failed: %w", err)
 		}
 	}

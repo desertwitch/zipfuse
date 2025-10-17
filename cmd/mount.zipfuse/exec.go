@@ -17,6 +17,11 @@ import (
 	"al.essio.dev/pkg/shellescape"
 )
 
+const (
+	signalMountSuccess byte = 0
+	signalMountFailed  byte = 1
+)
+
 var (
 	errMountTimeout = errors.New("mount timeout")
 	errMountFailed  = errors.New("mount failed")
@@ -217,9 +222,11 @@ func (mh *mountHelper) waitForSignal(r io.Reader) <-chan error {
 			return
 		}
 
-		if status[0] == 0 {
+		switch status[0] {
+		case signalMountSuccess:
 			signalChan <- nil
-		} else {
+
+		case signalMountFailed:
 			scanner := bufio.NewScanner(r)
 			if scanner.Scan() {
 				var msg string
@@ -231,10 +238,13 @@ func (mh *mountHelper) waitForSignal(r io.Reader) <-chan error {
 				}
 				signalChan <- fmt.Errorf("%w: %s", errMountFailed, msg)
 			} else if err := scanner.Err(); err != nil {
-				signalChan <- fmt.Errorf("failed to read from pipe: %w", err)
+				signalChan <- fmt.Errorf("failed to parse from pipe: %w", err)
 			} else {
-				signalChan <- errors.New("failed to parse from pipe: unknown error")
+				signalChan <- errors.New("malformed signal from pipe: unknown error")
 			}
+
+		default:
+			signalChan <- errors.New("malformed signal from pipe: unknown status")
 		}
 	}()
 
