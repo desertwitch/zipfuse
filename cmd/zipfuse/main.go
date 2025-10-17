@@ -23,6 +23,7 @@ When enabled, the diagnostics server exposes the following routes over HTTP:
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -213,7 +214,11 @@ func notifyMountHelper(e error) error {
 		if _, err := f.Write([]byte{1}); err != nil {
 			return fmt.Errorf("write error status to pipe failed: %w", err)
 		}
-		if _, err := fmt.Fprintf(f, "%s\n", e.Error()); err != nil {
+		msg, err := json.Marshal(e.Error())
+		if err != nil {
+			return fmt.Errorf("marshal error message for pipe failed: %w", err)
+		}
+		if _, err := f.Write(append(msg, '\n')); err != nil {
 			return fmt.Errorf("write error message to pipe failed: %w", err)
 		}
 	}

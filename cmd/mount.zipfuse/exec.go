@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -210,8 +211,7 @@ func (mh *mountHelper) waitForSignal(r io.Reader) <-chan error {
 		}()
 
 		status := make([]byte, 1)
-		_, err := r.Read(status)
-		if err != nil {
+		if _, err := io.ReadFull(r, status); err != nil {
 			signalChan <- fmt.Errorf("failed to read from pipe: %w", err)
 
 			return
@@ -222,11 +222,18 @@ func (mh *mountHelper) waitForSignal(r io.Reader) <-chan error {
 		} else {
 			scanner := bufio.NewScanner(r)
 			if scanner.Scan() {
-				signalChan <- fmt.Errorf("%w: %s", errMountFailed, scanner.Text())
+				var msg string
+				err := json.Unmarshal(scanner.Bytes(), &msg)
+				if err != nil {
+					signalChan <- fmt.Errorf("failed to unmarshal from pipe: %w", err)
+
+					return
+				}
+				signalChan <- fmt.Errorf("%w: %s", errMountFailed, msg)
 			} else if err := scanner.Err(); err != nil {
 				signalChan <- fmt.Errorf("failed to read from pipe: %w", err)
 			} else {
-				signalChan <- errors.New("failed to parse message from pipe")
+				signalChan <- errors.New("failed to parse from pipe: unknown error")
 			}
 		}
 	}()
