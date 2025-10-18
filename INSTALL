@@ -93,4 +93,4 @@ SIGTERM to the filesystem's PID using kill(1). Alternatively, of course,
 fusermount3(1) or umount(8) can be used directly on the mountpoint, which also
 allows forcing an unmount on a stuck as busy filesystem (if so required).
 
-If integrated with a systemd(1) service unit, unmounting is handled for you.
+If integrated with a systemd(1) service unit, unmounting may be handled for you.
