@@ -13,18 +13,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.25.1'
-
     - name: Install FUSE
       run: |
         sudo apt-get update
         sudo apt-get install -y fuse3
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.25.1
+        cache: false
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Clean the environment
+      run: make clean
 
     - name: Vendor dependencies
       run: make vendor

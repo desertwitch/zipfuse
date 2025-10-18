@@ -12,15 +12,23 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-go@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
           go-version: 1.25.1
           cache: false
+
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Clean the environment
+        run: make clean
+
       - name: Vendor the application for production
         run: make vendor
+
       - name: Build the application for production
         run: make zipfuse
+
       - name: Build the application helper for production
         run: make mount.zipfuse

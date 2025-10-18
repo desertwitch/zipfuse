@@ -13,13 +13,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
     - name: Install Asciidoc
       run: |
         sudo apt-get update
         sudo apt-get install -y asciidoc w3m
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Clean the environment
+      run: make clean
 
     - name: Build the documentation
       run: make docs
