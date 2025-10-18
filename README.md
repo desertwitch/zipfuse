@@ -211,6 +211,7 @@ Dry-run to inspect would-be inodes and files without actual mounting:
 You can update the filesystem by simply replacing any installed files
 in the locations you have installed them to with their new counterparts.
 This is best done when no instances of the filesystem are currently mounted.
+Do not forget to also do this for previously installed documentation manpages.
 
 ## Runtime routes and signals handling
 
