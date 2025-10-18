@@ -168,7 +168,7 @@ send `SIGTERM` to the filesystem's PID using `kill`. Alternatively, of course,
 `fusermount3 -u` or `umount` can be used directly on the mountpoint, which also
 allows forcing an unmount on a stuck as busy filesystem (if so required).
 
-## Updating the filesystem
+## Updating the filesystem version
 
 You can update the filesystem by simply replacing any installed files
 in the locations you have installed them to with their new counterparts.
