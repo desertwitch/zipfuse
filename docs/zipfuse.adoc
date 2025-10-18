@@ -45,11 +45,11 @@ being handled on-the-fly and in-memory by the backing `zipfuse` filesystem.
 
 The filesystem generally runs in foreground mode and can be put into background
 either by running inside a `screen(1)`, `tmux(1)` session or also more simply by
-running with `nohup(1)` and `&`, piping output to e.g. appropriate logfiles.
+running with `nohup(1)` and `&`, piping output to e.g. an appropriate logfile.
 
-The foreground mode complements nicely with wrapping the binary call into a full
+The foreground mode complements nicely with wrapping the binary into a full
 fledged `systemd(1)` service unit; refer to the respective section further
-below.
+below for more information on how to realize such a setup on your system.
 
 OPTIONS
 -------
@@ -157,11 +157,11 @@ Mount a directory of ZIP archives with default settings:
 
 Mount with default settings and diagnostics dashboard on port 8000:
 
-    zipfuse ~/zips ~/zipfuse -w :8000
+    zipfuse ~/zips ~/zipfuse --webserver :8000
 
 Mount allowing other users to access, with flattened directory structure:
 
-    zipfuse ~/zips ~/zipfuse -a -f
+    zipfuse ~/zips ~/zipfuse --allow-other --flatten-zips
 
 Run in background with `nohup(1)`:
 
@@ -176,9 +176,6 @@ can simply press `CTRL+C` to unmount the filesystem. If backgrounded, you can
 send `SIGTERM` to the filesystem's PID using `kill(1)`. Alternatively, of
 course, `fusermount3(1)` or `umount(8)` can be used on the mountpoint, which
 also allows forcing an unmount on a stuck as busy filesystem (if so required).
-
-If integrated with a `systemd(1)` service unit, unmounting may be handled for
-you.
 
 EXIT STATUS
 -----------
@@ -211,11 +208,10 @@ INTEGRATION
 
 The `systemd(1)` framework provides an ideal basis for realizing a long-running
 `zipfuse` filesystem instance as a service. If such a service unit is set up,
-the filesystem can be started, monitored and stopped through `systemd(1)`
-management.
+the filesystem can be started, monitored and stopped all through `systemd(1)`
+management with little to zero maintenance or user interaction ever required.
 
-Such a service unit could look as follows, although needing further
-customization:
+Such a service unit could look as follows, although needing customization:
 ----
 [Unit]
 Description=ZipFUSE
@@ -235,11 +231,11 @@ Group=alice
 WantedBy=multi-user.target
 ----
 
-For users not wishing to use `systemd(1)` or otherwise incompatible systems, it
-is recommended to refer to the `mount.zipfuse(8)` manpage on how to mount the
+For users not wishing to use `systemd(1)`, or on otherwise incompatible systems,
+it is recommended to refer to the `mount.zipfuse(8)` manpage on how to mount the
 filesystem using `mount(8)` or `/etc/fstab` instead. Of course, the filesystem
-binary itself can also be orchestrated using common Bash scripting in
-combination with e.g. `nohup(1)`.
+binary itself can also be orchestrated using common shell scripting combined
+with e.g. `nohup(1)` and `&`, as well as piping any output to logfile instead.
 
 PERFORMANCE
 -----------
@@ -294,6 +290,6 @@ Refer to the following manpages for further information:
 * `umount(8)`
 * `fstab(5)`
 
-Visit the ZipFUSE project website for news and further documentation:
+Visit the ZipFUSE project website for news and documentation:
 
 * https://github.com/desertwitch/zipfuse[https://github.com/desertwitch/zipfuse]

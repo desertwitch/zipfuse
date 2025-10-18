@@ -29,14 +29,14 @@ DEPENDENCIES
 USAGE
 -----
 
-`mount.zipfuse` *should not be called directly by the user.* +
+`mount.zipfuse` *should not be called directly by the user.*
+
 It is invoked through `mount(8)` directly or parsing `/etc/fstab`.
+
+For general filesystem usage, refer instead to the `zipfuse(1)` manpage.
 
 OPTIONS
 -------
-
-All non-supported options are silently discarded, this includes any
-general (FUSE) filesystem options that may be passed but are unsupported.
 
 *allow_other='bool'*::
 Allow other system users to access the mounted filesystem.
@@ -222,6 +222,6 @@ Refer to the following manpages for further information:
 * `umount(8)`
 * `fstab(5)`
 
-Visit the ZipFUSE project website for news and further documentation:
+Visit the ZipFUSE project website for news and documentation:
 
 * https://github.com/desertwitch/zipfuse[https://github.com/desertwitch/zipfuse]

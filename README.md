@@ -78,6 +78,11 @@ does not need elevated permissions. In contrast, the `mount.zipfuse` is usually
 executed by the system as `root` (when processing `/etc/fstab`), but will (when
 configured to do so) execute the filesystem binary as a given unprivileged user.
 
+You can install the documentation manpages by simply copying the release-bundled
+manpage files from the `man` directory to the location observed by your `man`
+program. If building from source, they will be present in `docs`, respectively.
+If unsure about the target paths, executing of `man --path` should reveal them.
+
 ## Mounting the filesystem
 ### Mounting with command-line or `systemd` service (recommended):
 
@@ -163,8 +168,6 @@ send `SIGTERM` to the filesystem's PID using `kill`. Alternatively, of course,
 `fusermount3 -u` or `umount` can be used directly on the mountpoint, which also
 allows forcing an unmount on a stuck as busy filesystem (if so required).
 
-If integrated with a `systemd` service unit, unmounting may be handled for you.
-
 ## Program options and configurables
 
 ```
@@ -217,6 +220,12 @@ The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
 - `SIGUSR1` forces a garbage collection (within Go)
 - `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
+
+## Updating the filesystem
+
+You can update the filesystem by simply replacing any installed files
+in the locations you have installed them to with their new counterparts.
+This is best done when no instances of the filesystem are currently mounted.
 
 ## Performance considerations
 
