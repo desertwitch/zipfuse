@@ -31,6 +31,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"bazil.org/fuse"
@@ -93,6 +94,12 @@ type cliOptions struct {
 func rootCmd() *cobra.Command {
 	var opts cliOptions
 
+	var allowOther bool
+	if euid := syscall.Geteuid(); euid == 0 {
+		// If the executing user is root, default to true.
+		allowOther = true
+	}
+
 	fsLimit, cacheLimit, err := fdLimits()
 	if err != nil {
 		fsLimit = filesystem.DefaultOptions().FDLimit
@@ -132,7 +139,7 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.forceUnicode, "force-unicode", true, "Unicode (or generated) paths for ZIPs; disabling garbles non-compliant ZIPs")
 	cmd.Flags().BoolVar(&opts.mustCRC32, "must-crc32", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
 	cmd.Flags().BoolVar(&opts.strictCache, "strict-cache", false, "Do not treat ZIP files/contents as immutable (non-changing) for caching decisions")
-	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", false, "Allow other users to access the filesystem")
+	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", allowOther, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print all verbose FUSE communication and diagnostics to standard error (stderr)")
