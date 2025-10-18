@@ -16,7 +16,7 @@ VERSION := $(shell \
   if [ -n "$$tag" ]; then echo $$tag | sed 's/^v//'; \
   else git rev-parse --short=7 HEAD; fi)
 
-.PHONY: all $(ZIPFUSE) $(HELPER) check clean debug docs docs-man docs-pdf docs-text docs-clean help info lint test test-coverage vendor
+.PHONY: all $(ZIPFUSE) $(HELPER) check clean debug docs docs-clean docs-man docs-pdf docs-text help info lint test test-coverage vendor
 
 all: vendor $(ZIPFUSE) $(HELPER) ## Runs the entire build chain for the application
 
@@ -44,6 +44,9 @@ docs: ## Builds all documentation (manpages, PDF, plain text)
 	@$(MAKE) docs-pdf
 	@$(MAKE) docs-text
 
+docs-clean: ## Removes generated documentation files
+	@rm -vf $(DOCS_DIR)/*.pdf $(DOCS_DIR)/*.text $(DOCS_DIR)/*.1 $(DOCS_DIR)/*.8 || true
+
 docs-man: ## Builds manpage documentation
 	$(A2X) -f manpage $(ZIPFUSE_ADOC)
 	$(A2X) -f manpage $(HELPER_ADOC)
@@ -55,9 +58,6 @@ docs-pdf: ## Builds PDF documentation
 docs-text: ## Builds plain text documentation
 	$(A2X) -f text $(ZIPFUSE_ADOC)
 	$(A2X) -f text $(HELPER_ADOC)
-
-docs-clean: ## Removes generated documentation files
-	@rm -vf $(DOCS_DIR)/*.pdf $(DOCS_DIR)/*.text $(DOCS_DIR)/*.1 $(DOCS_DIR)/*.8 || true
 
 help: ## Shows all build related commands of the Makefile
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
