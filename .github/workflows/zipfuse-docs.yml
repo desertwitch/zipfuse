@@ -1,0 +1,28 @@
+name: zipfuse-docs
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  zipfuse:
+    name: docs
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install Asciidoc
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y asciidoc w3m
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Clean the environment
+      run: make clean
+
+    - name: Build the documentation
+      run: make docs

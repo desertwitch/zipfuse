@@ -1,0 +1,295 @@
+ZIPFUSE(1)
+==========
+
+NAME
+----
+
+zipfuse - a filesystem for reading ZIP archives
+
+SYNOPSIS
+--------
+
+*zipfuse* -h
+
+*zipfuse* <source> <mountpoint> [flags]
+
+DESCRIPTION
+-----------
+
+`zipfuse` is a read-only FUSE filesystem that mirrors another filesystem, but
+exposing only its contained ZIP archives as files and folders. It handles
+in-memory enumeration, chunked streaming and on-the-fly extraction - so that
+consumers remain entirely unaware of an archive being involved. It includes a
+HTTP webserver for a responsive diagnostics dashboard and runtime configurables.
+
+DEPENDENCIES
+------------
+
+* `fusermount3(1)` (as usually part of a `fuse3` package)
+
+USAGE
+-----
+
+The filesystem needs to be mounted either by direct invocation of the binary or
+using the FUSE mount helper `mount.zipfuse(8)`, which is almost always supplied
+alongside the program. This manpage covers only direct invocation of the binary,
+for information on how to mount using `mount(8)` or `/etc/fstab`, refer instead
+to the `mount.zipfuse(8)` manpage.
+
+Direct invocation of the binary will start the filesystem and mirror underlying
+filesystem at `<source>` onto `<mountpoint>` respecting given option `[flags]`.
+Any regular folders and ZIP archives present in `<source>` will be presented as
+appropriate directory structure inside `<mountpoint>` and allow for browsing of
+ZIP archives as if they were regular filesystem structures, their extraction
+being handled on-the-fly and in-memory by the backing `zipfuse` filesystem.
+
+The filesystem generally runs in foreground mode and can be put into background
+either by running inside a `screen(1)`, `tmux(1)` session or also more simply by
+running with `nohup(1)` and `&`, piping output to e.g. an appropriate logfile.
+
+The foreground mode complements nicely with wrapping the binary into a full
+fledged `systemd(1)` service unit; refer to the respective section further
+below for more information on how to realize such a setup on your system.
+
+OPTIONS
+-------
+
+-a, *--allow-other 'bool'*::
+Allow other system users to access the mounted filesystem.
++
+Default: true if root; false if not
+
+-d, *--dry-run 'bool'*::
+Do not mount; instead print all would-be inodes and paths to standard output.
++
+Default: false
+
+*--fd-cache-bypass 'bool'*::
+Disable file descriptor caching; open/close a new file descriptor on every
+single request.
++
+Default: false
+
+*--fd-cache-size 'int'*::
+Maximum open file descriptors to retain in cache (for more performant
+re-accessing).
++
+Default: 70% of `fd-limit`
+
+*--fd-cache-ttl 'duration'*::
+Time-to-live before evicting cached file descriptors (that are not in use).
++
+Default: 60s
+
+*--fd-limit 'int'*::
+Maximum total open file descriptors at any given time (must be >
+`fd-cache-size`).
++
+Default: 50% of operating system's soft limit
+
+-f, *--flatten-zips 'bool'*::
+Flatten ZIP-contained subdirectories into one directory per ZIP archive.
++
+Default: false
+
+*--force-unicode 'bool'*::
+Unicode (or fallback to synthetic generated) paths for ZIPs; disabling
+garbles non-compliant ZIPs when trying to be interpreted as unicode.
++
+Default: true
+
+*--must-crc32 'bool'*::
+Force integrity verification for non-compressed ZIP archives (slower).
++
+Default: false
+
+*--ring-buffer-size 'int'*::
+Lines of the in-memory event ring-buffer (as served in the diagnostics
+dashboard).
++
+Default: 500
+
+*--stream-pool-size 'size'*::
+Buffer size for the streamed read buffer pool (multiplies with concurrency).
++
+Default: 128KiB
+
+-s, *--stream-threshold 'size'*::
+Files larger than this are streamed in chunks, instead of fully loaded into
+RAM.
++
+Default: 1MiB
+
+*--strict-cache 'bool'*::
+Do not treat ZIP files/contents as immutable (non-changing) for caching
+decisions.
++
+Default: false
+
+-v, *--verbose 'bool'*::
+Print all FUSE communication and diagnostics to standard error.
++
+Default: false
+
+*--version*::
+Print the program version to standard output.
++
+Default: false
+
+-w, *--webserver 'addr'*::
+Address for the diagnostics dashboard (e.g. `:8000`). If unset, the
+webserver is disabled.
++
+Default: (empty)
+
+Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`,
+`10MB`, or `10MiB`.
+
+Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or
+combined values like `1h30m`.
+
+EXAMPLES
+--------
+
+Mount a directory of ZIP archives with default settings:
+
+    zipfuse ~/zips ~/zipfuse
+
+Mount with default settings and diagnostics dashboard on port 8000:
+
+    zipfuse ~/zips ~/zipfuse --webserver :8000
+
+Mount allowing other users to access, with flattened directory structure:
+
+    zipfuse ~/zips ~/zipfuse --allow-other --flatten-zips
+
+Run in background with `nohup(1)`:
+
+    nohup zipfuse ~/zips ~/zipfuse -w :8000 > ~/zipfuse.log 2>&1 &
+
+UNMOUNTING
+----------
+
+The filesystem will observe `SIGTERM` and `SIGINT` to initiate a graceful
+unmount of the filesystem, if it is not busy. In foreground mode, this means you
+can simply press `CTRL+C` to unmount the filesystem. If backgrounded, you can
+send `SIGTERM` to the filesystem's PID using `kill(1)`. Alternatively, of
+course, `fusermount3(1)` or `umount(8)` can be used on the mountpoint, which
+also allows forcing an unmount on a stuck as busy filesystem (if so required).
+
+EXIT STATUS
+-----------
+
+The filesystem follows standard conventions with return codes:
+
+* `0` - Success
+* `1` - General Failure
+
+SIGNALS AND WEBSERVER ROUTES
+----------------------------
+
+The following signals are observed and handled by the filesystem:
+
+* `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
+* `SIGUSR1` forces a garbage collection (within Go)
+* `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
+
+When enabled, the diagnostics server exposes the following routes:
+
+* `/` for filesystem dashboard and event ring-buffer
+* `/gc` for forcing of a garbage collection (within Go)
+* `/reset` for resetting the filesystem metrics at runtime
+* `/set/must-crc32/<bool>` for adapting forced integrity checking
+* `/set/fd-cache-bypass/<bool>` for bypassing the file descriptor cache
+* `/set/stream-threshold/<string>` for adapting of the streaming threshold
+
+INTEGRATION
+-----------
+
+The `systemd(1)` framework provides an ideal basis for realizing a long-running
+`zipfuse` filesystem instance as a service. If such a service unit is set up,
+the filesystem can be started, monitored and stopped all through `systemd(1)`
+service management with little maintenance or user interaction being required.
+
+Such a service unit could look as follows, although needing customization:
+----
+[Unit]
+Description=ZipFUSE
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/zipfuse /home/alice/zips /home/alice/zipfuse --webserver :8000
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=30
+KillSignal=SIGTERM
+User=alice
+Group=alice
+
+[Install]
+WantedBy=multi-user.target
+----
+
+For users not wishing to use `systemd(1)`, or on otherwise incompatible systems,
+it is recommended to refer to the `mount.zipfuse(8)` manpage on how to mount the
+filesystem using `mount(8)` or `/etc/fstab` instead. Of course, the filesystem
+binary itself can also be orchestrated using common shell scripting combined
+with e.g. `nohup(1)` and `&`, as well as piping any output to logfile instead.
+
+PERFORMANCE
+-----------
+
+The filesystem is read-only, purpose-built and assumes more or less static
+content being served for a few consuming applications. While it may well be
+possible it works for larger-scale operations or in more complex environments,
+it was not built for such and should always be used with appropriate cautions.
+
+It is important to note that uncompressed ZIP archives will offer raw I/O
+performance, provided that `--must-crc32` is not enabled. For users wishing to
+utilize only the organizational benefit of ZIP archives, creating their ZIP
+archives with no compression can yield significant performance benefits, at the
+cost of more storage consumption.
+
+Uncompressed archives also benefit from true seeking, while compressed archives
+implement only pseudo-seeking (discard to request offset), which adds further
+overhead adding to that of the decompressor.
+
+SECURITY
+--------
+
+The webserver is disabled by default. When enabled, it is unsecured and assumes
+an otherwise appropriately secured environment (a modern reverse proxy,
+firewall, ...) to prevent any unauthorized access to the runtime configurables.
+
+AUTHOR AND LICENSE
+------------------
+
+Copyright (C) 2025 - desertwitch (dezertwitsh@gmail.com)
+
+The ZipFUSE project is licensed under the MIT license.
+
+Please refer to the `LICENSE` document for more information.
+
+VERSION
+-------
+
+This document was last changed on: *{docdate} {doctime}*
+
+This document was built for program version (or commit): *{version}*
+
+SEE ALSO
+--------
+
+Refer to the following manpages for further information:
+
+* `mount.zipfuse(8)`
+* `systemd(1)`
+* `fusermount3(1)`
+* `mount(8)`
+* `umount(8)`
+* `fstab(5)`
+
+Visit the ZipFUSE project website for news and documentation:
+
+* https://github.com/desertwitch/zipfuse[https://github.com/desertwitch/zipfuse]

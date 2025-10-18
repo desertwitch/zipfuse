@@ -55,7 +55,9 @@ Running `make all` produces two binaries:
 - `zipfuse` - binary of the FUSE filesystem
 - `mount.zipfuse` - binary of the FUSE mount helper
 
-The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.  
+The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.
+
+The documentation can be built using `make docs` (requires `asciidoc` & `w3m`).
 
 ## Installing the filesystem
 
@@ -75,6 +77,11 @@ As can be derived from the recommended paths above, the `zipfuse` binary itself
 does not need elevated permissions. In contrast, the `mount.zipfuse` is usually
 executed by the system as `root` (when processing `/etc/fstab`), but will (when
 configured to do so) execute the filesystem binary as a given unprivileged user.
+
+You can install the documentation manpages by simply copying the release-bundled
+manpage files from the `man` directory to the location observed by your `man`
+program. If building from source, they will be present in `docs`, respectively.
+If unsure about the target paths, executing of `man --path` should reveal them.
 
 ## Mounting the filesystem
 ### Mounting with command-line or `systemd` service (recommended):
@@ -152,6 +159,21 @@ xtim=SECS (numeric and in seconds; overrides filesystem mount timeout)
 Note that FUSE mount helper events are printed to standard error (`stderr`).  
 Any filesystem events are printed to `/var/log/zipfuse.log` (if it is writeable).
 
+## Unmounting the filesystem
+
+The filesystem will observe `SIGTERM` and `SIGINT` to initiate a graceful
+unmount of the filesystem, if it is not busy. In foreground mode, this means you
+can simply press `CTRL+C` to unmount the filesystem. In background mode, you can
+send `SIGTERM` to the filesystem's PID using `kill`. Alternatively, of course,
+`fusermount3 -u` or `umount` can be used directly on the mountpoint, which also
+allows forcing an unmount on a stuck as busy filesystem (if so required).
+
+## Updating the filesystem version
+
+You can update the filesystem by simply replacing any installed files
+in the locations you have installed them to with their new counterparts.
+This is best done when no instances of the filesystem are currently mounted.
+
 ## Program options and configurables
 
 ```
@@ -205,12 +227,24 @@ The following signals are observed and handled by the filesystem:
 - `SIGUSR1` forces a garbage collection (within Go)
 - `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
 
-## Security, Contributions, and License
+## Performance considerations
 
 The filesystem is read-only, purpose-built and assumes more or less static
 content being served for a few consuming applications. While it may well be
 possible it works for larger-scale operations or in more complex environments,
 it was not built for such and should always be used with appropriate cautions.
+
+It is important to note that uncompressed ZIP archives will offer raw I/O
+performance, provided that `--must-crc32` is not enabled. For users wishing to
+utilize only the organizational benefit of ZIP archives, creating their ZIP
+archives with no compression can yield significant performance benefits, at the
+cost of more storage consumption.
+
+Uncompressed archives also benefit from true seeking, while compressed archives
+implement only pseudo-seeking (discard to request offset), which adds further
+overhead adding to that of the decompressor.
+
+## Security, contributions, and license
 
 The webserver is disabled by default. When enabled, it is unsecured and assumes
 an otherwise appropriately secured environment (a modern reverse proxy,
