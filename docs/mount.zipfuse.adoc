@@ -21,6 +21,11 @@ filesystem. It allows for mounting of the filesystem using `mount(8)`
 and entries in the `/etc/fstab` file. It internally forks and executes
 the `zipfuse(1)` filesystem binary with the appropriate set of arguments.
 
+DEPENDENCIES
+------------
+
+* `fusermount3(1)` (as usually part of a `fuse3` package)
+
 USAGE
 -----
 

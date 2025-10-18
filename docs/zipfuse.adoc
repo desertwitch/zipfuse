@@ -22,6 +22,11 @@ in-memory enumeration, chunked streaming and on-the-fly extraction - so that
 consumers remain entirely unaware of an archive being involved. It includes a
 HTTP webserver for a responsive diagnostics dashboard and runtime configurables.
 
+DEPENDENCIES
+------------
+
+* `fusermount3(1)` (as usually part of a `fuse3` package)
+
 USAGE
 -----
 
