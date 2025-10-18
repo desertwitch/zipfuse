@@ -2,7 +2,8 @@ name: zipfuse-docs
 on:
   push:
     branches:
-      - devel
+      - master
+      - main
   pull_request:
 permissions:
   contents: read
