@@ -209,7 +209,7 @@ INTEGRATION
 The `systemd(1)` framework provides an ideal basis for realizing a long-running
 `zipfuse` filesystem instance as a service. If such a service unit is set up,
 the filesystem can be started, monitored and stopped all through `systemd(1)`
-management with little to zero maintenance or user interaction ever required.
+service management with little maintenance or user interaction being required.
 
 Such a service unit could look as follows, although needing customization:
 ----
