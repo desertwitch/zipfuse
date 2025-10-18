@@ -174,12 +174,17 @@ It internally communicates with the `zipfuse(1)` binary to deduce if
 the mount has been successful or has failed and derive from the result
 its own return code, as well as propagating any error messages onward.
 
+SECURITY
+--------
+
+The webserver is disabled by default. When enabled, it is unsecured and assumes
+an otherwise appropriately secured environment (a modern reverse proxy,
+firewall, ...) to prevent any unauthorized access to the runtime configurables.
+
 AUTHOR AND LICENSE
 ------------------
 
 Copyright (C) 2025 - desertwitch (dezertwitsh@gmail.com)
-
-https://github.com/desertwitch/zipfuse
 
 The ZipFUSE project is licensed under the MIT license. +
 Please refer to the `LICENSE` document for more information.
@@ -191,4 +196,9 @@ Refer to the following manpages for further information:
 
 * `zipfuse(1)`
 * `mount(8)`
+* `fstab(5)`
 * `systemd(1)`
+
+Visit the ZipFUSE project website for news and further documentation:
+
+* https://github.com/desertwitch/zipfuse[https://github.com/desertwitch/zipfuse]

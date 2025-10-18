@@ -207,6 +207,11 @@ The following signals are observed and handled by the filesystem:
 
 ## Performance considerations
 
+The filesystem is read-only, purpose-built and assumes more or less static
+content being served for a few consuming applications. While it may well be
+possible it works for larger-scale operations or in more complex environments,
+it was not built for such and should always be used with appropriate cautions.
+
 It is important to note that uncompressed ZIP archives will offer raw I/O
 performance, provided that `--must-crc32` is not enabled. For users wishing to
 utilize only the organizational benefit of ZIP archives, creating their ZIP
@@ -218,11 +223,6 @@ implement only pseudo-seeking (discard to request offset), which adds further
 overhead adding to that of the decompressor.
 
 ## Security, contributions, and license
-
-The filesystem is read-only, purpose-built and assumes more or less static
-content being served for a few consuming applications. While it may well be
-possible it works for larger-scale operations or in more complex environments,
-it was not built for such and should always be used with appropriate cautions.
 
 The webserver is disabled by default. When enabled, it is unsecured and assumes
 an otherwise appropriately secured environment (a modern reverse proxy,

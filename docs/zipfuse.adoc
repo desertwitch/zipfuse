@@ -226,7 +226,10 @@ combination with e.g. `nohup(1)`.
 PERFORMANCE
 -----------
 
-To tweak performance, the filesystem binary offers several tunable arguments.
+The filesystem is read-only, purpose-built and assumes more or less static
+content being served for a few consuming applications. While it may well be
+possible it works for larger-scale operations or in more complex environments,
+it was not built for such and should always be used with appropriate cautions.
 
 It is important to note that uncompressed ZIP archives will offer raw I/O
 performance, provided that `--must-crc32` is not enabled. For users wishing to
@@ -238,12 +241,17 @@ Uncompressed archives also benefit from true seeking, while compressed archives
 implement only pseudo-seeking (discard to request offset), which adds further
 overhead adding to that of the decompressor.
 
+SECURITY
+--------
+
+The webserver is disabled by default. When enabled, it is unsecured and assumes
+an otherwise appropriately secured environment (a modern reverse proxy,
+firewall, ...) to prevent any unauthorized access to the runtime configurables.
+
 AUTHOR AND LICENSE
 ------------------
 
 Copyright (C) 2025 - desertwitch (dezertwitsh@gmail.com)
-
-https://github.com/desertwitch/zipfuse
 
 The ZipFUSE project is licensed under the MIT license. +
 Please refer to the `LICENSE` document for more information.
@@ -256,3 +264,8 @@ Refer to the following manpages for further information:
 * `systemd(1)`
 * `mount.zipfuse(8)`
 * `mount(8)`
+* `fstab(5)`
+
+Visit the ZipFUSE project website for news and further documentation:
+
+* https://github.com/desertwitch/zipfuse[https://github.com/desertwitch/zipfuse]
