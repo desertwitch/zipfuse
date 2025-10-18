@@ -271,17 +271,27 @@ AUTHOR AND LICENSE
 
 Copyright (C) 2025 - desertwitch (dezertwitsh@gmail.com)
 
-The ZipFUSE project is licensed under the MIT license. +
+The ZipFUSE project is licensed under the MIT license.
+
 Please refer to the `LICENSE` document for more information.
+
+VERSION
+-------
+
+This document was last changed on: *{docdate} {doctime}*
+
+This document was built for program version (or commit): *{version}*
 
 SEE ALSO
 --------
 
 Refer to the following manpages for further information:
 
-* `systemd(1)`
 * `mount.zipfuse(8)`
+* `systemd(1)`
+* `fusermount3(1)`
 * `mount(8)`
+* `umount(8)`
 * `fstab(5)`
 
 Visit the ZipFUSE project website for news and further documentation:
