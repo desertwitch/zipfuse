@@ -31,6 +31,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"bazil.org/fuse"
@@ -63,6 +64,7 @@ var (
 	errPanicRecovered = errors.New("panic recovered")
 )
 
+// cliOptions describes all configurables of the command-line interface.
 type cliOptions struct {
 	allowOther         bool
 	dryRun             bool
@@ -85,9 +87,18 @@ type cliOptions struct {
 	webserverAddr      string
 }
 
+// rootCmd is the principal implementation of the command-line interface.
+// It describes all configurables and the invocation of the run() function.
+//
 //nolint:mnd
 func rootCmd() *cobra.Command {
 	var opts cliOptions
+
+	var allowOther bool
+	if euid := syscall.Geteuid(); euid == 0 {
+		// If the executing user is root, default to true.
+		allowOther = true
+	}
 
 	fsLimit, cacheLimit, err := fdLimits()
 	if err != nil {
@@ -128,7 +139,7 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.forceUnicode, "force-unicode", true, "Unicode (or generated) paths for ZIPs; disabling garbles non-compliant ZIPs")
 	cmd.Flags().BoolVar(&opts.mustCRC32, "must-crc32", false, "Force integrity verification on non-compressed ZIP files also (at performance cost)")
 	cmd.Flags().BoolVar(&opts.strictCache, "strict-cache", false, "Do not treat ZIP files/contents as immutable (non-changing) for caching decisions")
-	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", false, "Allow other users to access the filesystem")
+	cmd.Flags().BoolVarP(&opts.allowOther, "allow-other", "a", allowOther, "Allow other users to access the filesystem")
 	cmd.Flags().BoolVarP(&opts.dryRun, "dry-run", "d", false, "Do not mount, but print all would-be inodes and paths to standard output (stdout)")
 	cmd.Flags().BoolVarP(&opts.flatMode, "flatten-zips", "f", false, "Flatten ZIP-contained subdirectories and their files into one directory per ZIP")
 	cmd.Flags().BoolVarP(&opts.fuseVerbose, "verbose", "v", false, "Print all verbose FUSE communication and diagnostics to standard error (stderr)")
@@ -143,6 +154,49 @@ func rootCmd() *cobra.Command {
 	return cmd
 }
 
+// run is the runtime logic for the program as executed by [cobra.Command].
+// It implements the entire lifetime of the program and the served filesystem.
+func run(opts cliOptions) error {
+	rbuf := logging.NewRingBuffer(opts.ringBufferSize, os.Stderr)
+
+	fsys, err := setupFilesystem(opts, rbuf)
+	if err != nil {
+		return fmt.Errorf("failed to setup fs: %w", err)
+	}
+	defer fsys.Destroy()
+
+	if opts.dryRun {
+		return dryWalkFS(fsys)
+	}
+
+	conn, err := mountFilesystem(opts, fsys)
+	if err != nil {
+		return fmt.Errorf("failed to mount fs: %w", err)
+	}
+	defer cleanupMount(opts.mountDir, conn, fsys)
+
+	err = notifyMountHelper(nil)
+	if err != nil {
+		rbuf.Printf("failed to notify mount helper: %v\n", err)
+	}
+
+	setupSignalHandlers(fsys, rbuf, opts.mountDir)
+	wg, errChan := serveFilesystem(conn, fsys, opts.fuseVerbose)
+
+	if opts.webserverAddr != "" {
+		srv, err := serveDashboard(opts.webserverAddr, fsys, rbuf)
+		if err != nil {
+			return fmt.Errorf("failed to setup webserver: %w", err)
+		}
+		defer srv.Close()
+	}
+
+	wg.Wait()
+
+	return <-errChan
+}
+
+// setupFilesystem configures and returns the [filesystem.FS] to be served.
 func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS, error) {
 	fopts := &filesystem.Options{
 		FDCacheSize:    opts.fdCacheSize,
@@ -165,6 +219,7 @@ func setupFilesystem(opts cliOptions, rbuf *logging.RingBuffer) (*filesystem.FS,
 	return fsys, nil
 }
 
+// mountFilesystem opens a new [fuse.Conn] for the specified mountpoint.
 func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	mountOpts := []fuse.MountOption{
 		fuse.FSName("zipfuse"),
@@ -185,9 +240,13 @@ func mountFilesystem(opts cliOptions, fsys *filesystem.FS) (*fuse.Conn, error) {
 	return conn, nil
 }
 
+// notifyMountHelper handles piped notifications to the FUSE mount helper.
+//
 // The FUSE mount helper passes the write end of a [os.Pipe] as file descriptor.
 // We use the pipe to signal either success or failure to the FUSE mount helper.
 // The argument is the error (or nil = success) that will be sent over the pipe.
+//
+// If the FUSE mount helper is not involved, a call to this function is a no-op.
 func notifyMountHelper(e error) error {
 	if mountHelperNotified {
 		return nil
@@ -231,6 +290,7 @@ func notifyMountHelper(e error) error {
 	return nil
 }
 
+// serveFilesystem serves the [filesystem.FS] on the [fuse.Conn] for the mountpoint.
 func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.WaitGroup, <-chan error) {
 	var wg sync.WaitGroup
 	errChan := make(chan error, 1)
@@ -264,6 +324,7 @@ func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.
 	return &wg, errChan
 }
 
+// serveDashboard sets up a [http.Server] and starts serving a [webserver.FSDashboard].
 func serveDashboard(addr string, fsys *filesystem.FS, rbuf *logging.RingBuffer) (*http.Server, error) {
 	dashboard, err := webserver.NewFSDashboard(fsys, rbuf, Version)
 	if err != nil {
@@ -273,6 +334,7 @@ func serveDashboard(addr string, fsys *filesystem.FS, rbuf *logging.RingBuffer) 
 	return dashboard.Serve(addr), nil
 }
 
+// cleanupMount runs FS cleanup, unmounts and eventually closes the [fuse.Conn].
 func cleanupMount(mountDir string, conn *fuse.Conn, fsys *filesystem.FS) {
 	defer conn.Close()
 	defer fuse.Unmount(mountDir) //nolint:errcheck
@@ -299,44 +361,4 @@ func main() {
 		}
 		os.Exit(1)
 	}
-}
-
-func run(opts cliOptions) error {
-	rbuf := logging.NewRingBuffer(opts.ringBufferSize, os.Stderr)
-
-	fsys, err := setupFilesystem(opts, rbuf)
-	if err != nil {
-		return fmt.Errorf("failed to setup fs: %w", err)
-	}
-	defer fsys.Destroy()
-
-	if opts.dryRun {
-		return dryWalkFS(fsys)
-	}
-
-	conn, err := mountFilesystem(opts, fsys)
-	if err != nil {
-		return fmt.Errorf("failed to mount fs: %w", err)
-	}
-	defer cleanupMount(opts.mountDir, conn, fsys)
-
-	err = notifyMountHelper(nil)
-	if err != nil {
-		rbuf.Printf("failed to notify mount helper: %v\n", err)
-	}
-
-	setupSignalHandlers(fsys, rbuf, opts.mountDir)
-	wg, errChan := serveFilesystem(conn, fsys, opts.fuseVerbose)
-
-	if opts.webserverAddr != "" {
-		srv, err := serveDashboard(opts.webserverAddr, fsys, rbuf)
-		if err != nil {
-			return fmt.Errorf("failed to setup webserver: %w", err)
-		}
-		defer srv.Close()
-	}
-
-	wg.Wait()
-
-	return <-errChan
 }

@@ -6,6 +6,8 @@ import (
 	"strconv"
 )
 
+// resolveUser is a helper function to resolve a user on the operating system.
+// It returns the user's home directory, their UID, their GID, and any errors.
 func resolveUser(spec string) (string, uint32, uint32, error) {
 	var resolvedUser *user.User
 

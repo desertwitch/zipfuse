@@ -82,7 +82,7 @@ func (z *zipDirNode) readDirAllFlat(_ context.Context) ([]fuse.Dirent, error) {
 	defer zr.Release() //nolint:errcheck
 
 	for i, f := range zr.File {
-		normalizedPath := normalizeZipPath(i, f, m.fsys.Options.ForceUnicode)
+		normalizedPath := zipEntryNormalize(i, f, m.fsys.Options.ForceUnicode)
 
 		if isDir(f, normalizedPath) {
 			continue
@@ -123,7 +123,7 @@ func (z *zipDirNode) lookupFlat(_ context.Context, name string) (fs.Node, error)
 	defer zr.Release() //nolint:errcheck
 
 	for i, f := range zr.File {
-		normalizedPath := normalizeZipPath(i, f, m.fsys.Options.ForceUnicode)
+		normalizedPath := zipEntryNormalize(i, f, m.fsys.Options.ForceUnicode)
 
 		// Dirent is already normalized and flat, needs checking against that:
 		flatName, ok := flatEntryName(i, normalizedPath)
@@ -166,7 +166,7 @@ func (z *zipDirNode) readDirAllNested(_ context.Context) ([]fuse.Dirent, error) 
 	defer zr.Release() //nolint:errcheck
 
 	for i, f := range zr.File {
-		normalizedPath := normalizeZipPath(i, f, m.fsys.Options.ForceUnicode)
+		normalizedPath := zipEntryNormalize(i, f, m.fsys.Options.ForceUnicode)
 
 		// Prefix is already normalized, needs checking against that:
 		if !strings.HasPrefix(normalizedPath, z.prefix) {
@@ -226,7 +226,7 @@ func (z *zipDirNode) lookupNested(_ context.Context, name string) (fs.Node, erro
 	fullPath := z.prefix + name
 
 	for i, f := range zr.File {
-		normalizedPath := normalizeZipPath(i, f, m.fsys.Options.ForceUnicode)
+		normalizedPath := zipEntryNormalize(i, f, m.fsys.Options.ForceUnicode)
 
 		// Dirent is already normalized, needs checking against that:
 		if normalizedPath == fullPath && !isDir(f, normalizedPath) {
