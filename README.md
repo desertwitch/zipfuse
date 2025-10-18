@@ -55,7 +55,9 @@ Running `make all` produces two binaries:
 - `zipfuse` - binary of the FUSE filesystem
 - `mount.zipfuse` - binary of the FUSE mount helper
 
-The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.  
+The latter is needed only for mounting with `mount(8)` or `/etc/fstab`.
+
+The documentation can be built using `make docs` (requires `asciidoc` & `w3m`).
 
 ## Installing the filesystem
 
