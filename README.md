@@ -205,7 +205,19 @@ The following signals are observed and handled by the filesystem:
 - `SIGUSR1` forces a garbage collection (within Go)
 - `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
 
-## Security, Contributions, and License
+## Performance considerations
+
+It is important to note that uncompressed ZIP archives will offer raw I/O
+performance, provided that `--must-crc32` is not enabled. For users wishing to
+utilize only the organizational benefit of ZIP archives, creating their ZIP
+archives with no compression can yield significant performance benefits, at the
+cost of more storage consumption.
+
+Uncompressed archives also benefit from true seeking, while compressed archives
+implement only pseudo-seeking (discard to request offset), which adds further
+overhead adding to that of the decompressor.
+
+## Security, contributions, and license
 
 The filesystem is read-only, purpose-built and assumes more or less static
 content being served for a few consuming applications. While it may well be

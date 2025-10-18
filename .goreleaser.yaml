@@ -4,9 +4,11 @@ project_name: zipfuse
 
 before:
   hooks:
+    - make clean
     - make vendor
     - make lint
     - make test
+    - make docs
 
 builds:
   - id: zipfuse
@@ -59,6 +61,12 @@ archives:
     files:
       - LICENSE
       - INSTALL
+      - docs/*.pdf
+      - docs/*.text
+      - src: "docs/*.1"
+        dst: man
+      - src: "docs/*.8"
+        dst: man
 
 signs:
   - artifacts: checksum

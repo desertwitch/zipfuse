@@ -1,0 +1,194 @@
+MOUNT.ZIPFUSE(8)
+================
+
+NAME
+----
+
+mount.zipfuse - filesystem mount helper
+
+SYNOPSIS
+--------
+
+*mount.zipfuse* -h
+
+*mount.zipfuse* <source> <mountpoint> [-o key[=value],key[=value],...]
+
+DESCRIPTION
+-----------
+
+`mount.zipfuse` is a FUSE filesystem mount helper for the `zipfuse(1)`
+filesystem. It allows for mounting of the filesystem using `mount(8)`
+and entries in the `/etc/fstab` file. It internally forks and executes
+the `zipfuse(1)` filesystem binary with the appropriate set of arguments.
+
+USAGE
+-----
+
+`mount.zipfuse` *should not be called directly by the user.* +
+It is invoked through `mount(8)` directly or parsing `/etc/fstab`.
+
+OPTIONS
+-------
+
+All non-supported options are silently discarded, this includes any
+general (FUSE) filesystem options that may be passed but are unsupported.
+
+*allow_other='bool'*::
+Allow other system users to access the mounted filesystem.
++
+Default: true if root; false if not
+
+*fd_cache_bypass='bool'*::
+Disable file descriptor caching; open/close a new file descriptor on every
+single request.
++
+Default: false
+
+*fd_cache_size='int'*::
+Maximum open file descriptors to retain in cache (for more performant
+re-accessing).
++
+Default: 70% of `fd-limit`
+
+*fd_cache_ttl='duration'*::
+Time-to-live before evicting cached file descriptors (that are not in use).
++
+Default: 60s
+
+*fd_limit='int'*::
+Maximum total open file descriptors at any given time (must be >
+`fd-cache-size`).
++
+Default: 50% of operating system's soft limit
+
+*flatten_zips='bool'*::
+Flatten ZIP-contained subdirectories into one directory per ZIP archive.
++
+Default: false
+
+*force_unicode='bool'*::
+Unicode (or fallback to synthetic generated) paths for ZIPs; disabling
+garbles non-compliant ZIPs when trying to be interpreted as unicode.
++
+Default: true
+
+*must_crc32='bool'*::
+Force integrity verification for non-compressed ZIP archives (slower).
++
+Default: false
+
+*ring_buffer_size='int'*::
+Lines of the in-memory event ring-buffer (as served in the diagnostics
+dashboard).
++
+Default: 500
+
+*stream_pool_size='size'*::
+Buffer size for the streamed read buffer pool (multiplies with concurrency).
++
+Default: 128KiB
+
+*stream_threshold='size'*::
+Files larger than this are streamed in chunks, instead of fully loaded into
+RAM.
++
+Default: 1MiB
+
+*strict_cache='bool'*::
+Do not treat ZIP files/contents as immutable (non-changing) for caching
+decisions.
++
+Default: false
+
+*verbose='bool'*::
+Print all FUSE communication and diagnostics to standard error.
++
+Default: false
+
+*webserver='addr'*::
+Address for the diagnostics dashboard (e.g. `:8000`). If unset, the
+webserver is disabled.
++
+Default: (empty)
+
+Size parameters accept human-readable formats like `1024`, `128KB`, `128KiB`,
+`10MB`, or `10MiB`.
+
+Duration parameters accept Go duration formats like `30s`, `5m`, `1h`, or
+combined values like `1h30m`.
+
+OVERRIDE OPTIONS
+----------------
+
+*setuid='username|uid'*::
+Run the filesystem under another user account.
++
+Default: (none - runs as invoking user)
+
+*xbin='path'*::
+Override another path for the `zipfuse(1)` binary.
++
+Default: zipfuse
+
+*xlog='path'*::
+Override another path for the filesystem log file.
++
+Default: /var/log/zipfuse.log
+
+*xtim='seconds'*::
+Override another timeout value for the mount timeout.
++
+Default: 20
+
+
+EXAMPLES
+--------
+
+Mount a directory of ZIP archives with default settings:
+
+    sudo mount -t zipfuse ~/zips ~/zipfuse
+
+Mount with default settings and diagnostics dashboard on port 8000:
+
+    sudo mount -t zipfuse ~/zips ~/zipfuse -o webserver=:8000
+
+Mount allowing other users to access, with flattened directory structure:
+
+    sudo mount -t zipfuse ~/zips ~/zipfuse -o allow_other,flatten_zips
+
+Mount using an entry in `/etc/fstab` and while under another user account:
+----
+# <file system>  <mount point>  <type>  <options>  <dump>  <pass>
+/home/alice/zips  /home/alice/zipfuse  zipfuse  setuid=alice,allow_other  0  0
+----
+
+EXIT STATUS
+-----------
+
+The mount helper follows standard conventions with return codes:
+
+* `0` - Success
+* `1` - General Failure
+
+It internally communicates with the `zipfuse(1)` binary to deduce if
+the mount has been successful or has failed and derive from the result
+its own return code, as well as propagating any error messages onward.
+
+AUTHOR AND LICENSE
+------------------
+
+Copyright (C) 2025 - desertwitch (dezertwitsh@gmail.com)
+
+https://github.com/desertwitch/zipfuse
+
+The ZipFUSE project is licensed under the MIT license. +
+Please refer to the `LICENSE` document for more information.
+
+SEE ALSO
+--------
+
+Refer to the following manpages for further information:
+
+* `zipfuse(1)`
+* `mount(8)`
+* `systemd(1)`
