@@ -18,7 +18,7 @@ jobs:
     - name: Install Asciidoc
       run: |
         sudo apt-get update
-        sudo apt-get install -y asciidoc
+        sudo apt-get install -y asciidoc w3m
 
     - name: Build the documentation
       run: make docs
