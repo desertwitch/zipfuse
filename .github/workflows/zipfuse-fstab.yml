@@ -173,7 +173,7 @@ jobs:
     - name: Unmount filesystem
       if: always()
       run: |
-        if ! sudo fusermount3 -u mountpoint; then
+        if ! sudo umount mountpoint; then
           echo "ERROR: Filesystem unmount has failed"
           exit 1
         fi
