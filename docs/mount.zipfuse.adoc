@@ -53,7 +53,7 @@ Default: false
 Maximum open file descriptors to retain in cache (for more performant
 re-accessing).
 +
-Default: 70% of `fd-limit`
+Default: 70% of `fd_limit`
 
 *fd_cache_ttl='duration'*::
 Time-to-live before evicting cached file descriptors (that are not in use).
@@ -62,7 +62,7 @@ Default: 60s
 
 *fd_limit='int'*::
 Maximum total open file descriptors at any given time (must be >
-`fd-cache-size`).
+`fd_cache_size`).
 +
 Default: 50% of operating system's soft limit
 
@@ -128,7 +128,7 @@ OVERRIDE OPTIONS
 *setuid='username|uid'*::
 Run the filesystem under another user account.
 +
-Default: (none - runs as invoking user)
+Default: (none; runs as invoking user)
 
 *xbin='path'*::
 Override another path for the `zipfuse(1)` binary.

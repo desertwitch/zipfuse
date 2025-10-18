@@ -32,7 +32,7 @@ USAGE
 
 The filesystem needs to be mounted either by direct invocation of the binary or
 using the FUSE mount helper `mount.zipfuse(8)`, which is almost always supplied
-alongside the program. This section covers only direct invocation of the binary,
+alongside the program. This manpage covers only direct invocation of the binary,
 for information on how to mount using `mount(8)` or `/etc/fstab`, refer instead
 to the `mount.zipfuse(8)` manpage.
 
