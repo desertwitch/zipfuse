@@ -140,7 +140,6 @@ Override another timeout value for the mount timeout.
 +
 Default: 20
 
-
 EXAMPLES
 --------
 
@@ -161,6 +160,15 @@ Mount using an entry in `/etc/fstab` and while under another user account:
 # <file system>  <mount point>  <type>  <options>  <dump>  <pass>
 /home/alice/zips  /home/alice/zipfuse  zipfuse  setuid=alice,allow_other  0  0
 ----
+
+UNMOUNTING
+----------
+
+The filesystem will observe `SIGTERM` and `SIGINT` to initiate a graceful
+unmount of the filesystem, if it is not busy. You can send `SIGTERM` to the
+filesystem's PID using `kill(1)`. Alternatively, of course, `fusermount3(1)` or
+`umount(8)` can be used on the mountpoint, which also allows forcing an unmount
+on a stuck as busy filesystem (if so required).
 
 EXIT STATUS
 -----------

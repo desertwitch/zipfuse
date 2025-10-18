@@ -152,6 +152,17 @@ xtim=SECS (numeric and in seconds; overrides filesystem mount timeout)
 Note that FUSE mount helper events are printed to standard error (`stderr`).  
 Any filesystem events are printed to `/var/log/zipfuse.log` (if it is writeable).
 
+## Unmounting the filesystem
+
+The filesystem will observe `SIGTERM` and `SIGINT` to initiate a graceful
+unmount of the filesystem, if it is not busy. In foreground mode, this means you
+can simply press `CTRL+C` to unmount the filesystem. In background mode, you can
+send `SIGTERM` to the filesystem's PID using `kill`. Alternatively, of course,
+`fusermount3 -u` or `umount` can be used directly on the mountpoint, which also
+allows forcing an unmount on a stuck as busy filesystem (if so required).
+
+If integrated with a `systemd` service unit, unmounting is handled for you.
+
 ## Program options and configurables
 
 ```

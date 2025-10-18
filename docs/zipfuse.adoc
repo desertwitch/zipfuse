@@ -162,6 +162,18 @@ Run in background with `nohup(1)`:
 
     nohup zipfuse ~/zips ~/zipfuse -w :8000 > ~/zipfuse.log 2>&1 &
 
+UNMOUNTING
+----------
+
+The filesystem will observe `SIGTERM` and `SIGINT` to initiate a graceful
+unmount of the filesystem, if it is not busy. In foreground mode, this means you
+can simply press `CTRL+C` to unmount the filesystem. If backgrounded, you can
+send `SIGTERM` to the filesystem's PID using `kill(1)`. Alternatively, of
+course, `fusermount3(1)` or `umount(8)` can be used on the mountpoint, which
+also allows forcing an unmount on a stuck as busy filesystem (if so required).
+
+If integrated with a `systemd(1)` service unit, unmounting is handled for you.
+
 EXIT STATUS
 -----------
 
