@@ -179,15 +179,10 @@ func (mh *mountHelper) parseOptions(args []string) error {
 
 				case ok:
 					mh.Options[key] = val
-
-				default:
-					fmt.Fprintf(os.Stderr, "mount.zipfuse warning: option %q ignored (not implemented)\n", key)
 				}
 			} else { // key
 				if _, ok := allowedKeys[opt]; ok {
 					mh.Options[opt] = ""
-				} else {
-					fmt.Fprintf(os.Stderr, "mount.zipfuse warning: option %q ignored (not implemented)\n", opt)
 				}
 			}
 		}
