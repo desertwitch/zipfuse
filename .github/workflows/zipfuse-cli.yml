@@ -63,7 +63,7 @@ jobs:
 
     - name: Mount filesystem
       run: |
-        sudo sh -c 'nohup zipfuse source mountpoint --allow-other &>/var/log/zipfuse.log &'
+        sudo sh -c 'nohup zipfuse source mountpoint &>/var/log/zipfuse.log &'
 
         for i in {1..20}; do
           if mountpoint -q mountpoint; then

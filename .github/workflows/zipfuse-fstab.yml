@@ -25,7 +25,6 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y fuse3
-        sudo sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
 
     - name: Vendor dependencies
       run: make vendor
@@ -63,7 +62,7 @@ jobs:
 
     - name: Mount filesystem
       run: |
-        if ! sudo mount -t zipfuse source mountpoint -o allow_other; then
+        if ! sudo mount -t zipfuse source mountpoint; then
           echo "ERROR: Filesystem mount has failed"
           exit 1
         fi
