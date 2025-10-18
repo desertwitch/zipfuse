@@ -61,12 +61,16 @@ archives:
     files:
       - LICENSE
       - INSTALL
-      - docs/*.pdf
-      - docs/*.text
-      - src: "docs/*.1"
-        dst: man
-      - src: "docs/*.8"
-        dst: man
+      - docs/zipfuse.pdf
+      - docs/mount.zipfuse.pdf
+      - src: docs/zipfuse.text
+        dst: docs/zipfuse.txt
+      - src: docs/mount.zipfuse.text
+        dst: docs/mount.zipfuse.txt
+      - src: docs/zipfuse.1
+        dst: man/zipfuse.1
+      - src: docs/mount.zipfuse.8
+        dst: man/mount.zipfuse.8
 
 signs:
   - artifacts: checksum
