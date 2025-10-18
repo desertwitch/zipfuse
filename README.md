@@ -206,6 +206,12 @@ Dry-run to inspect would-be inodes and files without actual mounting:
 
     zipfuse /home/alice/zips /home/alice/zipfuse --dry-run
 
+## Updating the filesystem
+
+You can update the filesystem by simply replacing any installed files
+in the locations you have installed them to with their new counterparts.
+This is best done when no instances of the filesystem are currently mounted.
+
 ## Runtime routes and signals handling
 
 When enabled, the diagnostics server exposes the following routes:
@@ -220,12 +226,6 @@ The following signals are observed and handled by the filesystem:
 - `SIGTERM` or `SIGINT` (CTRL+C) gracefully unmounts the filesystem
 - `SIGUSR1` forces a garbage collection (within Go)
 - `SIGUSR2` dumps a diagnostic stacktrace to standard error (`stderr`)
-
-## Updating the filesystem
-
-You can update the filesystem by simply replacing any installed files
-in the locations you have installed them to with their new counterparts.
-This is best done when no instances of the filesystem are currently mounted.
 
 ## Performance considerations
 
