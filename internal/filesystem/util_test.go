@@ -236,14 +236,14 @@ func Test_isDir_Success(t *testing.T) {
 				f.SetMode(0o755 | os.ModeDir)
 			}
 
-			got := isDir(f, normalizeZipPath(0, f, true))
+			got := isDir(f, zipEntryNormalize(0, f, true))
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-// Expectation: normalizeZipPath should handle valid UTF-8 paths correctly.
-func Test_normalizeZipPath_ValidUTF8_Success(t *testing.T) {
+// Expectation: zipEntryNormalize should handle valid UTF-8 paths correctly.
+func Test_zipEntryNormalize_ValidUTF8_Success(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -261,14 +261,14 @@ func Test_normalizeZipPath_ValidUTF8_Success(t *testing.T) {
 		t.Run(tt.in, func(t *testing.T) {
 			t.Parallel()
 			f := createTestZipFilePtr(t, tt.in)
-			got := normalizeZipPath(0, f, true)
+			got := zipEntryNormalize(0, f, true)
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-// Expectation: normalizeZipPath should normalize path separators.
-func Test_normalizeZipPath_Separators_Success(t *testing.T) {
+// Expectation: zipEntryNormalize should normalize path separators.
+func Test_zipEntryNormalize_Separators_Success(t *testing.T) {
 	t.Parallel()
 
 	corruptBytes := []byte{0xFF, 0xFE, 0xFD}
@@ -289,14 +289,14 @@ func Test_normalizeZipPath_Separators_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := createTestZipFilePtr(t, tt.in)
-			got := normalizeZipPath(0, f, true)
+			got := zipEntryNormalize(0, f, true)
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-// Expectation: normalizeZipPath should use Unicode Extra Field when present and UTF-8 is invalid.
-func Test_normalizeZipPath_UnicodeExtraField_Success(t *testing.T) {
+// Expectation: zipEntryNormalize should use Unicode Extra Field when present and UTF-8 is invalid.
+func Test_zipEntryNormalize_UnicodeExtraField_Success(t *testing.T) {
 	t.Parallel()
 
 	invalidUTF8 := []byte{0xFF, 0xFE, 0xFD}
@@ -326,34 +326,34 @@ func Test_normalizeZipPath_UnicodeExtraField_Success(t *testing.T) {
 		},
 	}
 
-	got := normalizeZipPath(0, f, true)
+	got := zipEntryNormalize(0, f, true)
 	require.Equal(t, unicodePath, got)
 }
 
-// Expectation: normalizeZipPath should fall back when UTF-8 invalid and no Unicode Extra Field.
-func Test_normalizeZipPath_Fallback_Success(t *testing.T) {
+// Expectation: zipEntryNormalize should fall back when UTF-8 invalid and no Unicode Extra Field.
+func Test_zipEntryNormalize_Fallback_Success(t *testing.T) {
 	t.Parallel()
 
 	invalidUTF8 := []byte{0xFF, 0xFE, 0xFD}
 	f := createTestZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
 
-	got := normalizeZipPath(42, f, true)
+	got := zipEntryNormalize(42, f, true)
 	require.Equal(t, "dir/noutf8_file(42).txt", got)
 }
 
-// Expectation: normalizeZipPath should not fall back when UTF-8 invalid and no Unicode Extra Field.
-func Test_normalizeZipPath_NoFallback_Success(t *testing.T) {
+// Expectation: zipEntryNormalize should not fall back when UTF-8 invalid and no Unicode Extra Field.
+func Test_zipEntryNormalize_NoFallback_Success(t *testing.T) {
 	t.Parallel()
 
 	invalidUTF8 := []byte{0xFF, 0xFE, 0xFD}
 	f := createTestZipFilePtr(t, "dir/"+string(invalidUTF8)+".txt")
 
-	got := normalizeZipPath(42, f, false)
+	got := zipEntryNormalize(42, f, false)
 	require.Equal(t, "dir/\xff\xfe\xfd.txt", got)
 }
 
-// Expectation: zipUnicodePathFromExtra should extract Unicode path from Extra Field.
-func Test_zipUnicodePathFromExtra_Success(t *testing.T) {
+// Expectation: zipEntryUnicodeFromExtra should extract Unicode path from Extra Field.
+func Test_zipEntryUnicodeFromExtra_Success(t *testing.T) {
 	t.Parallel()
 
 	unicodePath := "日本語ファイル.txt"
@@ -371,13 +371,13 @@ func Test_zipUnicodePathFromExtra_Success(t *testing.T) {
 		},
 	}
 
-	path, ok := zipUnicodePathFromExtra(f)
+	path, ok := zipEntryUnicodeFromExtra(f)
 	require.True(t, ok)
 	require.Equal(t, unicodePath, path)
 }
 
-// Expectation: zipUnicodePathFromExtra should return false when no Unicode Extra Field present.
-func Test_zipUnicodePathFromExtra_NotFound_Error(t *testing.T) {
+// Expectation: zipEntryUnicodeFromExtra should return false when no Unicode Extra Field present.
+func Test_zipEntryUnicodeFromExtra_NotFound_Error(t *testing.T) {
 	t.Parallel()
 
 	f := &zip.File{
@@ -386,12 +386,12 @@ func Test_zipUnicodePathFromExtra_NotFound_Error(t *testing.T) {
 		},
 	}
 
-	_, ok := zipUnicodePathFromExtra(f)
+	_, ok := zipEntryUnicodeFromExtra(f)
 	require.False(t, ok)
 }
 
-// Expectation: zipUnicodePathFromExtra should handle malformed Extra Field.
-func Test_zipUnicodePathFromExtra_Malformed_Error(t *testing.T) {
+// Expectation: zipEntryUnicodeFromExtra should handle malformed Extra Field.
+func Test_zipEntryUnicodeFromExtra_Malformed_Error(t *testing.T) {
 	t.Parallel()
 
 	// Malformed: size extends beyond actual data
@@ -403,86 +403,86 @@ func Test_zipUnicodePathFromExtra_Malformed_Error(t *testing.T) {
 		},
 	}
 
-	_, ok := zipUnicodePathFromExtra(f)
+	_, ok := zipEntryUnicodeFromExtra(f)
 	require.False(t, ok)
 }
 
-// Expectation: zipPathUnicodeFallback should preserve valid UTF-8 components.
-func Test_zipPathUnicodeFallback_ValidUTF8Components_Success(t *testing.T) {
+// Expectation: zipEntryUnicodeFallback should preserve valid UTF-8 components.
+func Test_zipEntryUnicodeFallback_ValidUTF8Components_Success(t *testing.T) {
 	t.Parallel()
 
 	path := "valid/utf8/path.txt"
-	result := zipPathUnicodeFallback(5, path)
+	result := zipEntryUnicodeFallback(5, path)
 	require.Equal(t, "valid/utf8/path.txt", result)
 }
 
-// Expectation: zipPathUnicodeFallback should generate fallback names for corrupt filenames.
-func Test_zipPathUnicodeFallback_CorruptFilename_Success(t *testing.T) {
+// Expectation: zipEntryUnicodeFallback should generate fallback names for corrupt filenames.
+func Test_zipEntryUnicodeFallback_CorruptFilename_Success(t *testing.T) {
 	t.Parallel()
 
 	corruptBytes := []byte{0xFF, 0xFE, 0xFD}
 	path := "valid/dir/" + string(corruptBytes) + ".txt"
 
-	got := zipPathUnicodeFallback(42, path)
+	got := zipEntryUnicodeFallback(42, path)
 	require.Equal(t, "valid/dir/noutf8_file(42).txt", got)
 }
 
-// Expectation: zipPathUnicodeFallback should generate fallback names for corrupt directories.
-func Test_zipPathUnicodeFallback_CorruptDirectory_Success(t *testing.T) {
+// Expectation: zipEntryUnicodeFallback should generate fallback names for corrupt directories.
+func Test_zipEntryUnicodeFallback_CorruptDirectory_Success(t *testing.T) {
 	t.Parallel()
 
 	corruptBytes := []byte{0xFF, 0xFE}
 	path := string(corruptBytes) + "/file.txt"
 
-	result := zipPathUnicodeFallback(10, path)
+	result := zipEntryUnicodeFallback(10, path)
 	require.Contains(t, result, "noutf8_dir")
 	require.Contains(t, result, "/file.txt")
 }
 
-// Expectation: zipPathUnicodeFallback should generate equal fallback names when called twice.
-func Test_zipPathUnicodeFallback_DeterministicDirectory_Success(t *testing.T) {
+// Expectation: zipEntryUnicodeFallback should generate equal fallback names when called twice.
+func Test_zipEntryUnicodeFallback_DeterministicDirectory_Success(t *testing.T) {
 	t.Parallel()
 
 	corruptBytes := []byte{0xFF, 0xFE}
 	path := string(corruptBytes) + "/"
 
-	result1 := zipPathUnicodeFallback(10, path)
-	result2 := zipPathUnicodeFallback(10, path)
+	result1 := zipEntryUnicodeFallback(10, path)
+	result2 := zipEntryUnicodeFallback(10, path)
 
 	require.Equal(t, result1, result2)
 }
 
-// Expectation: zipPathUnicodeFallback should preserve non-corrupt extensions.
-func Test_zipPathUnicodeFallback_Extension_Success(t *testing.T) {
+// Expectation: zipEntryUnicodeFallback should preserve non-corrupt extensions.
+func Test_zipEntryUnicodeFallback_Extension_Success(t *testing.T) {
 	t.Parallel()
 
 	corruptBytes := []byte{0xFF, 0xFE}
 	path := "dir/" + string(corruptBytes) + ".jpg"
 
-	result := zipPathUnicodeFallback(7, path)
+	result := zipEntryUnicodeFallback(7, path)
 	require.Equal(t, "dir/noutf8_file(7).jpg", result)
 }
 
-// Expectation: zipPathUnicodeFallback should clear suspicious extensions.
-func Test_zipPathUnicodeFallback_SuspiciousExtension_Success(t *testing.T) {
+// Expectation: zipEntryUnicodeFallback should clear suspicious extensions.
+func Test_zipEntryUnicodeFallback_SuspiciousExtension_Success(t *testing.T) {
 	t.Parallel()
 
 	corruptBytes := []byte{0xFF, 0xFE}
 	path := "dir/" + string(corruptBytes) + "." + string(corruptBytes)
 
-	result := zipPathUnicodeFallback(7, path)
+	result := zipEntryUnicodeFallback(7, path)
 	require.Equal(t, "dir/noutf8_file(7)", result)
 }
 
-// Expectation: zipPathUnicodeFallback should handle mixed valid and invalid components.
-func Test_zipPathUnicodeFallback_MixedComponents_Success(t *testing.T) {
+// Expectation: zipEntryUnicodeFallback should handle mixed valid and invalid components.
+func Test_zipEntryUnicodeFallback_MixedComponents_Success(t *testing.T) {
 	t.Parallel()
 
 	corruptDir := []byte{0xFF, 0xFE}
 	corruptFile := []byte{0xFD, 0xFC}
 	path := "valid/" + string(corruptDir) + "/subdir/" + string(corruptFile) + ".log"
 
-	result := zipPathUnicodeFallback(15, path)
+	result := zipEntryUnicodeFallback(15, path)
 	require.Contains(t, result, "valid/")
 	require.Contains(t, result, "noutf8_dir")
 	require.Contains(t, result, "/subdir/")

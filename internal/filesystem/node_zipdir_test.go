@@ -161,13 +161,13 @@ func Test_zipDirNode_readDirAllFlat_LeadingSlash_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ent, 2)
 
-	name, ok := flatEntryName(0, normalizeZipPath(0, createTestZipFilePtr(t, "/file.txt"), fsys.Options.ForceUnicode))
+	name, ok := flatEntryName(0, zipEntryNormalize(0, createTestZipFilePtr(t, "/file.txt"), fsys.Options.ForceUnicode))
 	require.True(t, ok)
 	require.Equal(t, name, ent[0].Name)
 	require.NotContains(t, name, "/")
 	require.Equal(t, fuse.DT_File, ent[0].Type)
 
-	name, ok = flatEntryName(1, normalizeZipPath(1, createTestZipFilePtr(t, "//normal.txt"), fsys.Options.ForceUnicode))
+	name, ok = flatEntryName(1, zipEntryNormalize(1, createTestZipFilePtr(t, "//normal.txt"), fsys.Options.ForceUnicode))
 	require.True(t, ok)
 	require.Equal(t, name, ent[1].Name)
 	require.NotContains(t, name, "/")

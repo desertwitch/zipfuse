@@ -75,17 +75,17 @@ func isDir(f *zip.File, normalizedPath string) bool {
 	return f.FileInfo().IsDir() || strings.HasSuffix(normalizedPath, "/")
 }
 
-// normalizeZipPath ensures ZIP paths use slashes and removes malformations.
+// zipEntryNormalize ensures ZIP paths use slashes and removes malformations.
 // It also handles non-unicode paths, trying to get the unicode representation
 // or instead falling back to a generation using ZIP file index and/or hashing.
-func normalizeZipPath(index int, f *zip.File, forceUnicode bool) string {
+func zipEntryNormalize(index int, f *zip.File, forceUnicode bool) string {
 	var path string
 	var isUnicode bool
 
 	if utf8.ValidString(f.Name) {
 		path = f.Name
 		isUnicode = true
-	} else if p, ok := zipUnicodePathFromExtra(f); ok {
+	} else if p, ok := zipEntryUnicodeFromExtra(f); ok {
 		path = p
 		isUnicode = true
 	} else {
@@ -103,17 +103,17 @@ func normalizeZipPath(index int, f *zip.File, forceUnicode bool) string {
 
 	if !isUnicode && forceUnicode {
 		// We do this here because the function relies on clean "/".
-		path = zipPathUnicodeFallback(index, path)
+		path = zipEntryUnicodeFallback(index, path)
 	}
 
 	return path
 }
 
-// zipUnicodePathFromExtra tries to parse the Extra field of a [zip.File]
+// zipEntryUnicodeFromExtra tries to parse the Extra field of a [zip.File]
 // for the Unicode path name field which is located with header ID 0x7075.
 //
 //nolint:mnd
-func zipUnicodePathFromExtra(f *zip.File) (string, bool) {
+func zipEntryUnicodeFromExtra(f *zip.File) (string, bool) {
 	extra := f.Extra
 
 	i := 0
@@ -143,9 +143,9 @@ func zipUnicodePathFromExtra(f *zip.File) (string, bool) {
 	return "", false
 }
 
-// zipPathUnicodeFallback tries to salvage as much UTF8 of the original ZIP path
+// zipEntryUnicodeFallback tries to salvage as much UTF8 of the original ZIP path
 // as possible, fallback to generation using archive-internal index and hashing.
-func zipPathUnicodeFallback(index int, normalizedPath string) string {
+func zipEntryUnicodeFallback(index int, normalizedPath string) string {
 	parts := strings.Split(normalizedPath, "/")
 	converted := make([]string, 0, len(parts))
 
