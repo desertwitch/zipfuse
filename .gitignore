@@ -1,4 +1,6 @@
 /mount.zipfuse
-/vendor
 /zipfuse
 dist/
+docs/*
+!docs/*.adoc
+vendor/
