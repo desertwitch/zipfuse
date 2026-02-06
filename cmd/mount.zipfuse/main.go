@@ -143,7 +143,7 @@ func (mh *mountHelper) parseOptions(args []string) error {
 			continue
 		}
 
-		for _, opt := range strings.Split(arg, ",") {
+		for opt := range strings.SplitSeq(arg, ",") {
 			if opt == "" {
 				continue
 			}

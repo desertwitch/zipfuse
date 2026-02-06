@@ -309,7 +309,7 @@ func serveFilesystem(conn *fuse.Conn, fsys *filesystem.FS, verbose bool) (*sync.
 		var config *fs.Config
 		if verbose {
 			config = &fs.Config{
-				Debug: func(msg interface{}) {
+				Debug: func(msg any) {
 					fmt.Fprintf(os.Stderr, "%s", msg)
 				},
 			}

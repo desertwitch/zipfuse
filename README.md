@@ -14,9 +14,6 @@
     <a href="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-fstab.yml" target="_blank"><img alt="Integration Fstab" src="https://github.com/desertwitch/zipfuse/actions/workflows/zipfuse-fstab.yml/badge.svg"></a>
 </div><br>
 
->**Note: This software is under active development.**  
-> CLI arguments and documentation may change until a stable (v1.0.0) release.
-
 <img alt="Example" src="assets/example.gif" width="650"><br>
 
 # ZipFUSE Filesystem
