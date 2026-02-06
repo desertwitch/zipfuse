@@ -34,6 +34,7 @@ check: ## Runs all static analysis and tests on the application code
 
 clean: ## Returns the application build stage to its original state (deleting files)
 	@$(MAKE) docs-clean
+	@rm -vfr dist || true
 	@rm -vf $(ZIPFUSE) $(HELPER) || true
 
 debug: ## Builds the application in debug mode (with symbols, race checks, ...)
